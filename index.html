@@ -173,6 +173,16 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
     </div>
   </div>
 
+  <h2>Top picks for max growth<span class="n">/ HIGHEST ANNUALISED RETURN</span></h2>
+  <div class="card">
+    <div class="cardlbl">Ranked purely on historical annualised return (cash and funds with under ~60 daily prices excluded). Higher growth has historically come with deeper drawdowns — check the risk numbers before acting.</div>
+    <div class="grid hold-grid" id="topPicks" style="margin-top:14px"></div>
+    <div class="he-foot" style="margin-top:14px">
+      <button class="btn gold" id="usePicks5">Use top 5 as my holdings (equal-weighted)</button>
+      <button class="btn" id="usePicks3">Use top 3 (concentrated)</button>
+    </div>
+  </div>
+
   <h2>Set your holdings<span class="n">/ EDITABLE</span></h2>
   <div class="card">
     <div class="cardlbl">Pick the funds you own and their weight (%)</div>
@@ -322,7 +332,7 @@ function renderAll(){
   $('fcount').textContent=FUNDS.length;
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderHoldCards(); renderScatter(); renderTable(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderHoldCards(); renderScatter(); renderTable(); renderTopPicks(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -411,6 +421,26 @@ function renderTable(){
     <td class="neg">${f1(f.mdd)}</td>
     <td>${f.sharpe!=null?f.sharpe.toFixed(2):'—'}</td></tr>`).join('');
 }
+function growthPicks(n){
+  return FUNDS.filter(f=>!f.new&&f.ann!=null&&f.cat!=='Cash').sort((a,b)=>b.ann-a.ann).slice(0,n);
+}
+function renderTopPicks(){
+  const picks=growthPicks(5);
+  if(!picks.length){$('topPicks').innerHTML='<p class="note" style="grid-column:1/-1;color:var(--faint)">Load more funds with at least ~60 daily prices to see growth picks.</p>';return;}
+  $('topPicks').innerHTML=picks.map((f,i)=>`
+    <div class="card" style="padding:14px">
+      <div class="cardlbl" style="color:var(--gold)">#${i+1} · ${f.cat}</div>
+      <div style="font-weight:600;font-size:14px;margin:6px 0 12px;line-height:1.3">${f.name}</div>
+      <div class="stat-row">
+        <div class="stat"><div class="lbl">Annualised</div><div class="val sm ${cls(f.ann)}">${f0(f.ann)}</div></div>
+        <div class="stat"><div class="lbl">3-Year</div><div class="val sm ${cls(f.r3y)}">${f0(f.r3y)}</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:8px">
+        <div class="stat"><div class="lbl">Volatility</div><div class="val sm">${f1(f.vol)}</div></div>
+        <div class="stat"><div class="lbl">Max DD</div><div class="val sm neg">${f0(f.mdd)}</div></div>
+      </div>
+    </div>`).join('');
+}
 function renderObs(){
   const o=[];
   const named=(arr)=>arr.map(f=>`${f.name} (${f0(f.r3y)})`).join(', ');
@@ -481,6 +511,16 @@ function renderHoldEditor(){
 function updTotal(){const t=HOLDINGS.reduce((a,h)=>a+(+h[1]||0),0);const el=$('heTotal');el.textContent='Total: '+t+'%';el.className='he-total '+(t===100?'ok':'bad');}
 $('heAdd').onclick=()=>{if(!FUNDS.length)return;HOLDINGS.push([FUNDS[0].name,0]);renderHoldEditor();};
 $('heApply').onclick=()=>{HOLDINGS=HOLDINGS.filter(h=>h[1]>0);recompute();};
+function applyPicks(n){
+  const picks=growthPicks(n);
+  if(!picks.length)return;
+  const w=Math.round((100/picks.length)*10)/10;
+  HOLDINGS=picks.map(f=>[f.name,w]);
+  recompute();
+  $('heRows').scrollIntoView({behavior:'smooth',block:'start'});
+}
+$('usePicks5').onclick=()=>applyPicks(5);
+$('usePicks3').onclick=()=>applyPicks(3);
 // ---------- state ----------
 function saveState(){try{localStorage.setItem('fund_holdings',JSON.stringify(HOLDINGS));}catch(e){}}
 function loadHoldings(){try{const s=localStorage.getItem('fund_holdings');if(s)return JSON.parse(s);}catch(e){}return null;}
