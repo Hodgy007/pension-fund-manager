@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fund Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Spline+Sans+Mono:wght@400;500;600&family=Spline+Sans:wght@400;500;600;700&display=swap');
+:root{
+  --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2a3340;
+  --ink:#e8edf4; --mute:#8b97a8; --faint:#5d6878;
+  --pos:#3fb950; --neg:#f0556d; --gold:#d4a64a; --accent:#4a9eff;
+  --font:'Spline Sans',sans-serif; --disp:'Fraunces',serif; --mono:'Spline Sans Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.5;
+  background-image:radial-gradient(circle at 15% -10%,rgba(74,158,255,.07),transparent 40%),radial-gradient(circle at 90% 0%,rgba(212,166,74,.06),transparent 35%);
+  background-attachment:fixed;padding:0 0 80px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+header{padding:42px 0 24px;border-bottom:1px solid var(--line);margin-bottom:28px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:14px}
+h1{font-family:var(--disp);font-weight:500;font-size:clamp(28px,5vw,44px);letter-spacing:-.01em;line-height:1.05}
+h1 em{font-style:italic;color:var(--gold)}
+.sub{color:var(--mute);margin-top:12px;max-width:660px;font-size:15px}
+.disclaim{margin-top:16px;font-size:12.5px;color:var(--faint);border-left:2px solid var(--line);padding-left:12px;max-width:700px}
+h2{font-family:var(--disp);font-weight:500;font-size:23px;margin:42px 0 16px;letter-spacing:-.01em}
+h2 .n{font-family:var(--mono);font-size:12px;color:var(--faint);margin-left:10px;letter-spacing:.1em}
+.grid{display:grid;gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+/* upload */
+#drop{border:1.5px dashed var(--line);border-radius:16px;padding:40px 28px;text-align:center;transition:.18s;cursor:pointer;background:linear-gradient(180deg,rgba(28,35,48,.4),transparent)}
+#drop.hot{border-color:var(--gold);background:rgba(212,166,74,.06)}
+#drop .big{font-family:var(--disp);font-size:22px;font-weight:500;margin-bottom:8px}
+#drop .small{color:var(--mute);font-size:14px}
+#drop .small b{color:var(--accent)}
+.fileicon{font-size:34px;margin-bottom:14px;opacity:.8}
+#loadbar{margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--gold)}
+.loaded-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13.5px;color:var(--mute)}
+.loaded-bar .chip{font-family:var(--mono);font-size:12px;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:6px 14px}
+.loaded-bar .chip b{color:var(--ink)}
+.btn{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 16px;border-radius:8px;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--faint)}
+.btn.gold{background:var(--gold);color:#1a1205;border-color:var(--gold);font-weight:600}
+.hidden{display:none!important}
+/* portfolio summary */
+.psum{grid-template-columns:1.3fr 1fr;align-items:stretch}
+@media(max-width:760px){.psum{grid-template-columns:1fr}}
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:4px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.stat .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.stat .val{font-family:var(--disp);font-size:27px;font-weight:500;margin-top:6px;letter-spacing:-.01em}
+.stat .val.sm{font-size:21px}
+.cardlbl{font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);margin-bottom:16px}
+.donut-wrap{display:flex;align-items:center;gap:20px}
+.legend{font-size:13px;display:flex;flex-direction:column;gap:9px;flex:1}
+.legend div{display:flex;align-items:center;gap:9px}
+.dot{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+.legend .pc{font-family:var(--mono);color:var(--mute);margin-left:auto;padding-left:14px}
+/* holdings editor */
+.he-row{display:grid;grid-template-columns:1fr 86px 34px;gap:10px;margin-bottom:8px;align-items:center}
+.he-row select,.he-row input{font-family:var(--font);font-size:13px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 11px;width:100%}
+.he-row input{font-family:var(--mono);text-align:right}
+.he-row .x{background:none;border:none;color:var(--faint);cursor:pointer;font-size:18px}
+.he-row .x:hover{color:var(--neg)}
+.he-foot{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+.he-total{font-family:var(--mono);font-size:13px;margin-left:auto}
+.he-total.bad{color:var(--neg)} .he-total.ok{color:var(--pos)}
+/* holdings cards */
+.hold-grid{grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
+.hcard{position:relative;overflow:hidden}
+.hcard .wt{position:absolute;top:0;right:0;background:var(--gold);color:#1a1205;font-family:var(--mono);font-weight:600;font-size:12px;padding:3px 10px;border-bottom-left-radius:10px}
+.hcard .hname{font-weight:600;font-size:14.5px;padding-right:46px;min-height:42px}
+.hcard .hcat{font-family:var(--mono);font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin:8px 0 14px}
+.hmetrics{display:flex;gap:18px}
+.hmetrics .m .k{font-family:var(--mono);font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em}
+.hmetrics .m .v{font-family:var(--disp);font-size:20px;font-weight:500;margin-top:2px}
+.pos{color:var(--pos)} .neg{color:var(--neg)}
+/* scatter */
+.scatter-card{padding:26px 22px 14px}
+svg{display:block;width:100%;overflow:visible}
+.sc-pt{cursor:pointer}
+.sc-lbl{font-family:var(--mono);font-size:9px;fill:var(--mute)}
+.axis-lbl{font-family:var(--mono);font-size:10px;fill:var(--faint);letter-spacing:.1em;text-transform:uppercase}
+.gridline{stroke:var(--line);stroke-width:1}
+.tip{position:fixed;pointer-events:none;background:#000d;backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:12px;z-index:50;opacity:0;transition:opacity .1s;max-width:230px}
+.tip b{font-size:13px;display:block;margin-bottom:4px}
+.tip .r{font-family:var(--mono);font-size:11px;color:var(--mute);display:flex;justify-content:space-between;gap:16px}
+/* table */
+.tbl-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.filt{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;background:var(--panel);border:1px solid var(--line);color:var(--mute);padding:7px 13px;border-radius:20px;cursor:pointer;transition:.15s}
+.filt:hover{border-color:var(--faint);color:var(--ink)}
+.filt.on{background:var(--gold);color:#1a1205;border-color:var(--gold);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th:hover{color:var(--ink)}
+th .arr{opacity:.4;font-size:9px}
+td{padding:11px 12px;text-align:right;border-bottom:1px solid #20262f;font-family:var(--mono);font-variant-numeric:tabular-nums}
+td:first-child{font-family:var(--font);font-weight:500}
+tr.held{background:linear-gradient(90deg,rgba(212,166,74,.09),transparent 70%)}
+tr.held td:first-child::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--gold);margin-right:8px;vertical-align:middle}
+tr:hover td{background:#1d2531}
+tr.held:hover td{background:rgba(212,166,74,.13)}
+.tag{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:var(--panel2);color:var(--faint);margin-left:7px;letter-spacing:.05em}
+.tag.new{background:rgba(74,158,255,.15);color:var(--accent)}
+.cat-pill{font-family:var(--mono);font-size:10px;color:var(--mute)}
+.obs{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+@media(max-width:760px){.obs{grid-template-columns:1fr}}
+.obs .o{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:8px;padding:15px 18px}
+.obs .o h4{font-size:14px;margin-bottom:6px;font-weight:600}
+.obs .o p{font-size:13px;color:var(--mute);line-height:1.6}
+.note{font-size:13.5px;color:var(--mute)}
+footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);line-height:1.7}
+.err{color:var(--neg);font-size:13px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow" id="eyebrow">Fund Dashboard · upload your monthly downloads</div>
+  <h1>Your funds, <em>re-measured</em> whenever you refresh the data.</h1>
+  <p class="sub">Drop in the price-history spreadsheets you download each month. Everything is parsed in your browser — no upload to any server — then scored on return, risk and drawdown, with your holdings highlighted.</p>
+  <p class="disclaim">Information tool, not financial advice. Figures are historical; past performance does not predict future returns. Ignores fees, charges, tax and how funds move together, and says nothing about your goals or timeframe. For a recommendation, speak to a regulated financial adviser.</p>
+</header>
+
+<!-- UPLOAD -->
+<div id="uploadSection">
+  <div id="drop">
+    <div class="fileicon">📄</div>
+    <div class="big">Drop your fund <code>.xlsx</code> files here</div>
+    <div class="small">or <b>click to browse</b> · select all of them at once · re-drop newer downloads anytime to update</div>
+    <div id="loadbar"></div>
+    <div id="errbox" class="err"></div>
+  </div>
+  <input type="file" id="fileInput" accept=".xlsx,.xls" multiple class="hidden">
+</div>
+
+<!-- LOADED STATE -->
+<div id="loadedBar" class="card hidden" style="margin-top:16px">
+  <div class="loaded-bar">
+    <span class="chip"><b id="fcount">0</b> funds loaded</span>
+    <span class="chip">priced to <b id="asof">—</b></span>
+    <button class="btn" id="addMore">+ Add / update files</button>
+    <button class="btn" id="clearAll">Clear</button>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dash" class="hidden">
+
+  <h2>Your portfolio<span class="n">/ <span id="hcount">0</span> HOLDINGS</span></h2>
+  <div class="grid psum">
+    <div class="card">
+      <div class="cardlbl">Blended performance · daily-rebalanced</div>
+      <div class="stat-row">
+        <div class="stat"><div class="lbl">1-Year</div><div class="val" id="p1y">—</div></div>
+        <div class="stat"><div class="lbl">3-Year</div><div class="val" id="p3y">—</div></div>
+        <div class="stat"><div class="lbl">Annualised</div><div class="val" id="pann">—</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:14px">
+        <div class="stat"><div class="lbl">Volatility</div><div class="val sm" id="pvol">—</div></div>
+        <div class="stat"><div class="lbl">Max Drawdown</div><div class="val sm neg" id="pmdd">—</div></div>
+        <div class="stat"><div class="lbl">Return / Risk</div><div class="val sm" id="psharpe">—</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="cardlbl">Asset mix</div>
+      <div class="donut-wrap">
+        <svg viewBox="0 0 120 120" style="width:120px;height:120px;flex-shrink:0" id="donut"></svg>
+        <div class="legend" id="donutLegend"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Set your holdings<span class="n">/ EDITABLE</span></h2>
+  <div class="card">
+    <div class="cardlbl">Pick the funds you own and their weight (%)</div>
+    <div id="heRows"></div>
+    <div class="he-foot">
+      <button class="btn" id="heAdd">+ Add holding</button>
+      <span class="he-total" id="heTotal">Total: 0%</span>
+      <button class="btn gold" id="heApply">Apply</button>
+    </div>
+  </div>
+
+  <h2>Holdings, fund by fund<span class="n">/ HIGHLIGHTED</span></h2>
+  <div class="grid hold-grid" id="holdCards"></div>
+
+  <h2>Risk vs reward<span class="n">/ 3-YEAR</span></h2>
+  <div class="card scatter-card">
+    <svg viewBox="0 0 760 420" id="scatter"></svg>
+    <p class="note" style="margin-top:10px;font-size:12px;color:var(--faint)">Horizontal: annualised volatility (risk). Vertical: 3-year return. <span style="color:var(--gold)">Gold = your holdings.</span> Up-and-left is the desirable corner. Funds without ~3 years of history are excluded here.</p>
+  </div>
+
+  <h2>Every fund<span class="n">/ SORTABLE</span></h2>
+  <div class="tbl-controls" id="filters"></div>
+  <div class="card" style="padding:6px 10px;overflow-x:auto">
+    <table id="tbl"><thead></thead><tbody></tbody></table>
+  </div>
+
+  <h2>Things worth noticing<span class="n">/ NOT ADVICE</span></h2>
+  <div class="obs" id="obs"></div>
+
+  <footer id="foot"></footer>
+</div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const C={'Equity':'#4a9eff','Bonds/Credit':'#3fb950','Multi-Asset/Alt':'#d4a64a','Cash':'#9aa7b8','Property':'#c77dff','Other':'#8b97a8'};
+const f0=(v,d=1)=>v==null||isNaN(v)?'—':(v>0?'+':'')+v.toFixed(d)+'%';
+const f1=(v,d=1)=>v==null||isNaN(v)?'—':v.toFixed(d)+'%';
+const cls=v=>v==null||isNaN(v)?'':v>=0?'pos':'neg';
+
+// default holdings (match the Scottish Widows download names)
+const DEFAULT_HOLDINGS=[
+  ['Active Diversified Growth Fund',40],['Active Diversified Retirement',10],
+  ['Active Emerging Markets Equity Fund',20],['Active Global Corporate Bond',10],
+  ['Active MultiAsset Credit',20]
+];
+let FUNDS=[];        // [{name,cat,rows:[{d,p}],...metrics}]
+let HOLDINGS=[];     // [[name,weight],...]
+let PORT=null;
+
+// ---------- parsing ----------
+function cleanName(fn){
+  return fn.replace(/\.(xlsx|xls)$/i,'').split('_Download')[0].replace(/_/g,' ').trim();
+}
+function parseDate(s){
+  s=String(s).trim();
+  let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+  let d=new Date(s); return isNaN(d)?null:d;
+}
+async function readFile(file){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array'});
+  const sn=wb.SheetNames.find(n=>/price/i.test(n))||wb.SheetNames[0];
+  const arr=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false});
+  if(!arr.length)return null;
+  const head=arr[0].map(x=>String(x||'').toLowerCase());
+  let pi=head.findIndex(h=>h.trim()==='price'); if(pi<0)pi=0;
+  let di=head.findIndex(h=>h.includes('date')); if(di<0)di=1;
+  const rows=[];
+  for(let i=1;i<arr.length;i++){
+    const r=arr[i]; if(!r)continue;
+    const p=parseFloat(r[pi]); const d=parseDate(r[di]);
+    if(!isNaN(p)&&d)rows.push({d,p});
+  }
+  rows.sort((a,b)=>a.d-b.d);
+  return rows.length?{name:cleanName(file.name),rows}:null;
+}
+// ---------- metrics ----------
+function cat(n){n=n.toLowerCase();
+  if(n.includes('cash'))return'Cash';
+  if(n.includes('property'))return'Property';
+  if(/(bond|gilt|credit|debt|securit|annuity)/.test(n))return'Bonds/Credit';
+  if(/(equity|small cap)/.test(n))return'Equity';
+  if(/(diversified|multiasset|multi-asset|absolute|risk premia|return)/.test(n))return'Multi-Asset/Alt';
+  return'Other';
+}
+function priceBefore(rows,t){let best=null;for(const r of rows){if(r.d<=t)best=r.p;else break;}return best;}
+function ret(rows,days){
+  const last=rows[rows.length-1];
+  const t=new Date(last.d); t.setDate(t.getDate()-days);
+  if(rows[0].d>t)return null;
+  const p0=priceBefore(rows,t); return p0?(last.p/p0-1)*100:null;
+}
+function metrics(f){
+  const rows=f.rows, n=rows.length;
+  const first=rows[0], last=rows[n-1];
+  const yrs=(last.d-first.d)/(365.25*864e5);
+  const dr=[]; for(let i=1;i<n;i++)dr.push(rows[i].p/rows[i-1].p-1);
+  let vol=null;
+  if(dr.length>5){const m=dr.reduce((a,b)=>a+b,0)/dr.length;
+    const v=dr.reduce((a,b)=>a+(b-m)**2,0)/dr.length; vol=Math.sqrt(v)*Math.sqrt(252)*100;}
+  let peak=rows[0].p,mdd=0; for(const r of rows){peak=Math.max(peak,r.p);mdd=Math.min(mdd,r.p/peak-1);}
+  const ann=yrs>0.1?((last.p/first.p)**(1/yrs)-1)*100:null;
+  f.cat=cat(f.name); f.last_price=last.p; f.npts=n; f.new=n<60;
+  f.last_date=last.d; f.start=first.d;
+  f.r1m=ret(rows,30);f.r3m=ret(rows,91);f.r6m=ret(rows,182);
+  f.r1y=f.new?null:ret(rows,365);f.r3y=f.new?null:ret(rows,365*3);
+  f.ann=f.new?null:ann; f.vol=vol; f.mdd=mdd*100;
+  f.sharpe=(ann&&vol)?ann/vol:null;
+  return f;
+}
+function buildPortfolio(){
+  const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n));
+  if(!held.length)return null;
+  const series={}, sets=[];
+  for(const [n] of held){const f=FUNDS.find(f=>f.name===n);const m={};f.rows.forEach(r=>m[+r.d]=r.p);series[n]=m;sets.push(new Set(Object.keys(m)));}
+  let common=[...sets[0]]; for(let i=1;i<sets.length;i++)common=common.filter(d=>sets[i].has(d));
+  common=common.map(Number).sort((a,b)=>a-b);
+  if(common.length<2)return null;
+  const tw=held.reduce((a,[,w])=>a+w,0);
+  let idx=[100]; const dates=[new Date(common[0])];
+  for(let i=1;i<common.length;i++){
+    let r=0; for(const [n,w] of held){const p0=series[n][common[i-1]],p1=series[n][common[i]];r+=(w/tw)*(p1/p0-1);}
+    idx.push(idx[idx.length-1]*(1+r)); dates.push(new Date(common[i]));
+  }
+  const pb=(t)=>{let b=null;for(let i=0;i<dates.length;i++){if(dates[i]<=t)b=idx[i];else break;}return b;};
+  const rr=(days)=>{const t=new Date(dates[dates.length-1]);t.setDate(t.getDate()-days);if(dates[0]>t)return null;const p0=pb(t);return p0?(idx[idx.length-1]/p0-1)*100:null;};
+  const dr=[];for(let i=1;i<idx.length;i++)dr.push(idx[i]/idx[i-1]-1);
+  const m=dr.reduce((a,b)=>a+b,0)/dr.length,v=dr.reduce((a,b)=>a+(b-m)**2,0)/dr.length;
+  const vol=Math.sqrt(v)*Math.sqrt(252)*100;
+  let peak=idx[0],mdd=0;for(const x of idx){peak=Math.max(peak,x);mdd=Math.min(mdd,x/peak-1);}
+  const yrs=(dates[dates.length-1]-dates[0])/(365.25*864e5);
+  const ann=((idx[idx.length-1]/idx[0])**(1/yrs)-1)*100;
+  // allocation by broad class
+  const broad=n=>{const c=cat(n);if(c==='Equity')return'Equity';if(c==='Bonds/Credit')return'Bonds';if(c==='Cash')return'Cash';if(c==='Property')return'Property';return'Multi-Asset';};
+  const alloc={};held.forEach(([n,w])=>{const b=broad(n);alloc[b]=(alloc[b]||0)+w/tw*100;});
+  return {r1y:rr(365),r3y:rr(365*3),ann,vol,mdd:mdd*100,sharpe:ann/vol,alloc,held:held.map(([n,w])=>[n,w/tw*100])};
+}
+// ---------- render ----------
+function recompute(){
+  FUNDS.forEach(metrics);
+  FUNDS.sort((a,b)=>a.name.localeCompare(b.name));
+  PORT=buildPortfolio();
+  renderAll();
+  saveState();
+}
+function renderAll(){
+  $('fcount').textContent=FUNDS.length;
+  const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
+  $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
+  renderHoldEditor(); renderPortfolio(); renderHoldCards(); renderScatter(); renderTable(); renderObs();
+  $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
+}
+function renderPortfolio(){
+  if(!PORT){['p1y','p3y','pann','pvol','pmdd','psharpe'].forEach(i=>$(i).textContent='—');$('donut').innerHTML='';$('donutLegend').innerHTML='<span class="note">Add holdings below to see your blended numbers.</span>';$('hcount').textContent=0;return;}
+  $('hcount').textContent=PORT.held.length;
+  $('p1y').textContent=f0(PORT.r1y);$('p1y').className='val '+cls(PORT.r1y);
+  $('p3y').textContent=f0(PORT.r3y);$('p3y').className='val '+cls(PORT.r3y);
+  $('pann').textContent=f1(PORT.ann);
+  $('pvol').textContent=f1(PORT.vol);
+  $('pmdd').textContent=f1(PORT.mdd);$('pmdd').className='val sm '+cls(PORT.mdd);
+  $('psharpe').textContent=(PORT.ann/PORT.vol).toFixed(2);
+  const cols={'Multi-Asset':'#d4a64a','Bonds':'#3fb950','Equity':'#4a9eff','Cash':'#9aa7b8','Property':'#c77dff'};
+  const entries=Object.entries(PORT.alloc).sort((a,b)=>b[1]-a[1]);
+  let a0=-90,d='';
+  entries.forEach(([n,p])=>{const a1=a0+p*3.6,r=54,cx=60,cy=60;
+    const x0=cx+r*Math.cos(a0*Math.PI/180),y0=cy+r*Math.sin(a0*Math.PI/180);
+    const x1=cx+r*Math.cos(a1*Math.PI/180),y1=cy+r*Math.sin(a1*Math.PI/180);
+    d+=`<path d="M${cx} ${cy} L${x0} ${y0} A${r} ${r} 0 ${p>50?1:0} 1 ${x1} ${y1} Z" fill="${cols[n]||'#888'}" stroke="#161b22" stroke-width="2"/>`;a0=a1;});
+  d+='<circle cx="60" cy="60" r="30" fill="#161b22"/>';
+  $('donut').innerHTML=d;
+  $('donutLegend').innerHTML=entries.map(([n,p])=>`<div><span class="dot" style="background:${cols[n]||'#888'}"></span>${n}<span class="pc">${p.toFixed(0)}%</span></div>`).join('');
+}
+function renderHoldCards(){
+  const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n)).map(([n,w])=>({...FUNDS.find(f=>f.name===n),weight:w})).sort((a,b)=>b.weight-a.weight);
+  $('holdCards').innerHTML=held.length?held.map(f=>`<div class="card hcard"><div class="wt">${f.weight}%</div>
+    <div class="hname">${f.name}</div><div class="hcat">${f.cat}</div>
+    <div class="hmetrics">
+      <div class="m"><div class="k">1-Year</div><div class="v ${cls(f.r1y)}">${f0(f.r1y)}</div></div>
+      <div class="m"><div class="k">3-Year</div><div class="v ${cls(f.r3y)}">${f0(f.r3y)}</div></div>
+      <div class="m"><div class="k">Vol</div><div class="v">${f1(f.vol)}</div></div>
+    </div></div>`).join(''):'<p class="note">No holdings set yet — use the editor above.</p>';
+}
+const tip=$('tip');
+function showTip(e,f){tip.innerHTML=`<b>${f.name}</b>
+  <div class="r"><span>3-Yr return</span><span class="${cls(f.r3y)}">${f0(f.r3y)}</span></div>
+  <div class="r"><span>Annualised</span><span>${f1(f.ann)}</span></div>
+  <div class="r"><span>Volatility</span><span>${f1(f.vol)}</span></div>
+  <div class="r"><span>Max drawdown</span><span class="neg">${f1(f.mdd)}</span></div>`;
+  tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';}
+function renderScatter(){
+  const sf=FUNDS.filter(f=>!f.new&&f.r3y!=null&&f.vol!=null);
+  const sc=$('scatter');
+  if(sf.length<2){sc.innerHTML='<text x="380" y="200" text-anchor="middle" fill="#5d6878" font-family="monospace" font-size="13">Need funds with ~3-year history to plot.</text>';return;}
+  const W=760,H=420,pad={l:54,r:20,t:20,b:46};
+  const xmax=Math.max(5,Math.ceil(Math.max(...sf.map(f=>f.vol))/5)*5);
+  const ymin=Math.min(0,Math.floor(Math.min(...sf.map(f=>f.r3y))/10)*10);
+  const ymax=Math.ceil(Math.max(...sf.map(f=>f.r3y))/10)*10;
+  const X=v=>pad.l+(v/xmax)*(W-pad.l-pad.r), Y=v=>H-pad.b-((v-ymin)/(ymax-ymin))*(H-pad.t-pad.b);
+  const heldNames=new Set(HOLDINGS.map(h=>h[0]));
+  let s='';
+  for(let gx=0;gx<=xmax;gx+=5)s+=`<line class="gridline" x1="${X(gx)}" y1="${pad.t}" x2="${X(gx)}" y2="${H-pad.b}" opacity=".5"/><text class="sc-lbl" x="${X(gx)}" y="${H-pad.b+16}" text-anchor="middle">${gx}%</text>`;
+  for(let gy=ymin;gy<=ymax;gy+=20)s+=`<line class="gridline" x1="${pad.l}" y1="${Y(gy)}" x2="${W-pad.r}" y2="${Y(gy)}" opacity=".5"/><text class="sc-lbl" x="${pad.l-8}" y="${Y(gy)+3}" text-anchor="end">${gy}%</text>`;
+  s+=`<line x1="${pad.l}" y1="${Y(0)}" x2="${W-pad.r}" y2="${Y(0)}" stroke="#3a4452" stroke-dasharray="3 3"/>`;
+  s+=`<text class="axis-lbl" x="${W/2}" y="${H-6}" text-anchor="middle">Volatility (risk) →</text>`;
+  s+=`<text class="axis-lbl" transform="translate(14 ${H/2}) rotate(-90)" text-anchor="middle">3-Year return →</text>`;
+  sf.forEach((f,i)=>{const held=heldNames.has(f.name);
+    s+=`<circle class="sc-pt" cx="${X(f.vol)}" cy="${Y(f.r3y)}" r="${held?7:5}" fill="${held?'#d4a64a':C[f.cat]}" fill-opacity="${held?1:.55}" stroke="${held?'#fff':'none'}" stroke-width="${held?1.5:0}" data-i="${i}"/>`;});
+  sc.innerHTML=s;
+  sc.querySelectorAll('.sc-pt').forEach(c=>{const f=sf[c.dataset.i];c.onmousemove=e=>showTip(e,f);c.onmouseleave=()=>tip.style.opacity=0;});
+}
+let sortKey='r3y',sortDir=-1,filt='All';
+const cols=[['name','Fund'],['cat','Class'],['weight','Held'],['last_price','Price'],['r1m','1M'],['r6m','6M'],['r1y','1Y'],['r3y','3Y'],['ann','Ann.'],['vol','Vol'],['mdd','MaxDD'],['sharpe','R/R']];
+function renderTable(){
+  const cats=['All','Held','Equity','Bonds/Credit','Multi-Asset/Alt','Cash','Property'];
+  $('filters').innerHTML=cats.map(c=>`<div class="filt ${c===filt?'on':''}" data-c="${c}">${c}</div>`).join('');
+  $('filters').querySelectorAll('.filt').forEach(b=>b.onclick=()=>{filt=b.dataset.c;renderTable();});
+  $('tbl').querySelector('thead').innerHTML='<tr>'+cols.map(([k,l])=>`<th data-k="${k}">${l} <span class="arr">${sortKey===k?(sortDir<0?'▼':'▲'):'⇅'}</span></th>`).join('')+'</tr>';
+  $('tbl').querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=(k==='name'||k==='cat')?1:-1;}renderTable();});
+  const heldNames=new Set(HOLDINGS.filter(h=>h[1]>0).map(h=>h[0]));
+  const wmap={};HOLDINGS.forEach(([n,w])=>wmap[n]=w);
+  let rows=FUNDS.map(f=>({...f,weight:wmap[f.name]||0}));
+  if(filt==='Held')rows=rows.filter(f=>heldNames.has(f.name));
+  else if(filt!=='All')rows=rows.filter(f=>f.cat===filt);
+  rows.sort((a,b)=>{let x=a[sortKey],y=b[sortKey];if(typeof x==='string')return x.localeCompare(y)*sortDir;return ((x==null?-1e9:x)-(y==null?-1e9:y))*sortDir;});
+  $('tbl').querySelector('tbody').innerHTML=rows.map(f=>`<tr class="${heldNames.has(f.name)?'held':''}">
+    <td>${f.name}${f.new?'<span class="tag new">NEW</span>':''}</td>
+    <td><span class="cat-pill" style="color:${C[f.cat]}">${f.cat}</span></td>
+    <td>${f.weight>0?f.weight+'%':'—'}</td>
+    <td>${f.last_price!=null?f.last_price.toFixed(1):'—'}</td>
+    <td class="${cls(f.r1m)}">${f0(f.r1m)}</td>
+    <td class="${cls(f.r6m)}">${f0(f.r6m)}</td>
+    <td class="${cls(f.r1y)}">${f0(f.r1y)}</td>
+    <td class="${cls(f.r3y)}">${f0(f.r3y)}</td>
+    <td>${f1(f.ann)}</td>
+    <td>${f1(f.vol)}</td>
+    <td class="neg">${f1(f.mdd)}</td>
+    <td>${f.sharpe!=null?f.sharpe.toFixed(2):'—'}</td></tr>`).join('');
+}
+function renderObs(){
+  const o=[];
+  const named=(arr)=>arr.map(f=>`${f.name} (${f0(f.r3y)})`).join(', ');
+  if(PORT){
+    const held=PORT.held.map(([n,w])=>({...FUNDS.find(f=>f.name===n),weight:w})).filter(f=>f.name);
+    const eqW=PORT.alloc['Equity']||0, bondW=PORT.alloc['Bonds']||0, maW=PORT.alloc['Multi-Asset']||0;
+    const profile=eqW>=60?'leans toward growth':eqW>=35?'is fairly balanced':'leans defensive';
+
+    // 1. Overall profile — mirrors original "Your mix leans defensive"
+    const big=[['Multi-asset',maW],['Bonds',bondW],['Equity',eqW]].filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+    o.push(['Your mix '+profile,
+      `${big.map(([n,w])=>`${w.toFixed(0)}% ${n.toLowerCase()}`).join(', ')}. The blend has returned about ${PORT.ann.toFixed(1)}% a year over the period, at ${PORT.vol.toFixed(1)}% volatility with a worst peak-to-trough fall of ${PORT.mdd.toFixed(1)}% — ${profile==='leans defensive'?'a relatively steady, lower-risk profile that also limits upside.':profile==='is fairly balanced'?'a middle-of-the-road risk profile.':'more growth potential, but expect deeper dips along the way.'}`]);
+
+    // 2. Standout holding by return-for-risk — mirrors "growth fund is the standout"
+    const byRR=held.filter(f=>f.sharpe!=null).sort((a,b)=>b.sharpe-a.sharpe);
+    if(byRR.length){const s=byRR[0];
+      o.push(['Your standout holding',`${s.name} has the best return-for-risk of anything you hold — ${f0(s.r3y)} over 3 years at just ${f1(s.vol)} volatility${s.weight?`, and at a ${s.weight}% weight it is doing much of the heavy lifting`:''}.`]);}
+
+    // 3. Weakest equity holding vs the best the range offers — mirrors "EM Equity is weakest"
+    const heldEq=held.filter(f=>f.cat==='Equity'&&f.r3y!=null).sort((a,b)=>a.r3y-b.r3y);
+    const rangeEq=FUNDS.filter(f=>f.cat==='Equity'&&!f.new&&f.r3y!=null).sort((a,b)=>b.r3y-a.r3y);
+    if(heldEq.length&&rangeEq.length){const weak=heldEq[0];
+      const betters=rangeEq.filter(f=>f.name!==weak.name&&f.r3y>weak.r3y+5).slice(0,4);
+      if(betters.length)o.push(['Your weakest equity engine',
+        `${weak.name} (${f0(weak.r3y)} / 3yr, ${f0(weak.r1y)} / 1yr) has trailed the stronger equity options in the range — ${named(betters)} — often at similar or lower volatility. Worth understanding before deciding anything.`]);}
+
+    // 4. Bond holdings doing their job quietly — mirrors original bond note
+    const heldBond=held.filter(f=>f.cat==='Bonds/Credit'&&f.r3y!=null).sort((a,b)=>b.r3y-a.r3y);
+    if(heldBond.length){
+      const loser=FUNDS.find(f=>f.cat==='Bonds/Credit'&&!f.new&&f.r3y!=null&&f.r3y<0);
+      o.push(['Your bond holdings, quietly steady',
+        `${heldBond.map(f=>`${f.name} (${f0(f.r3y)} / 3yr at ${f1(f.vol)} vol)`).join(' and ')} ${heldBond.length>1?'have':'has'} delivered modest, stable returns — anchoring risk but capping upside.${loser?` Not all bond funds were safe, mind: ${loser.name} actually lost money over 3 years (${f0(loser.r3y)}).`:''}`]);}
+  }
+
+  // 5. Higher-return options exist, at higher risk — mirrors original
+  const topEq=FUNDS.filter(f=>!f.new&&f.r3y!=null).sort((a,b)=>b.r3y-a.r3y).slice(0,3);
+  if(topEq.length){const ddRange=topEq.map(f=>f.mdd);
+    o.push(['Higher-return options exist, at higher risk',
+      `The range's strongest performers — ${named(topEq)} — sit in the upper part of the risk/reward chart. Reaching for them historically raised returns but also deepened the worst falls (down to ${Math.min(...ddRange).toFixed(0)}%). More reward, more turbulence.`]);}
+
+  // 6. Best risk-adjusted across the range (exclude cash — near-zero vol inflates the ratio)
+  const topRR=FUNDS.filter(f=>!f.new&&f.sharpe!=null&&f.cat!=='Cash').sort((a,b)=>b.sharpe-a.sharpe).slice(0,3);
+  if(topRR.length)o.push(['Best return-for-risk in the whole range',
+    `Measured as return per unit of risk over 3 years (cash excluded): ${topRR.map(f=>`${f.name} (${f.sharpe.toFixed(2)})`).join(', ')}. A high raw return usually comes with matching volatility — this ranking rewards funds that earned it smoothly.`]);
+
+  // 7. New funds flagged
+  const news=FUNDS.filter(f=>f.new);
+  if(news.length)o.push([`${news.length} new fund${news.length>1?'s':''} lack a track record`,
+    `${news.map(f=>f.name).join(', ')} have under ~60 daily prices — too short to judge. Treat their numbers as noise until more history builds.`]);
+
+  o.push(['This is information, not advice',
+    `These notes are generated mechanically from the price history you loaded. They ignore fund charges, tax, how the funds move together, and — most importantly — your own goals, timeframe and risk appetite. For a personal recommendation, speak to a regulated financial adviser.`]);
+
+  $('obs').innerHTML=o.map(([h,p])=>`<div class="o"><h4>${h}</h4><p>${p}</p></div>`).join('');
+}
+// ---------- holdings editor ----------
+function renderHoldEditor(){
+  const opts=FUNDS.map(f=>f.name);
+  $('heRows').innerHTML=HOLDINGS.map((h,i)=>`<div class="he-row">
+    <select data-i="${i}" class="he-name">${opts.map(n=>`<option ${n===h[0]?'selected':''}>${n}</option>`).join('')}</select>
+    <input type="number" min="0" max="100" step="1" value="${h[1]}" data-i="${i}" class="he-wt">
+    <button class="x" data-i="${i}">×</button></div>`).join('');
+  $('heRows').querySelectorAll('.he-name').forEach(s=>s.onchange=e=>{HOLDINGS[+e.target.dataset.i][0]=e.target.value;updTotal();});
+  $('heRows').querySelectorAll('.he-wt').forEach(s=>s.oninput=e=>{HOLDINGS[+e.target.dataset.i][1]=+e.target.value||0;updTotal();});
+  $('heRows').querySelectorAll('.x').forEach(b=>b.onclick=e=>{HOLDINGS.splice(+e.target.dataset.i,1);renderHoldEditor();});
+  updTotal();
+}
+function updTotal(){const t=HOLDINGS.reduce((a,h)=>a+(+h[1]||0),0);const el=$('heTotal');el.textContent='Total: '+t+'%';el.className='he-total '+(t===100?'ok':'bad');}
+$('heAdd').onclick=()=>{if(!FUNDS.length)return;HOLDINGS.push([FUNDS[0].name,0]);renderHoldEditor();};
+$('heApply').onclick=()=>{HOLDINGS=HOLDINGS.filter(h=>h[1]>0);recompute();};
+// ---------- state ----------
+function saveState(){try{localStorage.setItem('fund_holdings',JSON.stringify(HOLDINGS));}catch(e){}}
+function loadHoldings(){try{const s=localStorage.getItem('fund_holdings');if(s)return JSON.parse(s);}catch(e){}return null;}
+// ---------- upload wiring ----------
+const drop=$('drop'),input=$('fileInput');
+drop.onclick=()=>input.click();
+$('addMore')&&($('addMore').onclick=()=>input.click());
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hot');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
+drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
+input.onchange=e=>handleFiles(e.target.files);
+$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];PORT=null;$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+async function handleFiles(fileList){
+  const files=[...fileList].filter(f=>/\.x(lsx|ls)$/i.test(f.name));
+  if(!files.length){$('errbox').textContent='No .xlsx files found in that selection.';return;}
+  $('errbox').textContent='';$('loadbar').textContent='Reading '+files.length+' file(s)…';
+  let added=0,skipped=0;
+  for(const file of files){
+    try{const r=await readFile(file);
+      if(!r){skipped++;continue;}
+      const ix=FUNDS.findIndex(f=>f.name===r.name);
+      if(ix>=0)FUNDS[ix]=r; else FUNDS.push(r);
+      added++;
+    }catch(err){skipped++;}
+  }
+  $('loadbar').textContent=`Loaded ${added} fund(s)${skipped?', skipped '+skipped:''}.`;
+  if(!FUNDS.length)return;
+  // initialise holdings on first load
+  if(!HOLDINGS.length){
+    const saved=loadHoldings();
+    const src=saved&&saved.length?saved:DEFAULT_HOLDINGS;
+    HOLDINGS=src.filter(([n])=>FUNDS.find(f=>f.name===n)).map(h=>[h[0],h[1]]);
+  }
+  $('uploadSection').classList.add('hidden');
+  $('loadedBar').classList.remove('hidden');
+  $('dash').classList.remove('hidden');
+  recompute();
+}
+</script>
+</body>
+</html>
