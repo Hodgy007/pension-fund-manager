@@ -215,11 +215,7 @@ const f1=(v,d=1)=>v==null||isNaN(v)?'—':v.toFixed(d)+'%';
 const cls=v=>v==null||isNaN(v)?'':v>=0?'pos':'neg';
 
 // default holdings (match the Scottish Widows download names)
-const DEFAULT_HOLDINGS=[
-  ['Active Diversified Growth Fund',40],['Active Diversified Retirement',10],
-  ['Active Emerging Markets Equity Fund',20],['Active Global Corporate Bond',10],
-  ['Active MultiAsset Credit',20]
-];
+const DEFAULT_HOLDINGS=[];
 let FUNDS=[];        // [{name,cat,rows:[{d,p}],...metrics}]
 let HOLDINGS=[];     // [[name,weight],...]
 let PORT=null;
