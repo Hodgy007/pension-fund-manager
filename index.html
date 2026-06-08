@@ -320,6 +320,7 @@ function recompute(){
   PORT=buildPortfolio();
   renderAll();
   saveState();
+  saveFunds();
 }
 function renderAll(){
   $('fcount').textContent=FUNDS.length;
@@ -487,6 +488,18 @@ $('heApply').onclick=()=>{HOLDINGS=HOLDINGS.filter(h=>h[1]>0);recompute();};
 // ---------- state ----------
 function saveState(){try{localStorage.setItem('fund_holdings',JSON.stringify(HOLDINGS));}catch(e){}}
 function loadHoldings(){try{const s=localStorage.getItem('fund_holdings');if(s)return JSON.parse(s);}catch(e){}return null;}
+function saveFunds(){
+  try{
+    const slim=FUNDS.map(f=>({n:f.name,r:f.rows.map(x=>[+x.d,x.p])}));
+    localStorage.setItem('fund_data',JSON.stringify(slim));
+  }catch(e){console.warn('Fund cache save failed (storage full?):',e);}
+}
+function loadFunds(){
+  try{
+    const s=localStorage.getItem('fund_data'); if(!s)return [];
+    return JSON.parse(s).map(f=>({name:f.n,rows:f.r.map(([d,p])=>({d:new Date(d),p}))}));
+  }catch(e){return [];}
+}
 // ---------- upload wiring ----------
 const drop=$('drop'),input=$('fileInput');
 drop.onclick=()=>input.click();
@@ -495,7 +508,7 @@ $('addMore')&&($('addMore').onclick=()=>input.click());
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
 drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
 input.onchange=e=>handleFiles(e.target.files);
-$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];PORT=null;$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];PORT=null;localStorage.removeItem('fund_data');$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 async function handleFiles(fileList){
   const files=[...fileList].filter(f=>/\.x(lsx|ls)$/i.test(f.name));
   if(!files.length){$('errbox').textContent='No .xlsx files found in that selection.';return;}
@@ -522,6 +535,20 @@ async function handleFiles(fileList){
   $('dash').classList.remove('hidden');
   recompute();
 }
+// restore cached reports on page load
+(function restoreCache(){
+  const cached=loadFunds();
+  if(!cached.length)return;
+  FUNDS=cached;
+  const saved=loadHoldings();
+  const src=saved&&saved.length?saved:DEFAULT_HOLDINGS;
+  HOLDINGS=src.filter(([n])=>FUNDS.find(f=>f.name===n)).map(h=>[h[0],h[1]]);
+  $('uploadSection').classList.add('hidden');
+  $('loadedBar').classList.remove('hidden');
+  $('dash').classList.remove('hidden');
+  $('loadbar').textContent=`Restored ${FUNDS.length} fund(s) from local cache. Drop newer files to update.`;
+  recompute();
+})();
 </script>
 </body>
 </html>
