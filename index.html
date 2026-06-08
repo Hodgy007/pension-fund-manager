@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fund Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Spline+Sans+Mono:wght@400;500;600&family=Spline+Sans:wght@400;500;600;700&display=swap');
 :root{
@@ -128,12 +129,12 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
 <div id="uploadSection">
   <div id="drop">
     <div class="fileicon">📄</div>
-    <div class="big">Drop your fund <code>.xlsx</code> files here</div>
+    <div class="big">Drop your fund <code>.xlsx</code> files or a <code>.zip</code> here</div>
     <div class="small">or <b>click to browse</b> · select all of them at once · re-drop newer downloads anytime to update</div>
     <div id="loadbar"></div>
     <div id="errbox" class="err"></div>
   </div>
-  <input type="file" id="fileInput" accept=".xlsx,.xls" multiple class="hidden">
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.zip" multiple class="hidden">
 </div>
 
 <!-- LOADED STATE -->
@@ -240,8 +241,7 @@ function parseDate(s){
   if(m)return new Date(+m[3],+m[2]-1,+m[1]);
   let d=new Date(s); return isNaN(d)?null:d;
 }
-async function readFile(file){
-  const buf=await file.arrayBuffer();
+function parseWorkbook(name,buf){
   const wb=XLSX.read(buf,{type:'array'});
   const sn=wb.SheetNames.find(n=>/price/i.test(n))||wb.SheetNames[0];
   const arr=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false});
@@ -256,7 +256,24 @@ async function readFile(file){
     if(!isNaN(p)&&d)rows.push({d,p});
   }
   rows.sort((a,b)=>a.d-b.d);
-  return rows.length?{name:cleanName(file.name),rows}:null;
+  return rows.length?{name:cleanName(name),rows}:null;
+}
+async function readFile(file){
+  return parseWorkbook(file.name, await file.arrayBuffer());
+}
+async function expandZip(file){
+  const zip=await JSZip.loadAsync(await file.arrayBuffer());
+  const out=[];
+  for(const path in zip.files){
+    const entry=zip.files[path];
+    if(entry.dir) continue;
+    if(path.startsWith('__MACOSX/')||path.split('/').pop().startsWith('.')) continue;
+    if(!/\.x(lsx|ls)$/i.test(path)) continue;
+    const name=path.split('/').pop();
+    const buf=await entry.async('arraybuffer');
+    out.push({name,buf});
+  }
+  return out;
 }
 // ---------- metrics ----------
 function cat(n){n=n.toLowerCase();
@@ -546,12 +563,22 @@ drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
 input.onchange=e=>handleFiles(e.target.files);
 $('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];PORT=null;localStorage.removeItem('fund_data');$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 async function handleFiles(fileList){
-  const files=[...fileList].filter(f=>/\.x(lsx|ls)$/i.test(f.name));
-  if(!files.length){$('errbox').textContent='No .xlsx files found in that selection.';return;}
-  $('errbox').textContent='';$('loadbar').textContent='Reading '+files.length+' file(s)…';
+  const all=[...fileList];
+  const zips=all.filter(f=>/\.zip$/i.test(f.name));
+  const xlsxFiles=all.filter(f=>/\.x(lsx|ls)$/i.test(f.name));
+  if(!zips.length&&!xlsxFiles.length){$('errbox').textContent='No .xlsx or .zip files found in that selection.';return;}
+  $('errbox').textContent='';$('loadbar').textContent='Reading files…';
+  const items=[]; // {name, buf}
+  for(const f of xlsxFiles)items.push({name:f.name,buf:await f.arrayBuffer()});
+  for(const z of zips){
+    try{const extracted=await expandZip(z);items.push(...extracted);}
+    catch(err){$('errbox').textContent=`Could not read ${z.name}: ${err.message||err}`;}
+  }
+  if(!items.length){$('loadbar').textContent='';$('errbox').textContent='No .xlsx files found inside the zip(s).';return;}
+  $('loadbar').textContent=`Reading ${items.length} file(s)${zips.length?` (incl. ${zips.length} zip)`:''}…`;
   let added=0,skipped=0;
-  for(const file of files){
-    try{const r=await readFile(file);
+  for(const item of items){
+    try{const r=parseWorkbook(item.name,item.buf);
       if(!r){skipped++;continue;}
       const ix=FUNDS.findIndex(f=>f.name===r.name);
       if(ix>=0)FUNDS[ix]=r; else FUNDS.push(r);
