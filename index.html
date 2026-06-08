@@ -510,6 +510,51 @@ function computeHistory(){
   let peak=vals[0],mdd=0; for(const x of vals){peak=Math.max(peak,x);mdd=Math.min(mdd,x/peak-1);}
   return {from:dates[0],to:dates[dates.length-1],cum:cum*100,ann:ann!=null?ann*100:null,vol,mdd:mdd*100,nav:{dates,vals}};
 }
+function drawNavChart(s){
+  const el=$('navChart'); if(!el)return;
+  const {dates,vals}=s.nav;
+  const W=760,H=300,pad={l:50,r:16,t:16,b:34};
+  const t0=+dates[0], t1=+dates[dates.length-1], tspan=t1-t0||1;
+  const vmin=Math.min(...vals), vmax=Math.max(...vals);
+  const lo=Math.floor(vmin/10)*10, hi=Math.ceil(vmax/10)*10, vspan=(hi-lo)||1;
+  const X=t=>pad.l+((+t-t0)/tspan)*(W-pad.l-pad.r);
+  const Y=v=>H-pad.b-((v-lo)/vspan)*(H-pad.t-pad.b);
+  let g='';
+  // y gridlines (value)
+  const ystep=vspan<=60?10:vspan<=160?20:vspan<=400?50:100;
+  for(let v=lo;v<=hi+0.001;v+=ystep)g+=`<line class="gridline" x1="${pad.l}" y1="${Y(v)}" x2="${W-pad.r}" y2="${Y(v)}" opacity=".5"/><text class="sc-lbl" x="${pad.l-8}" y="${Y(v)+3}" text-anchor="end">£${v}</text>`;
+  // x gridlines — start of each calendar year in range
+  const y0=dates[0].getFullYear(), y1=dates[dates.length-1].getFullYear();
+  for(let yr=y0;yr<=y1;yr++){const tx=+new Date(yr,0,1); if(tx<t0||tx>t1)continue;
+    g+=`<line class="gridline" x1="${X(tx)}" y1="${pad.t}" x2="${X(tx)}" y2="${H-pad.b}" opacity=".35"/><text class="sc-lbl" x="${X(tx)}" y="${H-pad.b+16}" text-anchor="middle">${yr}</text>`;}
+  // £100 baseline
+  if(lo<=100&&hi>=100)g+=`<line x1="${pad.l}" y1="${Y(100)}" x2="${W-pad.r}" y2="${Y(100)}" stroke="#3a4452" stroke-dasharray="3 3"/>`;
+  // snapshot change markers
+  HISTORY.filter(h=>h.date).forEach(h=>{const tx=+new Date(h.date); if(tx<t0||tx>t1)return;
+    g+=`<line x1="${X(tx)}" y1="${pad.t}" x2="${X(tx)}" y2="${H-pad.b}" stroke="var(--gold)" stroke-width="1" stroke-dasharray="2 3" opacity=".55"/>`;});
+  // area + line
+  const line=dates.map((d,i)=>`${i?'L':'M'}${X(d).toFixed(1)} ${Y(vals[i]).toFixed(1)}`).join(' ');
+  const area=`M${X(dates[0]).toFixed(1)} ${Y(lo).toFixed(1)} `+dates.map((d,i)=>`L${X(d).toFixed(1)} ${Y(vals[i]).toFixed(1)}`).join(' ')+` L${X(dates[dates.length-1]).toFixed(1)} ${Y(lo).toFixed(1)} Z`;
+  g+=`<path d="${area}" fill="var(--accent)" fill-opacity=".08"/>`;
+  g+=`<path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>`;
+  // hover
+  g+=`<line id="navCur" x1="0" y1="${pad.t}" x2="0" y2="${H-pad.b}" stroke="var(--ink)" stroke-width="1" opacity="0"/><circle id="navDot" r="4" fill="var(--accent)" stroke="#0d1117" stroke-width="1.5" opacity="0"/><rect id="navHit" x="${pad.l}" y="${pad.t}" width="${W-pad.l-pad.r}" height="${H-pad.t-pad.b}" fill="transparent"/>`;
+  el.innerHTML=g;
+  const hit=$('navHit'),cur=$('navCur'),dot=$('navDot');
+  hit.onmousemove=e=>{
+    const r=el.getBoundingClientRect();
+    const px=(e.clientX-r.left)/r.width*W;
+    const t=t0+((px-pad.l)/(W-pad.l-pad.r))*tspan;
+    let best=0,bd=Infinity; for(let i=0;i<dates.length;i++){const dd=Math.abs(+dates[i]-t); if(dd<bd){bd=dd;best=i;}}
+    const x=X(dates[best]),y=Y(vals[best]);
+    cur.setAttribute('x1',x);cur.setAttribute('x2',x);cur.setAttribute('opacity','.3');
+    dot.setAttribute('cx',x);dot.setAttribute('cy',y);dot.setAttribute('opacity','1');
+    const pct=vals[best]-100;
+    tip.innerHTML=`<b>${dates[best].toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</b><div class="r"><span>Value</span><span>£${vals[best].toFixed(2)}</span></div><div class="r"><span>Since start</span><span>${(pct>=0?'+':'')+pct.toFixed(1)}%</span></div>`;
+    tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';
+  };
+  hit.onmouseleave=()=>{tip.style.opacity=0;cur.setAttribute('opacity','0');dot.setAttribute('opacity','0');};
+}
 function renderHistory(){
   HISTORY.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const fmt=d=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
@@ -523,7 +568,11 @@ function renderHistory(){
       <div class="stat-row" style="margin-top:10px">
         <div class="stat"><div class="lbl">Volatility</div><div class="val sm">${f1(s.vol)}</div></div>
         <div class="stat"><div class="lbl">Max Drawdown</div><div class="val sm neg">${f0(s.mdd)}</div></div>
-      </div></div>`;
+      </div>
+      <div style="margin-top:16px"><svg viewBox="0 0 760 300" id="navChart" style="width:100%;height:auto"></svg></div>
+      <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)">Growth of £100 invested at the start, following your recorded holdings. <span style="color:var(--accent)">Blue line</span> = your pension value; vertical ticks mark snapshot changes.</p>
+      </div>`;
+    drawNavChart(s);
   } else {
     $('historicSummary').innerHTML=HISTORY.length?'<div class="card"><p class="note" style="color:var(--faint);margin:0">Add at least one snapshot with valid funds and dates inside the loaded price history to see performance.</p></div>':'';
   }
