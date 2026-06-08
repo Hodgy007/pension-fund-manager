@@ -195,6 +195,16 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
     </div>
   </div>
 
+  <h2>Historic holdings &amp; actual return<span class="n">/ TIME-WEIGHTED</span></h2>
+  <div id="historicSummary"></div>
+  <div class="card" style="margin-top:14px">
+    <div class="cardlbl">Record what funds you held and when. Each snapshot's allocation runs from its date until the next snapshot — we chain those daily-rebalanced periods into one continuous performance line.</div>
+    <div id="historyRows"></div>
+    <div class="he-foot" style="margin-top:14px">
+      <button class="btn gold" id="histAdd">+ Add snapshot (from current holdings, dated today)</button>
+    </div>
+  </div>
+
   <h2>Holdings, fund by fund<span class="n">/ HIGHLIGHTED</span></h2>
   <div class="grid hold-grid" id="holdCards"></div>
 
@@ -229,6 +239,7 @@ const cls=v=>v==null||isNaN(v)?'':v>=0?'pos':'neg';
 const DEFAULT_HOLDINGS=[];
 let FUNDS=[];        // [{name,cat,rows:[{d,p}],...metrics}]
 let HOLDINGS=[];     // [[name,weight],...]
+let HISTORY=[];      // [{date:'YYYY-MM-DD',holdings:[[name,weight],...]},...]
 let PORT=null;
 
 // ---------- parsing ----------
@@ -349,7 +360,7 @@ function renderAll(){
   $('fcount').textContent=FUNDS.length;
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderHoldCards(); renderScatter(); renderTable(); renderTopPicks(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderHoldCards(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -458,6 +469,103 @@ function renderTopPicks(){
       </div>
     </div>`).join('');
 }
+function computeHistory(){
+  if(!HISTORY.length||!FUNDS.length)return null;
+  const sorted=HISTORY.filter(s=>s.date).map(s=>({date:s.date,holdings:(s.holdings||[]).filter(([n,w])=>n&&w>0)})).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!sorted.length)return null;
+  const maxD=FUNDS.reduce((d,f)=>f.last_date>d?f.last_date:d,new Date(0));
+  const dates=[],vals=[]; let nav=100;
+  for(let i=0;i<sorted.length;i++){
+    const start=new Date(sorted[i].date);
+    const end=i+1<sorted.length?new Date(sorted[i+1].date):new Date(maxD);
+    if(isNaN(start)||end<=start)continue;
+    const held=sorted[i].holdings.filter(([n])=>FUNDS.find(f=>f.name===n));
+    if(!held.length)continue;
+    const tw=held.reduce((a,[,w])=>a+w,0);
+    const series={},sets=[];
+    for(const [n] of held){
+      const f=FUNDS.find(f=>f.name===n); const m={};
+      for(const r of f.rows){if(r.d>=start&&r.d<=end)m[+r.d]=r.p;}
+      series[n]=m; sets.push(new Set(Object.keys(m)));
+    }
+    let common=[...sets[0]];
+    for(let j=1;j<sets.length;j++)common=common.filter(d=>sets[j].has(d));
+    common=common.map(Number).sort((a,b)=>a-b);
+    if(common.length<2)continue;
+    if(!dates.length){dates.push(new Date(common[0]));vals.push(nav);}
+    for(let j=1;j<common.length;j++){
+      let r=0;
+      for(const [n,w] of held){const p0=series[n][common[j-1]],p1=series[n][common[j]];r+=(w/tw)*(p1/p0-1);}
+      nav*=(1+r); dates.push(new Date(common[j])); vals.push(nav);
+    }
+  }
+  if(vals.length<2)return null;
+  const cum=vals[vals.length-1]/vals[0]-1;
+  const yrs=(dates[dates.length-1]-dates[0])/(365.25*864e5);
+  const ann=yrs>0.1?Math.pow(vals[vals.length-1]/vals[0],1/yrs)-1:null;
+  const dr=[]; for(let i=1;i<vals.length;i++)dr.push(vals[i]/vals[i-1]-1);
+  const m=dr.reduce((a,b)=>a+b,0)/dr.length;
+  const v=dr.reduce((a,b)=>a+(b-m)**2,0)/dr.length;
+  const vol=Math.sqrt(v)*Math.sqrt(252)*100;
+  let peak=vals[0],mdd=0; for(const x of vals){peak=Math.max(peak,x);mdd=Math.min(mdd,x/peak-1);}
+  return {from:dates[0],to:dates[dates.length-1],cum:cum*100,ann:ann!=null?ann*100:null,vol,mdd:mdd*100,nav:{dates,vals}};
+}
+function renderHistory(){
+  HISTORY.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const fmt=d=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const s=computeHistory();
+  if(s){
+    $('historicSummary').innerHTML=`<div class="card"><div class="cardlbl">From ${fmt(s.from)} to ${fmt(s.to)} · chained periods, daily-rebalanced within each</div>
+      <div class="stat-row">
+        <div class="stat"><div class="lbl">Cumulative</div><div class="val ${cls(s.cum)}">${f0(s.cum)}</div></div>
+        <div class="stat"><div class="lbl">Annualised</div><div class="val ${cls(s.ann)}">${f0(s.ann)}</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:10px">
+        <div class="stat"><div class="lbl">Volatility</div><div class="val sm">${f1(s.vol)}</div></div>
+        <div class="stat"><div class="lbl">Max Drawdown</div><div class="val sm neg">${f0(s.mdd)}</div></div>
+      </div></div>`;
+  } else {
+    $('historicSummary').innerHTML=HISTORY.length?'<div class="card"><p class="note" style="color:var(--faint);margin:0">Add at least one snapshot with valid funds and dates inside the loaded price history to see performance.</p></div>':'';
+  }
+  if(!HISTORY.length){$('historyRows').innerHTML='<p class="note" style="color:var(--faint);padding:8px 0">No historic snapshots yet. Click the button below to record what you held.</p>';return;}
+  const dateStyle='background:var(--panel2);color:var(--ink);border:1px solid var(--line);padding:5px 8px;border-radius:6px;font-family:var(--mono);font-size:13px';
+  $('historyRows').innerHTML=HISTORY.map((snap,i)=>{
+    const hold=snap.holdings||[];
+    const rows=hold.map((h,j)=>{
+      const opts=FUNDS.map(f=>`<option ${f.name===h[0]?'selected':''}>${f.name}</option>`).join('');
+      return `<div class="he-row"><select data-s="${i}" data-r="${j}" data-f="name">${opts}</select><input type="number" min="0" max="100" step="0.1" value="${h[1]}" data-s="${i}" data-r="${j}" data-f="weight"> %<button class="x" data-s="${i}" data-r="${j}" data-act="delrow">×</button></div>`;
+    }).join('');
+    const total=hold.reduce((a,[,w])=>a+(+w||0),0);
+    return `<div class="card" style="margin:10px 0;padding:14px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+        <label style="font-size:13px;color:var(--mute)">From <input type="date" value="${snap.date||''}" data-s="${i}" data-act="date" style="${dateStyle}"></label>
+        <span class="he-total">Total: ${total}%</span>
+        <button class="btn" data-s="${i}" data-act="addrow" style="margin-left:auto">+ Holding</button>
+        <button class="btn" data-s="${i}" data-act="delsnap">Remove snapshot</button>
+      </div>
+      ${rows||'<p class="note" style="color:var(--faint);margin:4px 0 0">No holdings yet — click + Holding.</p>'}
+    </div>`;
+  }).join('');
+  $('historyRows').querySelectorAll('select[data-f="name"]').forEach(el=>el.onchange=e=>{
+    HISTORY[+e.target.dataset.s].holdings[+e.target.dataset.r][0]=e.target.value; saveHistory(); renderHistory();
+  });
+  $('historyRows').querySelectorAll('input[data-f="weight"]').forEach(el=>el.onchange=e=>{
+    HISTORY[+e.target.dataset.s].holdings[+e.target.dataset.r][1]=parseFloat(e.target.value)||0; saveHistory(); renderHistory();
+  });
+  $('historyRows').querySelectorAll('input[data-act="date"]').forEach(el=>el.onchange=e=>{
+    HISTORY[+e.target.dataset.s].date=e.target.value; saveHistory(); renderHistory();
+  });
+  $('historyRows').querySelectorAll('button[data-act="addrow"]').forEach(b=>b.onclick=e=>{
+    const i=+e.currentTarget.dataset.s; if(!FUNDS.length)return;
+    HISTORY[i].holdings=HISTORY[i].holdings||[]; HISTORY[i].holdings.push([FUNDS[0].name,0]); saveHistory(); renderHistory();
+  });
+  $('historyRows').querySelectorAll('button[data-act="delrow"]').forEach(b=>b.onclick=e=>{
+    HISTORY[+e.currentTarget.dataset.s].holdings.splice(+e.currentTarget.dataset.r,1); saveHistory(); renderHistory();
+  });
+  $('historyRows').querySelectorAll('button[data-act="delsnap"]').forEach(b=>b.onclick=e=>{
+    HISTORY.splice(+e.currentTarget.dataset.s,1); saveHistory(); renderHistory();
+  });
+}
 function renderObs(){
   const o=[];
   const named=(arr)=>arr.map(f=>`${f.name} (${f0(f.r3y)})`).join(', ');
@@ -538,6 +646,11 @@ function applyPicks(n){
 }
 $('usePicks5').onclick=()=>applyPicks(5);
 $('usePicks3').onclick=()=>applyPicks(3);
+$('histAdd').onclick=()=>{
+  const today=new Date().toISOString().slice(0,10);
+  HISTORY.push({date:today,holdings:HOLDINGS.map(h=>[h[0],h[1]])});
+  saveHistory(); renderHistory();
+};
 // ---------- state ----------
 function saveState(){try{localStorage.setItem('fund_holdings',JSON.stringify(HOLDINGS));}catch(e){}}
 function loadHoldings(){try{const s=localStorage.getItem('fund_holdings');if(s)return JSON.parse(s);}catch(e){}return null;}
@@ -553,6 +666,8 @@ function loadFunds(){
     return JSON.parse(s).map(f=>({name:f.n,rows:f.r.map(([d,p])=>({d:new Date(d),p}))}));
   }catch(e){return [];}
 }
+function saveHistory(){try{localStorage.setItem('fund_history',JSON.stringify(HISTORY));}catch(e){}}
+function loadHistoryLS(){try{const s=localStorage.getItem('fund_history');if(s)return JSON.parse(s);}catch(e){}return [];}
 // ---------- upload wiring ----------
 const drop=$('drop'),input=$('fileInput');
 drop.onclick=()=>input.click();
@@ -561,7 +676,7 @@ $('addMore')&&($('addMore').onclick=()=>input.click());
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
 drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
 input.onchange=e=>handleFiles(e.target.files);
-$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];PORT=null;localStorage.removeItem('fund_data');$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;localStorage.removeItem('fund_data');localStorage.removeItem('fund_history');$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 async function handleFiles(fileList){
   const all=[...fileList];
   const zips=all.filter(f=>/\.zip$/i.test(f.name));
@@ -603,6 +718,7 @@ async function handleFiles(fileList){
   const cached=loadFunds();
   if(!cached.length)return;
   FUNDS=cached;
+  HISTORY=loadHistoryLS();
   const saved=loadHoldings();
   const src=saved&&saved.length?saved:DEFAULT_HOLDINGS;
   HOLDINGS=src.filter(([n])=>FUNDS.find(f=>f.name===n)).map(h=>[h[0],h[1]]);
