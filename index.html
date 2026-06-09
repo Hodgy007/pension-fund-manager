@@ -211,33 +211,14 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
       </div>
     </div>
   </div>
-
-  <h2>Will it be enough?<span class="n">/ PROJECTION</span></h2>
-  <div class="card">
-    <div class="cardlbl">Project your pot to retirement with UK tax built in (HMRC <span id="taxYear">2025/26</span>, rest-of-UK). Historical return &amp; volatility drive 1,500 simulations — a spread of possibilities, not a promise.</div>
-    <div class="proj-grid" id="projInputs">
-      <label>Current age<input type="number" id="pjAge" min="16" max="100" step="1"></label>
-      <label>Retirement age<input type="number" id="pjRet" min="40" max="100" step="1"></label>
-      <label>Pot value now (£)<input type="number" id="pjPot" min="0" step="500"></label>
-      <label>Contribution (£/month)<input type="number" id="pjMon" min="0" step="50"></label>
-      <label>Contribution is<select id="pjBasis"><option value="takehome">From my take-home (relief added)</option><option value="gross">Before-tax / salary sacrifice</option></select></label>
-      <label>My income tax rate<select id="pjRate"><option value="0">Non-taxpayer (0%)</option><option value="20">Basic (20%)</option><option value="40">Higher (40%)</option><option value="45">Additional (45%)</option></select></label>
-      <label>Expected return (%/yr)<input type="number" id="pjRetn" step="0.1"></label>
-      <label>Volatility (%/yr)<input type="number" id="pjVol" min="0" step="0.1"></label>
-      <label>Contribution rises (%/yr)<input type="number" id="pjEsc" min="0" step="0.5"></label>
-      <label>Inflation / CPI (%/yr)<input type="number" id="pjCpi" min="0" step="0.1"></label>
-      <label>Annual allowance (£)<input type="number" id="pjAA" min="0" step="1000"></label>
-      <label>Target pot (£, optional)<input type="number" id="pjTgt" min="0" step="1000"></label>
+  <div class="card" style="margin-top:16px">
+    <div class="cardlbl">Set your holdings · pick the funds you own and their weight (%)</div>
+    <div id="heRows"></div>
+    <div class="he-foot">
+      <button class="btn" id="heAdd">+ Add holding</button>
+      <span class="he-total" id="heTotal">Total: 0%</span>
+      <button class="btn gold" id="heApply">Apply</button>
     </div>
-    <label class="toggle" style="margin-top:14px" title="Show projected pounds in today's spending power"><input type="checkbox" id="pjReal" checked><span class="track"><span class="knob"></span></span><span class="tlbl">Show in today's money</span></label>
-    <div id="projOut" style="margin-top:16px"></div>
-    <div style="margin-top:14px"><svg viewBox="0 0 760 320" id="projChart" style="width:100%;height:auto"></svg></div>
-    <div class="proj-grid" style="margin-top:16px;grid-template-columns:repeat(2,1fr);max-width:540px">
-      <label>Annual withdrawal rate (%)<input type="number" id="pjWr" min="0" step="0.5"></label>
-      <label>Other taxable income (£/yr)<input type="number" id="pjOther" min="0" step="500"></label>
-    </div>
-    <div id="projRetire" style="margin-top:14px"></div>
-    <p class="note" style="margin-top:8px;font-size:12px;color:var(--faint)">Defaults come from your blended holdings (return &amp; volatility) and latest recorded pot. <span style="color:var(--accent)">Shaded band</span> = middle 80% of outcomes (10th–90th percentile); <span style="color:var(--gold)">gold line</span> = median. Tax relief is added to contributions and the retirement breakdown uses current income-tax bands, the 25% tax-free lump sum (capped at £268,275) and the £60,000 annual allowance. Estimates only — they ignore fund charges, the State Pension unless you add it, allowance taper/MPAA and your wider circumstances, and HMRC figures change each Budget. Not a forecast or financial advice.</p>
   </div>
 
   <h2>Top picks for max growth<span class="n">/ HIGHEST ANNUALISED RETURN</span></h2>
@@ -247,17 +228,6 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
     <div class="he-foot" style="margin-top:14px">
       <button class="btn gold" id="usePicks5">Use top 5 as my holdings (equal-weighted)</button>
       <button class="btn" id="usePicks3">Use top 3 (concentrated)</button>
-    </div>
-  </div>
-
-  <h2>Set your holdings<span class="n">/ EDITABLE</span></h2>
-  <div class="card">
-    <div class="cardlbl">Pick the funds you own and their weight (%)</div>
-    <div id="heRows"></div>
-    <div class="he-foot">
-      <button class="btn" id="heAdd">+ Add holding</button>
-      <span class="he-total" id="heTotal">Total: 0%</span>
-      <button class="btn gold" id="heApply">Apply</button>
     </div>
   </div>
 
@@ -314,6 +284,34 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
   <div class="tbl-controls" id="filters"></div>
   <div class="card tbl-scroll" style="padding:0 10px;overflow:auto;max-height:476px">
     <table id="tbl"><thead></thead><tbody></tbody></table>
+  </div>
+
+  <h2>Will it be enough?<span class="n">/ PROJECTION</span></h2>
+  <div class="card">
+    <div class="cardlbl">Project your pot to retirement with UK tax built in (HMRC <span id="taxYear">2025/26</span>, rest-of-UK). Historical return &amp; volatility drive 1,500 simulations — a spread of possibilities, not a promise.</div>
+    <div class="proj-grid" id="projInputs">
+      <label>Current age<input type="number" id="pjAge" min="16" max="100" step="1"></label>
+      <label>Retirement age<input type="number" id="pjRet" min="40" max="100" step="1"></label>
+      <label>Pot value now (£)<input type="number" id="pjPot" min="0" step="500"></label>
+      <label>Contribution (£/month)<input type="number" id="pjMon" min="0" step="50"></label>
+      <label>Contribution is<select id="pjBasis"><option value="takehome">From my take-home (relief added)</option><option value="gross">Before-tax / salary sacrifice</option></select></label>
+      <label>My income tax rate<select id="pjRate"><option value="0">Non-taxpayer (0%)</option><option value="20">Basic (20%)</option><option value="40">Higher (40%)</option><option value="45">Additional (45%)</option></select></label>
+      <label>Expected return (%/yr)<input type="number" id="pjRetn" step="0.1"></label>
+      <label>Volatility (%/yr)<input type="number" id="pjVol" min="0" step="0.1"></label>
+      <label>Contribution rises (%/yr)<input type="number" id="pjEsc" min="0" step="0.5"></label>
+      <label>Inflation / CPI (%/yr)<input type="number" id="pjCpi" min="0" step="0.1"></label>
+      <label>Annual allowance (£)<input type="number" id="pjAA" min="0" step="1000"></label>
+      <label>Target pot (£, optional)<input type="number" id="pjTgt" min="0" step="1000"></label>
+    </div>
+    <label class="toggle" style="margin-top:14px" title="Show projected pounds in today's spending power"><input type="checkbox" id="pjReal" checked><span class="track"><span class="knob"></span></span><span class="tlbl">Show in today's money</span></label>
+    <div id="projOut" style="margin-top:16px"></div>
+    <div style="margin-top:14px"><svg viewBox="0 0 760 320" id="projChart" style="width:100%;height:auto"></svg></div>
+    <div class="proj-grid" style="margin-top:16px;grid-template-columns:repeat(2,1fr);max-width:540px">
+      <label>Annual withdrawal rate (%)<input type="number" id="pjWr" min="0" step="0.5"></label>
+      <label>Other taxable income (£/yr)<input type="number" id="pjOther" min="0" step="500"></label>
+    </div>
+    <div id="projRetire" style="margin-top:14px"></div>
+    <p class="note" style="margin-top:8px;font-size:12px;color:var(--faint)">Defaults come from your blended holdings (return &amp; volatility) and latest recorded pot. <span style="color:var(--accent)">Shaded band</span> = middle 80% of outcomes (10th–90th percentile); <span style="color:var(--gold)">gold line</span> = median. Tax relief is added to contributions and the retirement breakdown uses current income-tax bands, the 25% tax-free lump sum (capped at £268,275) and the £60,000 annual allowance. Estimates only — they ignore fund charges, the State Pension unless you add it, allowance taper/MPAA and your wider circumstances, and HMRC figures change each Budget. Not a forecast or financial advice.</p>
   </div>
 
   <h2>Things worth noticing<span class="n">/ NOT ADVICE</span></h2>
