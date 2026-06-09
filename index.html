@@ -9,7 +9,7 @@
 <script>try{if(localStorage.getItem('fund_theme')==='light')document.documentElement.classList.add('light');}catch(e){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="lib/pdf.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Spline+Sans+Mono:wght@400;500;600&family=Spline+Sans:wght@400;500;600;700&display=swap');
 :root{
@@ -484,7 +484,7 @@ async function expandZip(file){
 async function extractPdfPages(buf){
   if(!window.pdfjsLib)throw new Error('PDF reader not loaded');
   if(pdfjsLib.GlobalWorkerOptions&&!pdfjsLib.GlobalWorkerOptions.workerSrc)
-    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc='lib/pdf.worker.min.js';
   const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
   const pages=[];
   for(let p=1;p<=doc.numPages;p++){
