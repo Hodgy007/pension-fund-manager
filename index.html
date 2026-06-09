@@ -610,8 +610,21 @@ function lookThrough(){
   const matched=[]; let covered=0,total=0;
   held.forEach(([n,w])=>{total+=w; const f=matchFactsheet(n); if(f){matched.push({name:n,weight:w,fs:f});covered+=w;}});
   if(!matched.length)return null;
-  const agg=key=>{const map={};matched.forEach(m=>(m.fs[key]||[]).forEach(({name,pct})=>{map[name]=(map[name]||0)+pct*(m.weight/covered);}));
-    return Object.entries(map).map(([name,pct])=>({name,pct})).sort((a,b)=>b.pct-a.pct);};
+  // aggregate a split (asset/geo) across matched funds, tracking each fund's contribution
+  const agg=key=>{
+    const map={}; // name -> {name,pct, via:[{fund,pct}]}
+    matched.forEach(m=>(m.fs[key]||[]).forEach(({name,pct})=>{
+      const contrib=pct*(m.weight/covered);
+      if(!map[name])map[name]={name,pct:0,via:[]};
+      map[name].pct+=contrib;
+      map[name].via.push({fund:m.name,pct:contrib});
+    }));
+    let list=Object.values(map).sort((a,b)=>b.pct-a.pct);
+    // normalise so the bars sum to 100% (factsheet splits are often partial)
+    const sum=list.reduce((a,x)=>a+x.pct,0);
+    if(sum>0)list.forEach(x=>{x.pct=x.pct/sum*100;x.via.forEach(v=>v.pct=v.pct/sum*100);});
+    return list;
+  };
   const umap={};
   matched.forEach(m=>(m.fs.holdings||[]).forEach(({name,weight})=>{const k=normName(name);
     if(!umap[k])umap[k]={name,total:0,via:[]}; umap[k].total+=weight*(m.weight/covered); umap[k].via.push({fund:m.name,weight});}));
@@ -825,12 +838,23 @@ function ltColor(name){const n=(name||'').toLowerCase();
   if(/propert|reit/.test(n))return '#c77dff';
   if(/cash|money market|liquid/.test(n))return C['Cash'];
   return C['Multi-Asset/Alt'];}
-function ltBars(list,colorFn){
+// renders allocation rows. fundColors maps each held fund to a colour, so each
+// bar is split into stacked segments showing how much each of your funds contributes.
+function ltBars(list,fundColors){
   if(!list.length)return '<p class="note" style="color:var(--faint);margin:4px 0">No data.</p>';
-  const peak=Math.max(...list.map(x=>x.pct),1);
-  return list.map(x=>`<div class="lt-bar"><span class="lt-name" title="${x.name}">${x.name}</span>
-    <span class="lt-track"><span class="lt-fill" style="width:${Math.max(2,x.pct/peak*100)}%;background:${colorFn(x.name)}"></span></span>
-    <span class="lt-pct">${x.pct.toFixed(1)}%</span></div>`).join('');
+  const bars=list.map(x=>{
+    const via=(x.via||[]).slice().sort((a,b)=>b.pct-a.pct);
+    // each segment's width is relative to this bar's own total (so the bar fills to its % of 100)
+    const segs=via.map(v=>{
+      const segW=x.pct>0?(v.pct/x.pct*100):0;
+      return `<span style="display:block;height:100%;width:${segW}%;background:${fundColors[v.fund]||'var(--primary)'}" title="${v.fund}: ${v.pct.toFixed(1)}%"></span>`;
+    }).join('');
+    return `<div class="lt-bar"><span class="lt-name" title="${x.name}">${x.name}</span>
+      <span class="lt-track"><span class="lt-fill" style="display:flex;width:${Math.max(2,x.pct)}%;background:none">${segs}</span></span>
+      <span class="lt-pct">${x.pct.toFixed(1)}%</span></div>`;
+  }).join('');
+  const tot=list.reduce((a,x)=>a+x.pct,0);
+  return bars+`<div style="margin-top:4px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--faint)">Total: ${tot.toFixed(0)}%</div>`;
 }
 function renderLookThrough(){
   const el=$('lookThrough'); if(!el)return;
@@ -849,8 +873,8 @@ function renderLookThrough(){
     <div class="cardlbl">Blended from ${lt.matched.length} holding(s) with factsheets · covering ${lt.coverage.toFixed(0)}% of your portfolio${lt.unmatched.length?` · ${lt.unmatched.length} holding(s) without a factsheet excluded`:''}</div>
     ${lt.matched.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${heldFunds.map(name=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="display:inline-block;width:10px;height:10px;background:${fundColors[name]};border-radius:2px"></span><span style="font-weight:500">${name}</span></div>`).join('')}</div>`:''}
     <div class="lt-grid" style="margin-top:6px">
-      <div><div class="cardlbl" style="color:var(--primary)">Asset allocation</div>${ltBars(lt.asset,ltColor)}</div>
-      <div><div class="cardlbl" style="color:var(--primary)">Geographic allocation</div>${ltBars(lt.geo,()=>'var(--accent)')}</div>
+      <div><div class="cardlbl" style="color:var(--primary)">Asset allocation</div>${ltBars(lt.asset,fundColors)}</div>
+      <div><div class="cardlbl" style="color:var(--primary)">Geographic allocation</div>${ltBars(lt.geo,fundColors)}</div>
     </div>
   </div>
   <div class="card" style="margin-top:14px">
