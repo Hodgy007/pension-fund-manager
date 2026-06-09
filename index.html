@@ -129,7 +129,8 @@ h2 .n{font-family:var(--mono);font-size:11px;color:var(--faint);margin-left:12px
 .hold-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
 .hcard{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:10px;padding:16px;background:var(--panel2)}
 .hcard .wt{position:absolute;top:12px;right:12px;background:var(--primary);color:#fff;font-family:var(--mono);font-weight:600;font-size:11px;padding:4px 8px;border-radius:4px}
-.hcard .hname{font-weight:600;font-size:14px;padding-right:50px;min-height:40px;line-height:1.4}
+.hcard .hname{font-weight:600;font-size:14px;padding-right:50px;min-height:40px;line-height:1.4;transition:.15s}
+.hcard .hname.clickable-fund:hover{color:var(--primary)}
 .hcard .hcat{font-family:var(--mono);font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin:10px 0 14px;font-weight:600}
 .hmetrics{display:flex;gap:16px}
 .hmetrics .m .k{font-family:var(--mono);font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
@@ -737,7 +738,7 @@ function renderLookThrough(){
 function renderHoldCards(){
   const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n)).map(([n,w])=>({...FUNDS.find(f=>f.name===n),weight:w})).sort((a,b)=>b.weight-a.weight);
   $('holdCards').innerHTML=held.length?held.map(f=>`<div class="card hcard"><div class="wt">${f.weight}%</div>
-    <div class="hname">${f.name}</div><div class="hcat">${f.cat}</div>
+    <div class="hname clickable-fund" onclick="openFundModal('${f.name.replace(/'/g,"\\\'")}')" title="View fund details">${f.name}</div><div class="hcat">${f.cat}</div>
     <div class="hmetrics">
       <div class="m"><div class="k">1-Year</div><div class="v ${cls(f.r1y)}">${f0(f.r1y)}</div></div>
       <div class="m"><div class="k">3-Year</div><div class="v ${cls(f.r3y)}">${f0(f.r3y)}</div></div>
