@@ -54,6 +54,17 @@ h2 .n{font-family:var(--mono);font-size:12px;color:var(--faint);margin-left:10px
 .toggle input:checked+.track{background:var(--gold);border-color:var(--gold)}
 .toggle input:checked+.track .knob{left:20px;background:#1a1205}
 .toggle .tlbl{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.proj-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:760px){.proj-grid{grid-template-columns:repeat(2,1fr)}}
+.proj-grid label{display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.proj-grid input{font-family:var(--mono);font-size:15px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 11px;width:100%;text-align:right}
+.proj-grid input:focus{outline:none;border-color:var(--gold)}
+.cmp-controls{display:flex;gap:8px;flex-wrap:wrap}
+.cmp-chips{display:flex;gap:7px;flex-wrap:wrap}
+.cmp-chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;background:var(--panel2);border:1px solid var(--line);color:var(--mute);padding:6px 11px;border-radius:20px;cursor:pointer;transition:.13s}
+.cmp-chip:hover{border-color:var(--faint);color:var(--ink)}
+.cmp-chip.on{color:var(--ink);border-color:transparent}
+.cmp-chip .cdot{width:10px;height:10px;border-radius:50%;background:var(--faint);flex-shrink:0}
 .btn{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 16px;border-radius:8px;cursor:pointer;transition:.15s}
 .btn:hover{border-color:var(--faint)}
 .btn.gold{background:var(--gold);color:#1a1205;border-color:var(--gold);font-weight:600}
@@ -198,6 +209,24 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
     </div>
   </div>
 
+  <h2>Will it be enough?<span class="n">/ PROJECTION</span></h2>
+  <div class="card">
+    <div class="cardlbl">Project your pot to retirement. Historical return &amp; volatility drive a range of outcomes (1,000+ simulations) — a spread of possibilities, not a promise.</div>
+    <div class="proj-grid" id="projInputs">
+      <label>Current age<input type="number" id="pjAge" min="16" max="100" step="1"></label>
+      <label>Retirement age<input type="number" id="pjRet" min="40" max="100" step="1"></label>
+      <label>Pot value now (£)<input type="number" id="pjPot" min="0" step="500"></label>
+      <label>Contribution (£/month)<input type="number" id="pjMon" min="0" step="50"></label>
+      <label>Expected return (%/yr)<input type="number" id="pjRetn" step="0.1"></label>
+      <label>Volatility (%/yr)<input type="number" id="pjVol" min="0" step="0.1"></label>
+      <label>Contribution rises (%/yr)<input type="number" id="pjInfl" min="0" step="0.5"></label>
+      <label>Target pot (£, optional)<input type="number" id="pjTgt" min="0" step="1000"></label>
+    </div>
+    <div id="projOut" style="margin-top:16px"></div>
+    <div style="margin-top:14px"><svg viewBox="0 0 760 320" id="projChart" style="width:100%;height:auto"></svg></div>
+    <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)">Defaults come from your blended holdings (return &amp; volatility) and latest recorded pot value — change any of them. <span style="color:var(--accent)">Shaded band</span> = the middle 80% of outcomes (10th–90th percentile); <span style="color:var(--gold)">gold line</span> = the median. Returns assume charges and inflation are not deducted unless you lower the return yourself. Not a forecast or advice.</p>
+  </div>
+
   <h2>Top picks for max growth<span class="n">/ HIGHEST ANNUALISED RETURN</span></h2>
   <div class="card">
     <div class="cardlbl">Ranked purely on historical annualised return (cash and funds with under ~60 daily prices excluded). Higher growth has historically come with deeper drawdowns — check the risk numbers before acting.</div>
@@ -230,6 +259,14 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
     </div>
   </div>
   <div class="card" style="margin-top:14px">
+    <div class="cardlbl">Contributions &amp; withdrawals · optional</div>
+    <p class="note" style="font-size:12.5px;color:var(--mute);margin:-6px 0 14px">Record money you paid <b>in</b> (positive) or took <b>out</b> (negative) between your recorded values. This lets the chart separate true investment growth from the cash you added, and shows a money-weighted (IRR) return.</p>
+    <div id="contribRows"></div>
+    <div class="he-foot" style="margin-top:14px">
+      <button class="btn" id="contribAdd">+ Add a contribution</button>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
     <div class="cardlbl">Record what funds you held and the dates you held them. Give each holding period a start and end date — leave the end blank to run it up to the latest prices (or the next period). We chain those daily-rebalanced periods into one continuous performance line.</div>
     <div id="historyRows"></div>
     <div class="he-foot" style="margin-top:14px">
@@ -239,6 +276,20 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
 
   <h2>Holdings, fund by fund<span class="n">/ HIGHLIGHTED</span></h2>
   <div class="grid hold-grid" id="holdCards"></div>
+
+  <h2>Compare funds over time<span class="n">/ REBASED TO 100</span></h2>
+  <div class="card">
+    <div class="cardlbl">Click funds to plot them together. Each line is rebased to 100 at the first date they all share, so funds with very different unit prices are directly comparable.</div>
+    <div class="cmp-controls" style="margin-bottom:8px">
+      <button class="filt" id="cmpHeld">My holdings</button>
+      <button class="filt" id="cmpTop">Top 5 growth</button>
+      <button class="filt" id="cmpAll">All</button>
+      <button class="filt" id="cmpNone">Clear</button>
+    </div>
+    <div class="cmp-chips" id="cmpChips"></div>
+    <svg viewBox="0 0 760 360" id="cmpChart" style="width:100%;height:auto;margin-top:8px"></svg>
+    <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)">Lines show <b>price (capital) return</b> rebased to a common 100 — they exclude charges and any income/dividends. A line ending at 140 means +40% over the window shown.</p>
+  </div>
 
   <h2>Risk vs reward<span class="n">/ 3-YEAR</span></h2>
   <div class="card scatter-card">
@@ -277,6 +328,10 @@ let HOLDINGS=[];     // [[name,weight],...]
 let HISTORY=[];      // [{start:'YYYY-MM-DD',end:'YYYY-MM-DD',holdings:[[name,weight],...]},...]
 let PORT=null;
 let VALUATIONS=[];   // manual: [{date:'YYYY-MM-DD',value:£},...] real recorded pot values
+let CONTRIBUTIONS=[];// manual: [{date,amount}] money paid in (+) or taken out (−)
+let PROJ={};         // retirement projection inputs
+let COMPARE=new Set();// fund names selected in the comparison chart
+const CMP_COLORS=['#4a9eff','#d4a64a','#3fb950','#c77dff','#f0556d','#36cfc9','#ff9f43','#9aa7b8','#a0d911','#eb2f96'];
 // helpers over the recorded valuations
 function cleanValuations(){
   const map=new Map();
@@ -290,6 +345,21 @@ function upsertValuation(date,value){
   if(!(+value>0)){if(i>=0)VALUATIONS.splice(i,1);return;}
   if(i>=0)VALUATIONS[i].value=+value; else VALUATIONS.push({date,value:+value});
 }
+function cleanContributions(){
+  return CONTRIBUTIONS.filter(c=>c&&c.date&&isFinite(+c.amount)&&+c.amount!==0)
+    .map(c=>({date:c.date,amount:+c.amount})).sort((a,b)=>a.date.localeCompare(b.date));
+}
+// internal rate of return from dated cashflows: cfs=[{t:yearsFromStart,cf}]
+function irr(cfs){
+  const npv=r=>cfs.reduce((s,c)=>s+c.cf/Math.pow(1+r,c.t),0);
+  let lo=-0.95,hi=3,flo=npv(lo),fhi=npv(hi);
+  if(!isFinite(flo)||!isFinite(fhi)||flo*fhi>0)return null;
+  for(let i=0;i<120;i++){const mid=(lo+hi)/2,fm=npv(mid);if(Math.abs(fm)<1e-6)return mid;if(flo*fm<0){hi=mid;}else{lo=mid;flo=fm;}}
+  return (lo+hi)/2;
+}
+// standard normal (Box–Muller)
+function gaussian(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function pctile(arr,q){const a=[...arr].sort((x,y)=>x-y);const idx=(a.length-1)*q,lo=Math.floor(idx),hi=Math.ceil(idx);return a[lo]+(a[hi]-a[lo])*(idx-lo);}
 
 // ---------- parsing ----------
 function cleanName(fn){
@@ -409,7 +479,7 @@ function renderAll(){
   $('fcount').textContent=FUNDS.length;
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderHoldCards(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderProjection(); renderHoldCards(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -578,16 +648,30 @@ function computeValuations(){
   const yrs=(dates[dates.length-1]-dates[0])/(365.25*864e5);
   const ann=yrs>0.1?Math.pow(vals[vals.length-1]/vals[0],1/yrs)-1:null;
   let peak=vals[0],mdd=0; for(const x of vals){peak=Math.max(peak,x);mdd=Math.min(mdd,x/peak-1);}
+  // contributions / withdrawals between the first and last recorded value
+  const t0=+dates[0], tN=+dates[dates.length-1];
+  const flows=cleanContributions().filter(c=>{const t=+new Date(c.date);return t>t0&&t<=tN;});
+  const paidIn=flows.reduce((a,c)=>a+c.amount,0);
+  const growthAbs=vals[vals.length-1]-vals[0]-paidIn;
+  // money-weighted (IRR): opening balance + each flow are outflows, final value an inflow
+  const yrsOf=t=>(t-t0)/(365.25*864e5);
+  const cfs=[{t:0,cf:-vals[0]},...flows.map(c=>({t:yrsOf(+new Date(c.date)),cf:-c.amount})),{t:yrsOf(tN),cf:vals[vals.length-1]}];
+  const mwr=flows.length?irr(cfs):null;
+  // cost-basis line for charting: opening value + cumulative contributions to date
+  const marks=[...new Set([t0,tN,...flows.map(c=>+new Date(c.date))])].sort((a,b)=>a-b);
+  const basisDates=marks.map(t=>new Date(t));
+  const basisVals=marks.map(t=>vals[0]+flows.filter(c=>+new Date(c.date)<=t).reduce((a,c)=>a+c.amount,0));
   return {from:dates[0],to:dates[dates.length-1],cum:cum*100,ann:ann!=null?ann*100:null,mdd:mdd*100,
-    startValue:vals[0],endValue:vals[vals.length-1],nav:{dates,vals}};
+    startValue:vals[0],endValue:vals[vals.length-1],nav:{dates,vals},
+    hasFlows:flows.length>0,paidIn,growthAbs,mwr:mwr!=null?mwr*100:null,basis:{dates:basisDates,vals:basisVals}};
 }
 // draws the total-value chart. opts.actual = exact recorded series (gold, dotted markers);
 // opts.estimate = blended fund-price series (blue). Either may be null but not both.
 function drawTotalChart(opts){
   const el=$('navChart'); if(!el)return;
-  const est=opts.estimate, act=opts.actual;
+  const est=opts.estimate, act=opts.actual, bas=opts.basis;
   const allT=[], allV=[];
-  [est,act].forEach(s=>{if(s){s.dates.forEach(d=>allT.push(+d));s.vals.forEach(v=>allV.push(v));}});
+  [est,act,bas].forEach(s=>{if(s){s.dates.forEach(d=>allT.push(+d));s.vals.forEach(v=>allV.push(v));}});
   if(allT.length<2)return;
   const W=760,H=300,pad={l:64,r:16,t:16,b:34};
   const t0=Math.min(...allT), t1=Math.max(...allT), tspan=(t1-t0)||1;
@@ -614,6 +698,8 @@ function drawTotalChart(opts){
       g+=`<path d="${path(est)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>`;}
     else g+=`<path d="${path(est)}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-opacity=".4" stroke-dasharray="4 4"/>`;
   }
+  // cost-basis ("money paid in") line — the gap up to the gold line is investment growth
+  if(bas)g+=`<path d="${path(bas)}" fill="none" stroke="var(--pos)" stroke-width="1.5" stroke-opacity=".8" stroke-dasharray="5 3"/>`;
   // exact recorded line + dots on each real value
   if(act){
     g+=`<path d="${path(act)}" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linejoin="round"/>`;
@@ -652,6 +738,18 @@ function renderValEditor(){
     $('valRows').querySelectorAll('button[data-act="vdel"]').forEach(b=>b.onclick=e=>{VALUATIONS.splice(+e.currentTarget.dataset.i,1);saveValuations();syncFundValueInput();renderHistory();});
   }
 }
+function renderContribEditor(){
+  const dateStyle='background:var(--panel2);color:var(--ink);border:1px solid var(--line);padding:7px 9px;border-radius:8px;font-family:var(--mono);font-size:13px';
+  if(!CONTRIBUTIONS.length){$('contribRows').innerHTML='<p class="note" style="color:var(--faint);margin:0">No contributions recorded. Optional — add them to separate growth from money you paid in.</p>';return;}
+  CONTRIBUTIONS.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  $('contribRows').innerHTML=CONTRIBUTIONS.map((c,i)=>`<div class="he-row" style="grid-template-columns:170px 1fr 34px">
+    <input type="date" value="${c.date||''}" data-i="${i}" data-f="cdate" style="${dateStyle}">
+    <div class="fundval-input" style="flex:1"><span class="cur">£</span><input type="${PRIVACY?'password':'number'}" step="100" value="${c.amount||''}" data-i="${i}" data-f="camt" placeholder="+ in / − out" style="flex:1;text-align:right"></div>
+    <button class="x" data-i="${i}" data-act="cdel">×</button></div>`).join('');
+  $('contribRows').querySelectorAll('input[data-f="cdate"]').forEach(el=>el.onchange=e=>{CONTRIBUTIONS[+e.target.dataset.i].date=e.target.value;saveContributions();renderHistory();});
+  $('contribRows').querySelectorAll('input[data-f="camt"]').forEach(el=>el.onchange=e=>{CONTRIBUTIONS[+e.target.dataset.i].amount=parseFloat(e.target.value)||0;saveContributions();renderHistory();});
+  $('contribRows').querySelectorAll('button[data-act="cdel"]').forEach(b=>b.onclick=e=>{CONTRIBUTIONS.splice(+e.currentTarget.dataset.i,1);saveContributions();renderHistory();});
+}
 function renderHistory(){
   HISTORY.sort((a,b)=>(a.start||'').localeCompare(b.start||''));
   const fmt=d=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
@@ -670,10 +768,15 @@ function renderHistory(){
         <div class="stat"><div class="lbl">Annualised</div><div class="val ${cls(act.ann)}">${f0(act.ann)}</div></div>
         <div class="stat"><div class="lbl">Max Drawdown</div><div class="val sm neg">${f0(act.mdd)}</div></div>
       </div>
+      ${act.hasFlows?`<div class="stat-row" style="margin-top:10px">
+        <div class="stat"><div class="lbl">You paid in</div><div class="val sm">${fmtMoney(act.paidIn)}</div></div>
+        <div class="stat"><div class="lbl">Investment growth</div><div class="val sm ${cls(act.growthAbs)}">${fmtMoney(act.growthAbs)}</div></div>
+        <div class="stat"><div class="lbl">Return on money</div><div class="val sm ${cls(act.mwr)}">${f0(act.mwr)}</div></div>
+      </div>`:''}
       <div style="margin-top:16px"><svg viewBox="0 0 760 300" id="navChart" style="width:100%;height:auto"></svg></div>
-      <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)"><span style="color:var(--gold)">Gold line &amp; dots</span> = your exact recorded total value.${est?' <span style="color:var(--accent)">Dashed blue</span> = the blended fund-price estimate, for comparison.':''} Note: recorded totals include any contributions or withdrawals, so this isn’t a like-for-like fund return.</p>
+      <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)"><span style="color:var(--gold)">Gold line &amp; dots</span> = your exact recorded total value.${act.hasFlows?' <span style="color:var(--pos)">Dashed green</span> = money you’ve paid in (cost basis); the gap up to gold is pure investment growth, and “return on money” is the money-weighted (IRR) return that strips out the timing of your payments.':est?' <span style="color:var(--accent)">Dashed blue</span> = the blended fund-price estimate, for comparison.':' Record contributions below to split this into money paid in vs investment growth.'}</p>
       </div>`;
-    drawTotalChart({estimate:est?est.nav:null,actual:act.nav});
+    drawTotalChart({estimate:est&&!act.hasFlows?est.nav:null,actual:act.nav,basis:act.hasFlows?act.basis:null});
   } else if(est){
     // ESTIMATE only (no/one recorded value): blended fund-price line, scaled if a value exists
     const valueStats=est.valued?`
@@ -699,6 +802,7 @@ function renderHistory(){
     $('historicSummary').innerHTML=(HISTORY.length||cleanValuations().length)?'<div class="card"><p class="note" style="color:var(--faint);margin:0">Add at least two recorded values (below), or a holding snapshot with valid funds and dates, to see performance.</p></div>':'';
   }
   renderValEditor();
+  renderContribEditor();
   if(!HISTORY.length){$('historyRows').innerHTML='<p class="note" style="color:var(--faint);padding:8px 0">No historic snapshots yet. Click the button below to record what you held.</p>';return;}
   const dateStyle='background:var(--panel2);color:var(--ink);border:1px solid var(--line);padding:5px 8px;border-radius:6px;font-family:var(--mono);font-size:13px';
   $('historyRows').innerHTML=HISTORY.map((snap,i)=>{
@@ -742,6 +846,155 @@ function renderHistory(){
     HISTORY.splice(+e.currentTarget.dataset.s,1); saveHistory(); renderHistory();
   });
 }
+// ---------- compare funds over time ----------
+function saveCompare(){try{localStorage.setItem('fund_compare',JSON.stringify([...COMPARE]));}catch(e){}}
+function loadCompare(){try{const s=localStorage.getItem('fund_compare');if(s)return new Set(JSON.parse(s));}catch(e){}return null;}
+function renderCompare(){
+  // keep only names that still exist
+  COMPARE=new Set([...COMPARE].filter(n=>FUNDS.find(f=>f.name===n)));
+  const sorted=[...FUNDS].sort((a,b)=>a.name.localeCompare(b.name));
+  const colorOf=n=>CMP_COLORS[[...COMPARE].indexOf(n)%CMP_COLORS.length];
+  $('cmpChips').innerHTML=sorted.map(f=>{const on=COMPARE.has(f.name);
+    return `<span class="cmp-chip ${on?'on':''}" data-n="${f.name.replace(/"/g,'&quot;')}" style="${on?`background:${colorOf(f.name)}22;border-color:${colorOf(f.name)}`:''}"><span class="cdot" style="${on?`background:${colorOf(f.name)}`:''}"></span>${f.name}</span>`;}).join('')||'<p class="note" style="color:var(--faint);margin:0">Load funds to compare them.</p>';
+  $('cmpChips').querySelectorAll('.cmp-chip').forEach(c=>c.onclick=()=>{const n=c.dataset.n;COMPARE.has(n)?COMPARE.delete(n):COMPARE.add(n);saveCompare();renderCompare();});
+  drawCompareChart();
+}
+function drawCompareChart(){
+  const el=$('cmpChart'); if(!el)return;
+  const names=[...COMPARE];
+  const sel=names.map(n=>FUNDS.find(f=>f.name===n)).filter(Boolean).filter(f=>f.rows&&f.rows.length>1);
+  if(!sel.length){el.innerHTML='<text x="380" y="180" text-anchor="middle" fill="#5d6878" font-family="monospace" font-size="13">Click one or more funds above to plot them.</text>';return;}
+  // common start = latest first-date among selected, so every line begins together
+  const commonStart=Math.max(...sel.map(f=>+f.rows[0].d));
+  const maxEnd=Math.max(...sel.map(f=>+f.rows[f.rows.length-1].d));
+  const series=sel.map((f,i)=>{
+    const rows=f.rows.filter(r=>+r.d>=commonStart);
+    if(rows.length<2)return null;
+    const base=rows[0].p;
+    return {name:f.name,color:CMP_COLORS[i%CMP_COLORS.length],pts:rows.map(r=>({t:+r.d,v:r.p/base*100}))};
+  }).filter(Boolean);
+  if(!series.length){el.innerHTML='<text x="380" y="180" text-anchor="middle" fill="#5d6878" font-family="monospace" font-size="13">Selected funds don’t overlap in time.</text>';return;}
+  const W=760,H=360,pad={l:50,r:14,t:14,b:30};
+  const t0=commonStart,t1=maxEnd,tspan=(t1-t0)||1;
+  let vmin=Infinity,vmax=-Infinity;series.forEach(s=>s.pts.forEach(p=>{vmin=Math.min(vmin,p.v);vmax=Math.max(vmax,p.v);}));
+  const ystep=niceStep((vmax-vmin)||1);
+  const lo=Math.floor(vmin/ystep)*ystep,hi=Math.ceil(vmax/ystep)*ystep,vspan=(hi-lo)||1;
+  const X=t=>pad.l+((t-t0)/tspan)*(W-pad.l-pad.r), Y=v=>H-pad.b-((v-lo)/vspan)*(H-pad.t-pad.b);
+  let g='';
+  for(let v=lo;v<=hi+0.001;v+=ystep)g+=`<line class="gridline" x1="${pad.l}" y1="${Y(v)}" x2="${W-pad.r}" y2="${Y(v)}" opacity=".5"/><text class="sc-lbl" x="${pad.l-8}" y="${Y(v)+3}" text-anchor="end">${Math.round(v)}</text>`;
+  const y0=new Date(t0).getFullYear(),y1=new Date(t1).getFullYear();
+  for(let yr=y0;yr<=y1;yr++){const tx=+new Date(yr,0,1);if(tx<t0||tx>t1)continue;g+=`<line class="gridline" x1="${X(tx)}" y1="${pad.t}" x2="${X(tx)}" y2="${H-pad.b}" opacity=".3"/><text class="sc-lbl" x="${X(tx)}" y="${H-pad.b+16}" text-anchor="middle">${yr}</text>`;}
+  if(lo<=100&&hi>=100)g+=`<line x1="${pad.l}" y1="${Y(100)}" x2="${W-pad.r}" y2="${Y(100)}" stroke="#3a4452" stroke-dasharray="3 3"/>`;
+  series.forEach(s=>{g+=`<path d="${s.pts.map((p,i)=>`${i?'L':'M'}${X(p.t).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(' ')}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;});
+  // hover
+  g+=`<line id="cmpCur" x1="0" y1="${pad.t}" x2="0" y2="${H-pad.b}" stroke="var(--ink)" stroke-width="1" opacity="0"/><rect id="cmpHit" x="${pad.l}" y="${pad.t}" width="${W-pad.l-pad.r}" height="${H-pad.t-pad.b}" fill="transparent"/>`;
+  el.innerHTML=g;
+  const hit=$('cmpHit'),cur=$('cmpCur');
+  hit.onmousemove=e=>{
+    const r=el.getBoundingClientRect();
+    const t=t0+((((e.clientX-r.left)/r.width*W)-pad.l)/(W-pad.l-pad.r))*tspan;
+    cur.setAttribute('x1',X(t));cur.setAttribute('x2',X(t));cur.setAttribute('opacity','.3');
+    const rows=series.map(s=>{let best=s.pts[0];for(const p of s.pts){if(Math.abs(p.t-t)<Math.abs(best.t-t))best=p;}return {name:s.name,color:s.color,pct:best.v-100};})
+      .sort((a,b)=>b.pct-a.pct);
+    tip.innerHTML=`<b>${new Date(t).toLocaleDateString('en-GB',{month:'short',year:'numeric'})}</b>`+rows.map(r=>`<div class="r"><span style="color:${r.color}">${r.name.length>26?r.name.slice(0,25)+'…':r.name}</span><span class="${r.pct>=0?'pos':'neg'}">${(r.pct>=0?'+':'')+r.pct.toFixed(1)}%</span></div>`).join('');
+    tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-270)+'px';tip.style.top=Math.min(e.clientY+14,innerHeight-20-rows.length*18)+'px';
+  };
+  hit.onmouseleave=()=>{tip.style.opacity=0;cur.setAttribute('opacity','0');};
+}
+$('cmpHeld').onclick=()=>{COMPARE=new Set(HOLDINGS.filter(h=>h[1]>0).map(h=>h[0]).filter(n=>FUNDS.find(f=>f.name===n)));saveCompare();renderCompare();};
+$('cmpTop').onclick=()=>{COMPARE=new Set(growthPicks(5).map(f=>f.name));saveCompare();renderCompare();};
+$('cmpAll').onclick=()=>{COMPARE=new Set(FUNDS.map(f=>f.name));saveCompare();renderCompare();};
+$('cmpNone').onclick=()=>{COMPARE=new Set();saveCompare();renderCompare();};
+// ---------- retirement projection ----------
+function projDefaults(){
+  return {
+    age:PROJ.age??40, ret:PROJ.ret??67,
+    pot:PROJ.pot??(latestValue()||0),
+    mon:PROJ.mon??200,
+    retn:PROJ.retn??(PORT&&PORT.ann!=null?+PORT.ann.toFixed(1):5),
+    vol:PROJ.vol??(PORT&&PORT.vol!=null?+PORT.vol.toFixed(1):12),
+    infl:PROJ.infl??0,
+    tgt:PROJ.tgt??0
+  };
+}
+function projectMC(p){
+  const years=Math.round(p.ret-p.age);
+  if(years<=0||years>80)return null;
+  const N=1500, mu=p.retn/100, sig=Math.max(0,p.vol/100), g=Math.max(0,p.infl/100);
+  const yearVals=Array.from({length:years+1},()=>new Float64Array(N));
+  let totalPaid=p.pot;
+  for(let s=0;s<N;s++){
+    let v=p.pot, annual=p.mon*12;
+    yearVals[0][s]=v;
+    for(let y=1;y<=years;y++){
+      let r=mu+sig*gaussian(); if(r<-0.95)r=-0.95;
+      v=v*(1+r)+annual; annual*=(1+g);
+      yearVals[y][s]=v;
+    }
+  }
+  // contributions paid in total (with the same yearly escalation, deterministic)
+  let annual=p.mon*12; for(let y=1;y<=years;y++){totalPaid+=annual;annual*=(1+g);}
+  const p10=[],p50=[],p90=[];
+  for(let y=0;y<=years;y++){p10.push(pctile(yearVals[y],.1));p50.push(pctile(yearVals[y],.5));p90.push(pctile(yearVals[y],.9));}
+  const finals=yearVals[years];
+  const probTgt=p.tgt>0?[...finals].filter(v=>v>=p.tgt).length/N:null;
+  return {years,startAge:p.age,p10,p50,p90,totalPaid,tgt:p.tgt,probTgt,
+    finalP10:p10[years],finalP50:p50[years],finalP90:p90[years]};
+}
+function renderProjection(){
+  const d=projDefaults();
+  // reflect current values into the inputs (don't fight the user mid-type)
+  const set=(id,v)=>{const el=$(id);if(el&&document.activeElement!==el)el.value=(v||v===0)?v:'';};
+  set('pjAge',d.age);set('pjRet',d.ret);set('pjPot',d.pot);set('pjMon',d.mon);
+  set('pjRetn',d.retn);set('pjVol',d.vol);set('pjInfl',d.infl);set('pjTgt',d.tgt);
+  const potEl=$('pjPot'); if(potEl)potEl.type=PRIVACY?'password':'number';
+  const tgtEl=$('pjTgt'); if(tgtEl)tgtEl.type=PRIVACY?'password':'number';
+  const s=projectMC(d);
+  if(!s){$('projOut').innerHTML='<p class="note" style="color:var(--faint);margin:0">Set a current age below your retirement age to see a projection.</p>';$('projChart').innerHTML='';return;}
+  const retYear=new Date().getFullYear()+s.years;
+  $('projOut').innerHTML=`
+    <div class="stat-row">
+      <div class="stat"><div class="lbl">Likely pot at ${s.startAge+s.years} (${retYear})</div><div class="val">${fmtMoney(s.finalP50)}</div></div>
+      <div class="stat"><div class="lbl">You'll have paid in</div><div class="val sm">${fmtMoney(s.totalPaid)}</div></div>
+      <div class="stat"><div class="lbl">Investment growth</div><div class="val sm ${cls(s.finalP50-s.totalPaid)}">${fmtMoney(s.finalP50-s.totalPaid)}</div></div>
+    </div>
+    <div class="stat-row" style="margin-top:10px">
+      <div class="stat"><div class="lbl">Unlucky (10th pct)</div><div class="val sm">${fmtMoney(s.finalP10)}</div></div>
+      <div class="stat"><div class="lbl">Lucky (90th pct)</div><div class="val sm">${fmtMoney(s.finalP90)}</div></div>
+      ${s.tgt>0?`<div class="stat"><div class="lbl">Chance of reaching ${fmtMoney(s.tgt)}</div><div class="val sm ${s.probTgt>=0.5?'pos':'neg'}">${Math.round(s.probTgt*100)}%</div></div>`:'<div class="stat"><div class="lbl">Set a target</div><div class="val sm" style="color:var(--faint)">—</div></div>'}
+    </div>`;
+  drawProjChart(s);
+}
+function drawProjChart(s){
+  const el=$('projChart'); if(!el)return;
+  const W=760,H=320,pad={l:64,r:16,t:16,b:30};
+  const years=s.years, x0=s.startAge, x1=s.startAge+years;
+  const vmax=Math.max(s.p90[years], s.tgt||0), vmin=0;
+  const ystep=niceStep((vmax-vmin)||1), hi=Math.ceil(vmax/ystep)*ystep, vspan=hi||1;
+  const X=a=>pad.l+((a-x0)/(years||1))*(W-pad.l-pad.r);
+  const Y=v=>H-pad.b-(v/vspan)*(H-pad.t-pad.b);
+  let g='';
+  for(let v=0;v<=hi+0.001;v+=ystep)g+=`<line class="gridline" x1="${pad.l}" y1="${Y(v)}" x2="${W-pad.r}" y2="${Y(v)}" opacity=".5"/><text class="sc-lbl" x="${pad.l-8}" y="${Y(v)+3}" text-anchor="end">${fmtMoney(v)}</text>`;
+  const astep=years<=10?2:years<=24?5:10;
+  for(let a=x0;a<=x1;a+=astep)g+=`<line class="gridline" x1="${X(a)}" y1="${pad.t}" x2="${X(a)}" y2="${H-pad.b}" opacity=".3"/><text class="sc-lbl" x="${X(a)}" y="${H-pad.b+16}" text-anchor="middle">${a}</text>`;
+  // 10–90 band
+  let band='M'+s.p90.map((v,i)=>`${X(x0+i).toFixed(1)} ${Y(v).toFixed(1)}`).join(' L');
+  band+=' L'+s.p10.map((v,i)=>`${X(x0+years-i).toFixed(1)} ${Y(s.p10[years-i]).toFixed(1)}`).join(' L')+' Z';
+  g+=`<path d="${band}" fill="var(--accent)" fill-opacity=".13" stroke="none"/>`;
+  // median line
+  g+=`<path d="${'M'+s.p50.map((v,i)=>`${X(x0+i).toFixed(1)} ${Y(v).toFixed(1)}`).join(' L')}" fill="none" stroke="var(--gold)" stroke-width="2.5"/>`;
+  // target line
+  if(s.tgt>0&&s.tgt<=hi)g+=`<line x1="${pad.l}" y1="${Y(s.tgt)}" x2="${W-pad.r}" y2="${Y(s.tgt)}" stroke="var(--pos)" stroke-width="1.5" stroke-dasharray="5 4"/><text class="sc-lbl" x="${W-pad.r}" y="${Y(s.tgt)-5}" text-anchor="end" fill="var(--pos)">target</text>`;
+  el.innerHTML=g;
+}
+function readProjInputs(){
+  const num=id=>{const v=parseFloat($(id).value);return isNaN(v)?null:v;};
+  PROJ={age:num('pjAge'),ret:num('pjRet'),pot:num('pjPot'),mon:num('pjMon'),retn:num('pjRetn'),vol:num('pjVol'),infl:num('pjInfl'),tgt:num('pjTgt')};
+  // drop nulls so defaults can fill them
+  Object.keys(PROJ).forEach(k=>{if(PROJ[k]==null)delete PROJ[k];});
+  saveProjection(); renderProjection();
+}
+['pjAge','pjRet','pjPot','pjMon','pjRetn','pjVol','pjInfl','pjTgt'].forEach(id=>{const el=$(id);if(el)el.oninput=readProjInputs;});
 function renderObs(){
   const o=[];
   const named=(arr)=>arr.map(f=>`${f.name} (${f0(f.r3y)})`).join(', ');
@@ -851,6 +1104,10 @@ function loadValuations(){
   try{const old=localStorage.getItem('fund_value');if(old){const v=parseFloat(old);if(v>0)return [{date:new Date().toISOString().slice(0,10),value:v}];}}catch(e){}
   return [];
 }
+function saveContributions(){try{localStorage.setItem('fund_contributions',JSON.stringify(CONTRIBUTIONS));}catch(e){}}
+function loadContributions(){try{const s=localStorage.getItem('fund_contributions');if(s)return JSON.parse(s).filter(c=>c&&c.date);}catch(e){}return [];}
+function saveProjection(){try{localStorage.setItem('fund_projection',JSON.stringify(PROJ));}catch(e){}}
+function loadProjection(){try{const s=localStorage.getItem('fund_projection');if(s)return JSON.parse(s);}catch(e){}return {};}
 // ---------- upload wiring ----------
 // total fund value (manual) — the top box records today's value into the series
 function syncFundValueInput(){const el=$('fundValue');if(!el)return;el.type=PRIVACY?'password':'number';if(document.activeElement!==el){const lv=latestValue();el.value=lv>0?lv:'';}}
@@ -864,12 +1121,17 @@ $('valAdd').onclick=()=>{
   if(!VALUATIONS.find(v=>v.date===today))VALUATIONS.push({date:today,value:0});
   saveValuations(); renderHistory();
 };
+$('contribAdd').onclick=()=>{
+  CONTRIBUTIONS.push({date:new Date().toISOString().slice(0,10),amount:0});
+  saveContributions(); renderHistory();
+};
 // ---------- export / import (move your data to another computer) ----------
 function exportData(){
   const data={
     app:'fund-dashboard', version:1, exported:new Date().toISOString(),
     funds:FUNDS.map(f=>({n:f.name,r:f.rows.map(x=>[+x.d,x.p])})),
-    holdings:HOLDINGS, history:HISTORY, valuations:VALUATIONS
+    holdings:HOLDINGS, history:HISTORY, valuations:VALUATIONS,
+    contributions:CONTRIBUTIONS, projection:PROJ
   };
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');
@@ -884,7 +1146,9 @@ async function importData(file){
     if(Array.isArray(data.holdings))HOLDINGS=data.holdings.map(h=>[h[0],h[1]]);
     if(Array.isArray(data.history))HISTORY=data.history.map(h=>({start:h.start||h.date||'',end:h.end||'',holdings:h.holdings||[]}));
     if(Array.isArray(data.valuations))VALUATIONS=data.valuations.filter(v=>v&&v.date);
-    saveHistory(); saveValuations(); saveState(); saveFunds(); syncFundValueInput();
+    if(Array.isArray(data.contributions))CONTRIBUTIONS=data.contributions.filter(c=>c&&c.date);
+    if(data.projection&&typeof data.projection==='object')PROJ=data.projection;
+    saveHistory(); saveValuations(); saveContributions(); saveProjection(); saveState(); saveFunds(); syncFundValueInput();
     $('uploadSection').classList.add('hidden'); $('loadedBar').classList.remove('hidden'); $('dash').classList.remove('hidden');
     $('errbox').textContent=''; $('loadbar').textContent=`Imported ${FUNDS.length} fund(s), ${VALUATIONS.length} recorded value(s).`;
     recompute();
@@ -895,13 +1159,13 @@ $('importBtn').onclick=()=>$('importInput').click();
 $('importInput').onchange=e=>{if(e.target.files[0])importData(e.target.files[0]);e.target.value='';};
 // ---------- privacy (hide £ values) ----------
 function loadPrivacy(){try{return localStorage.getItem('fund_privacy')==='1';}catch(e){return false;}}
-function applyPrivacy(){$('privacyToggle').checked=PRIVACY;syncFundValueInput();renderHistory();}
+function applyPrivacy(){$('privacyToggle').checked=PRIVACY;syncFundValueInput();renderProjection();renderHistory();}
 $('privacyToggle').onchange=e=>{PRIVACY=e.target.checked;try{localStorage.setItem('fund_privacy',PRIVACY?'1':'');}catch(_){}applyPrivacy();};
 // ---------- clear only personal values (keep loaded fund prices) ----------
 $('clearValues').onclick=()=>{
-  if(!confirm('Clear your holdings, historic snapshots and recorded £ values? Loaded fund prices are kept.'))return;
-  HOLDINGS=[];HISTORY=[];VALUATIONS=[];
-  ['fund_holdings','fund_history','fund_valuations','fund_value'].forEach(k=>localStorage.removeItem(k));
+  if(!confirm('Clear your holdings, historic snapshots, recorded £ values, contributions and projection? Loaded fund prices are kept.'))return;
+  HOLDINGS=[];HISTORY=[];VALUATIONS=[];CONTRIBUTIONS=[];PROJ={};
+  ['fund_holdings','fund_history','fund_valuations','fund_value','fund_contributions','fund_projection'].forEach(k=>localStorage.removeItem(k));
   syncFundValueInput(); recompute();
 };
 const drop=$('drop'),input=$('fileInput');
@@ -911,7 +1175,7 @@ $('addMore')&&($('addMore').onclick=()=>input.click());
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
 drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
 input.onchange=e=>handleFiles(e.target.files);
-$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];localStorage.removeItem('fund_data');localStorage.removeItem('fund_history');localStorage.removeItem('fund_value');localStorage.removeItem('fund_valuations');syncFundValueInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];PROJ={};COMPARE=new Set();['fund_data','fund_history','fund_value','fund_valuations','fund_contributions','fund_projection','fund_compare'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 async function handleFiles(fileList){
   const all=[...fileList];
   const zips=all.filter(f=>/\.zip$/i.test(f.name));
@@ -944,6 +1208,9 @@ async function handleFiles(fileList){
     HOLDINGS=src.filter(([n])=>FUNDS.find(f=>f.name===n)).map(h=>[h[0],h[1]]);
   }
   if(!VALUATIONS.length){VALUATIONS=loadValuations();}
+  if(!CONTRIBUTIONS.length)CONTRIBUTIONS=loadContributions();
+  if(!Object.keys(PROJ).length)PROJ=loadProjection();
+  if(!COMPARE.size)COMPARE=loadCompare()||new Set(HOLDINGS.filter(h=>h[1]>0).map(h=>h[0]));
   PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput();
   if(!HISTORY.length)HISTORY=loadHistoryLS();
   $('uploadSection').classList.add('hidden');
@@ -957,10 +1224,11 @@ async function handleFiles(fileList){
   if(!cached.length)return;
   FUNDS=cached;
   HISTORY=loadHistoryLS();
-  VALUATIONS=loadValuations(); PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput();
+  VALUATIONS=loadValuations(); CONTRIBUTIONS=loadContributions(); PROJ=loadProjection(); PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput();
   const saved=loadHoldings();
   const src=saved&&saved.length?saved:DEFAULT_HOLDINGS;
   HOLDINGS=src.filter(([n])=>FUNDS.find(f=>f.name===n)).map(h=>[h[0],h[1]]);
+  COMPARE=loadCompare()||new Set(HOLDINGS.filter(h=>h[1]>0).map(h=>h[0]));
   $('uploadSection').classList.add('hidden');
   $('loadedBar').classList.remove('hidden');
   $('dash').classList.remove('hidden');
