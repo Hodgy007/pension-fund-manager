@@ -47,6 +47,13 @@ h2 .n{font-family:var(--mono);font-size:12px;color:var(--faint);margin-left:10px
 .fundval-input input{font-family:var(--mono);font-size:16px;background:none;border:none;color:var(--ink);padding:9px 6px;width:140px;text-align:right}
 .fundval-input input:focus{outline:none}
 .fundval-row .note{font-size:12px;color:var(--faint)}
+.toggle{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.toggle input{display:none}
+.toggle .track{width:38px;height:21px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);position:relative;transition:.18s}
+.toggle .knob{position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--faint);transition:.18s}
+.toggle input:checked+.track{background:var(--gold);border-color:var(--gold)}
+.toggle input:checked+.track .knob{left:20px;background:#1a1205}
+.toggle .tlbl{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
 .btn{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 16px;border-radius:8px;cursor:pointer;transition:.15s}
 .btn:hover{border-color:var(--faint)}
 .btn.gold{background:var(--gold);color:#1a1205;border-color:var(--gold);font-weight:600}
@@ -150,12 +157,17 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
     <span class="chip"><b id="fcount">0</b> funds loaded</span>
     <span class="chip">priced to <b id="asof">—</b></span>
     <button class="btn" id="addMore">+ Add / update files</button>
-    <button class="btn" id="clearAll">Clear</button>
+    <button class="btn" id="exportBtn">⬇ Export</button>
+    <button class="btn" id="importBtn">⬆ Import</button>
+    <button class="btn" id="clearValues">Clear values</button>
+    <button class="btn" id="clearAll">Clear all</button>
+    <label class="toggle" title="Hide your £ amounts for privacy"><input type="checkbox" id="privacyToggle"><span class="track"><span class="knob"></span></span><span class="tlbl">Hide values</span></label>
+    <input type="file" id="importInput" accept=".json,application/json" class="hidden">
   </div>
   <div class="fundval-row">
     <label for="fundValue">Total fund value</label>
     <div class="fundval-input"><span class="cur">£</span><input id="fundValue" type="number" min="0" step="100" placeholder="e.g. 50000"></div>
-    <span class="note" id="fundValueNote">Manual entry — today's total value of your pot. Used to value your historic growth in real £.</span>
+    <span class="note" id="fundValueNote">Manual entry — today's total value of your pot. Saved with a date so your recorded values build an exact growth chart over time.</span>
   </div>
 </div>
 
@@ -210,6 +222,14 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
   <h2>Historic holdings &amp; actual return<span class="n">/ TIME-WEIGHTED</span></h2>
   <div id="historicSummary"></div>
   <div class="card" style="margin-top:14px">
+    <div class="cardlbl">Recorded total values · exact</div>
+    <p class="note" style="font-size:12.5px;color:var(--mute);margin:-6px 0 14px">Type in your pot's total value on the dates you have statements for. With two or more dated values the chart above shows your <b>exact</b> total value and growth — your real money, not an estimate from fund prices. (Today's value from the box at the top is included automatically.)</p>
+    <div id="valRows"></div>
+    <div class="he-foot" style="margin-top:14px">
+      <button class="btn" id="valAdd">+ Add a dated value</button>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
     <div class="cardlbl">Record what funds you held and the dates you held them. Give each holding period a start and end date — leave the end blank to run it up to the latest prices (or the next period). We chain those daily-rebalanced periods into one continuous performance line.</div>
     <div id="historyRows"></div>
     <div class="he-foot" style="margin-top:14px">
@@ -246,7 +266,8 @@ const C={'Equity':'#4a9eff','Bonds/Credit':'#3fb950','Multi-Asset/Alt':'#d4a64a'
 const f0=(v,d=1)=>v==null||isNaN(v)?'—':(v>0?'+':'')+v.toFixed(d)+'%';
 const f1=(v,d=1)=>v==null||isNaN(v)?'—':v.toFixed(d)+'%';
 const cls=v=>v==null||isNaN(v)?'':v>=0?'pos':'neg';
-const fmtMoney=v=>'£'+Math.round(v).toLocaleString('en-GB');
+let PRIVACY=false;   // when true, mask £ amounts for over-the-shoulder privacy
+const fmtMoney=v=>PRIVACY?'£•••••':'£'+Math.round(v).toLocaleString('en-GB');
 function niceStep(span){const raw=span/6,mag=Math.pow(10,Math.floor(Math.log10(raw)||0)),n=raw/mag;return (n<1.5?1:n<3?2:n<7?5:10)*mag;}
 
 // default holdings (match the Scottish Widows download names)
@@ -255,7 +276,20 @@ let FUNDS=[];        // [{name,cat,rows:[{d,p}],...metrics}]
 let HOLDINGS=[];     // [[name,weight],...]
 let HISTORY=[];      // [{start:'YYYY-MM-DD',end:'YYYY-MM-DD',holdings:[[name,weight],...]},...]
 let PORT=null;
-let FUND_VALUE=null; // manual: today's total value of the pot (£)
+let VALUATIONS=[];   // manual: [{date:'YYYY-MM-DD',value:£},...] real recorded pot values
+// helpers over the recorded valuations
+function cleanValuations(){
+  const map=new Map();
+  VALUATIONS.forEach(v=>{if(v&&v.date&&+v.value>0)map.set(v.date,+v.value);});
+  return [...map.entries()].map(([date,value])=>({date,value})).sort((a,b)=>a.date.localeCompare(b.date));
+}
+function latestValuation(){const a=cleanValuations();return a.length?a[a.length-1]:null;}
+function latestValue(){const l=latestValuation();return l?l.value:null;}
+function upsertValuation(date,value){
+  const i=VALUATIONS.findIndex(v=>v.date===date);
+  if(!(+value>0)){if(i>=0)VALUATIONS.splice(i,1);return;}
+  if(i>=0)VALUATIONS[i].value=+value; else VALUATIONS.push({date,value:+value});
+}
 
 // ---------- parsing ----------
 function cleanName(fn){
@@ -526,89 +560,145 @@ function computeHistory(){
   const v=dr.reduce((a,b)=>a+(b-m)**2,0)/dr.length;
   const vol=Math.sqrt(v)*Math.sqrt(252)*100;
   let peak=vals[0],mdd=0; for(const x of vals){peak=Math.max(peak,x);mdd=Math.min(mdd,x/peak-1);}
-  // scale the index to real money if a total fund value has been entered.
-  // the entered value is "today" — i.e. the final point of the series.
-  const valued=FUND_VALUE>0;
-  const scale=valued?FUND_VALUE/vals[vals.length-1]:1;
+  // scale the index to real money using the most recent recorded value.
+  // that value is treated as "today" — i.e. the final point of the series.
+  const lv=latestValue();
+  const valued=lv>0;
+  const scale=valued?lv/vals[vals.length-1]:1;
   const moneyVals=vals.map(v=>v*scale);
   return {from:dates[0],to:dates[dates.length-1],cum:cum*100,ann:ann!=null?ann*100:null,vol,mdd:mdd*100,
     valued,startValue:moneyVals[0],endValue:moneyVals[moneyVals.length-1],nav:{dates,vals:moneyVals}};
 }
-function drawNavChart(s){
+// exact total-value series, built purely from the values you recorded
+function computeValuations(){
+  const a=cleanValuations();
+  if(a.length<2)return null;
+  const dates=a.map(x=>new Date(x.date)), vals=a.map(x=>x.value);
+  const cum=vals[vals.length-1]/vals[0]-1;
+  const yrs=(dates[dates.length-1]-dates[0])/(365.25*864e5);
+  const ann=yrs>0.1?Math.pow(vals[vals.length-1]/vals[0],1/yrs)-1:null;
+  let peak=vals[0],mdd=0; for(const x of vals){peak=Math.max(peak,x);mdd=Math.min(mdd,x/peak-1);}
+  return {from:dates[0],to:dates[dates.length-1],cum:cum*100,ann:ann!=null?ann*100:null,mdd:mdd*100,
+    startValue:vals[0],endValue:vals[vals.length-1],nav:{dates,vals}};
+}
+// draws the total-value chart. opts.actual = exact recorded series (gold, dotted markers);
+// opts.estimate = blended fund-price series (blue). Either may be null but not both.
+function drawTotalChart(opts){
   const el=$('navChart'); if(!el)return;
-  const {dates,vals}=s.nav;
+  const est=opts.estimate, act=opts.actual;
+  const allT=[], allV=[];
+  [est,act].forEach(s=>{if(s){s.dates.forEach(d=>allT.push(+d));s.vals.forEach(v=>allV.push(v));}});
+  if(allT.length<2)return;
   const W=760,H=300,pad={l:64,r:16,t:16,b:34};
-  const t0=+dates[0], t1=+dates[dates.length-1], tspan=t1-t0||1;
-  const vmin=Math.min(...vals), vmax=Math.max(...vals);
+  const t0=Math.min(...allT), t1=Math.max(...allT), tspan=(t1-t0)||1;
+  const vmin=Math.min(...allV), vmax=Math.max(...allV);
   const ystep=niceStep((vmax-vmin)||1);
   const lo=Math.floor(vmin/ystep)*ystep, hi=Math.ceil(vmax/ystep)*ystep, vspan=(hi-lo)||1;
   const X=t=>pad.l+((+t-t0)/tspan)*(W-pad.l-pad.r);
   const Y=v=>H-pad.b-((v-lo)/vspan)*(H-pad.t-pad.b);
+  const path=s=>s.dates.map((d,i)=>`${i?'L':'M'}${X(d).toFixed(1)} ${Y(s.vals[i]).toFixed(1)}`).join(' ');
   let g='';
   // y gridlines (value)
   for(let v=lo;v<=hi+0.001;v+=ystep)g+=`<line class="gridline" x1="${pad.l}" y1="${Y(v)}" x2="${W-pad.r}" y2="${Y(v)}" opacity=".5"/><text class="sc-lbl" x="${pad.l-8}" y="${Y(v)+3}" text-anchor="end">${fmtMoney(v)}</text>`;
   // x gridlines — start of each calendar year in range
-  const y0=dates[0].getFullYear(), y1=dates[dates.length-1].getFullYear();
+  const y0=new Date(t0).getFullYear(), y1=new Date(t1).getFullYear();
   for(let yr=y0;yr<=y1;yr++){const tx=+new Date(yr,0,1); if(tx<t0||tx>t1)continue;
     g+=`<line class="gridline" x1="${X(tx)}" y1="${pad.t}" x2="${X(tx)}" y2="${H-pad.b}" opacity=".35"/><text class="sc-lbl" x="${X(tx)}" y="${H-pad.b+16}" text-anchor="middle">${yr}</text>`;}
-  // starting-value baseline
-  const base=vals[0];
+  // primary series for baseline + hover (the exact one if present)
+  const hs=act||est, primaryCol=act?'var(--gold)':'var(--accent)';
+  const base=hs.vals[0];
   if(base>=lo&&base<=hi)g+=`<line x1="${pad.l}" y1="${Y(base)}" x2="${W-pad.r}" y2="${Y(base)}" stroke="#3a4452" stroke-dasharray="3 3"/>`;
-  // snapshot start/end markers
-  const marks=new Set();
-  HISTORY.forEach(h=>{[h.start,h.end].forEach(d=>{if(d)marks.add(d);});});
-  marks.forEach(d=>{const tx=+new Date(d); if(tx<t0||tx>t1)return;
-    g+=`<line x1="${X(tx)}" y1="${pad.t}" x2="${X(tx)}" y2="${H-pad.b}" stroke="var(--gold)" stroke-width="1" stroke-dasharray="2 3" opacity=".55"/>`;});
-  // area + line
-  const line=dates.map((d,i)=>`${i?'L':'M'}${X(d).toFixed(1)} ${Y(vals[i]).toFixed(1)}`).join(' ');
-  const area=`M${X(dates[0]).toFixed(1)} ${Y(lo).toFixed(1)} `+dates.map((d,i)=>`L${X(d).toFixed(1)} ${Y(vals[i]).toFixed(1)}`).join(' ')+` L${X(dates[dates.length-1]).toFixed(1)} ${Y(lo).toFixed(1)} Z`;
-  g+=`<path d="${area}" fill="var(--accent)" fill-opacity=".08"/>`;
-  g+=`<path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>`;
+  // estimate line — solid+area when it's the only series, faint dashed when overlaid behind the exact line
+  if(est){
+    if(!act){g+=`<path d="M${X(est.dates[0]).toFixed(1)} ${Y(lo).toFixed(1)} ${est.dates.map((d,i)=>`L${X(d).toFixed(1)} ${Y(est.vals[i]).toFixed(1)}`).join(' ')} L${X(est.dates[est.dates.length-1]).toFixed(1)} ${Y(lo).toFixed(1)} Z" fill="var(--accent)" fill-opacity=".08"/>`;
+      g+=`<path d="${path(est)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>`;}
+    else g+=`<path d="${path(est)}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-opacity=".4" stroke-dasharray="4 4"/>`;
+  }
+  // exact recorded line + dots on each real value
+  if(act){
+    g+=`<path d="${path(act)}" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linejoin="round"/>`;
+    act.dates.forEach((d,i)=>g+=`<circle cx="${X(d).toFixed(1)}" cy="${Y(act.vals[i]).toFixed(1)}" r="4" fill="var(--gold)" stroke="#0d1117" stroke-width="1.5"/>`);
+  }
   // hover
-  g+=`<line id="navCur" x1="0" y1="${pad.t}" x2="0" y2="${H-pad.b}" stroke="var(--ink)" stroke-width="1" opacity="0"/><circle id="navDot" r="4" fill="var(--accent)" stroke="#0d1117" stroke-width="1.5" opacity="0"/><rect id="navHit" x="${pad.l}" y="${pad.t}" width="${W-pad.l-pad.r}" height="${H-pad.t-pad.b}" fill="transparent"/>`;
+  g+=`<line id="navCur" x1="0" y1="${pad.t}" x2="0" y2="${H-pad.b}" stroke="var(--ink)" stroke-width="1" opacity="0"/><circle id="navDot" r="4.5" fill="${primaryCol}" stroke="#0d1117" stroke-width="1.5" opacity="0"/><rect id="navHit" x="${pad.l}" y="${pad.t}" width="${W-pad.l-pad.r}" height="${H-pad.t-pad.b}" fill="transparent"/>`;
   el.innerHTML=g;
   const hit=$('navHit'),cur=$('navCur'),dot=$('navDot');
+  const hd=hs.dates, hv=hs.vals;
   hit.onmousemove=e=>{
     const r=el.getBoundingClientRect();
     const px=(e.clientX-r.left)/r.width*W;
     const t=t0+((px-pad.l)/(W-pad.l-pad.r))*tspan;
-    let best=0,bd=Infinity; for(let i=0;i<dates.length;i++){const dd=Math.abs(+dates[i]-t); if(dd<bd){bd=dd;best=i;}}
-    const x=X(dates[best]),y=Y(vals[best]);
+    let best=0,bd=Infinity; for(let i=0;i<hd.length;i++){const dd=Math.abs(+hd[i]-t); if(dd<bd){bd=dd;best=i;}}
+    const x=X(hd[best]),y=Y(hv[best]);
     cur.setAttribute('x1',x);cur.setAttribute('x2',x);cur.setAttribute('opacity','.3');
     dot.setAttribute('cx',x);dot.setAttribute('cy',y);dot.setAttribute('opacity','1');
-    const pct=(vals[best]/vals[0]-1)*100;
-    tip.innerHTML=`<b>${dates[best].toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</b><div class="r"><span>Value</span><span>${fmtMoney(vals[best])}</span></div><div class="r"><span>Since start</span><span>${(pct>=0?'+':'')+pct.toFixed(1)}%</span></div>`;
+    const pct=(hv[best]/hv[0]-1)*100;
+    tip.innerHTML=`<b>${hd[best].toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</b><div class="r"><span>Value</span><span>${fmtMoney(hv[best])}</span></div><div class="r"><span>Since start</span><span>${(pct>=0?'+':'')+pct.toFixed(1)}%</span></div>`;
     tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';
   };
   hit.onmouseleave=()=>{tip.style.opacity=0;cur.setAttribute('opacity','0');dot.setAttribute('opacity','0');};
 }
+function renderValEditor(){
+  const dateStyle='background:var(--panel2);color:var(--ink);border:1px solid var(--line);padding:7px 9px;border-radius:8px;font-family:var(--mono);font-size:13px';
+  if(!VALUATIONS.length){$('valRows').innerHTML='<p class="note" style="color:var(--faint);margin:0">No recorded values yet. Add your pot’s total on a couple of statement dates to chart exact growth.</p>';}
+  else{
+    VALUATIONS.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    $('valRows').innerHTML=VALUATIONS.map((v,i)=>`<div class="he-row" style="grid-template-columns:170px 1fr 34px">
+      <input type="date" value="${v.date||''}" data-i="${i}" data-f="vdate" style="${dateStyle}">
+      <div class="fundval-input" style="flex:1"><span class="cur">£</span><input type="${PRIVACY?'password':'number'}" min="0" step="100" value="${v.value||''}" data-i="${i}" data-f="vval" style="flex:1;text-align:right"></div>
+      <button class="x" data-i="${i}" data-act="vdel">×</button></div>`).join('');
+    $('valRows').querySelectorAll('input[data-f="vdate"]').forEach(el=>el.onchange=e=>{VALUATIONS[+e.target.dataset.i].date=e.target.value;saveValuations();syncFundValueInput();renderHistory();});
+    $('valRows').querySelectorAll('input[data-f="vval"]').forEach(el=>el.onchange=e=>{VALUATIONS[+e.target.dataset.i].value=parseFloat(e.target.value)||0;saveValuations();syncFundValueInput();renderHistory();});
+    $('valRows').querySelectorAll('button[data-act="vdel"]').forEach(b=>b.onclick=e=>{VALUATIONS.splice(+e.currentTarget.dataset.i,1);saveValuations();syncFundValueInput();renderHistory();});
+  }
+}
 function renderHistory(){
   HISTORY.sort((a,b)=>(a.start||'').localeCompare(b.start||''));
   const fmt=d=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-  const s=computeHistory();
-  if(s){
-    const valueStats=s.valued?`
-      <div class="stat-row" style="margin-top:10px">
-        <div class="stat"><div class="lbl">Value at start</div><div class="val sm">${fmtMoney(s.startValue)}</div></div>
-        <div class="stat"><div class="lbl">Value now</div><div class="val sm">${fmtMoney(s.endValue)}</div></div>
-      </div>`:'';
-    $('historicSummary').innerHTML=`<div class="card"><div class="cardlbl">From ${fmt(s.from)} to ${fmt(s.to)} · chained periods, daily-rebalanced within each</div>
+  const est=computeHistory();      // blended fund-price estimate
+  const act=computeValuations();   // exact recorded total values
+  if(act){
+    // EXACT: your real recorded values are the source of truth
+    $('historicSummary').innerHTML=`<div class="card"><div class="cardlbl" style="color:var(--gold)">Your exact total value · ${fmt(act.from)} to ${fmt(act.to)} · from ${cleanValuations().length} recorded figures</div>
       <div class="stat-row">
-        <div class="stat"><div class="lbl">Cumulative</div><div class="val ${cls(s.cum)}">${f0(s.cum)}</div></div>
-        <div class="stat"><div class="lbl">Annualised</div><div class="val ${cls(s.ann)}">${f0(s.ann)}</div></div>
+        <div class="stat"><div class="lbl">Value at start</div><div class="val sm">${fmtMoney(act.startValue)}</div></div>
+        <div class="stat"><div class="lbl">Value now</div><div class="val sm">${fmtMoney(act.endValue)}</div></div>
+        <div class="stat"><div class="lbl">Change</div><div class="val sm">${fmtMoney(act.endValue-act.startValue)}</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:10px">
+        <div class="stat"><div class="lbl">Cumulative</div><div class="val ${cls(act.cum)}">${f0(act.cum)}</div></div>
+        <div class="stat"><div class="lbl">Annualised</div><div class="val ${cls(act.ann)}">${f0(act.ann)}</div></div>
+        <div class="stat"><div class="lbl">Max Drawdown</div><div class="val sm neg">${f0(act.mdd)}</div></div>
+      </div>
+      <div style="margin-top:16px"><svg viewBox="0 0 760 300" id="navChart" style="width:100%;height:auto"></svg></div>
+      <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)"><span style="color:var(--gold)">Gold line &amp; dots</span> = your exact recorded total value.${est?' <span style="color:var(--accent)">Dashed blue</span> = the blended fund-price estimate, for comparison.':''} Note: recorded totals include any contributions or withdrawals, so this isn’t a like-for-like fund return.</p>
+      </div>`;
+    drawTotalChart({estimate:est?est.nav:null,actual:act.nav});
+  } else if(est){
+    // ESTIMATE only (no/one recorded value): blended fund-price line, scaled if a value exists
+    const valueStats=est.valued?`
+      <div class="stat-row" style="margin-top:10px">
+        <div class="stat"><div class="lbl">Value at start</div><div class="val sm">${fmtMoney(est.startValue)}</div></div>
+        <div class="stat"><div class="lbl">Value now</div><div class="val sm">${fmtMoney(est.endValue)}</div></div>
+      </div>`:'';
+    $('historicSummary').innerHTML=`<div class="card"><div class="cardlbl">From ${fmt(est.from)} to ${fmt(est.to)} · chained periods, daily-rebalanced within each</div>
+      <div class="stat-row">
+        <div class="stat"><div class="lbl">Cumulative</div><div class="val ${cls(est.cum)}">${f0(est.cum)}</div></div>
+        <div class="stat"><div class="lbl">Annualised</div><div class="val ${cls(est.ann)}">${f0(est.ann)}</div></div>
       </div>
       ${valueStats}
       <div class="stat-row" style="margin-top:10px">
-        <div class="stat"><div class="lbl">Volatility</div><div class="val sm">${f1(s.vol)}</div></div>
-        <div class="stat"><div class="lbl">Max Drawdown</div><div class="val sm neg">${f0(s.mdd)}</div></div>
+        <div class="stat"><div class="lbl">Volatility</div><div class="val sm">${f1(est.vol)}</div></div>
+        <div class="stat"><div class="lbl">Max Drawdown</div><div class="val sm neg">${f0(est.mdd)}</div></div>
       </div>
       <div style="margin-top:16px"><svg viewBox="0 0 760 300" id="navChart" style="width:100%;height:auto"></svg></div>
-      <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)">${s.valued?`Your pot grown over time, scaled so today equals the ${fmtMoney(FUND_VALUE)} you entered above.`:'Growth of £100 invested at the start (enter your total fund value above to see real £).'} <span style="color:var(--accent)">Blue line</span> = your pension value; gold ticks mark holding start/end dates.</p>
+      <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)">${est.valued?`Estimated from fund prices, scaled so today equals the ${fmtMoney(latestValue())} you recorded. Add a second dated value below for an exact line.`:'Growth of £100 invested at the start. Add your total fund value (top) on two or more dates for an exact £ line.'} <span style="color:var(--accent)">Blue line</span> = your pension value.</p>
       </div>`;
-    drawNavChart(s);
+    drawTotalChart({estimate:est.nav,actual:null});
   } else {
-    $('historicSummary').innerHTML=HISTORY.length?'<div class="card"><p class="note" style="color:var(--faint);margin:0">Add at least one snapshot with valid funds and dates inside the loaded price history to see performance.</p></div>':'';
+    $('historicSummary').innerHTML=(HISTORY.length||cleanValuations().length)?'<div class="card"><p class="note" style="color:var(--faint);margin:0">Add at least two recorded values (below), or a holding snapshot with valid funds and dates, to see performance.</p></div>':'';
   }
+  renderValEditor();
   if(!HISTORY.length){$('historyRows').innerHTML='<p class="note" style="color:var(--faint);padding:8px 0">No historic snapshots yet. Click the button below to record what you held.</p>';return;}
   const dateStyle='background:var(--panel2);color:var(--ink);border:1px solid var(--line);padding:5px 8px;border-radius:6px;font-family:var(--mono);font-size:13px';
   $('historyRows').innerHTML=HISTORY.map((snap,i)=>{
@@ -754,15 +844,65 @@ function loadFunds(){
 }
 function saveHistory(){try{localStorage.setItem('fund_history',JSON.stringify(HISTORY));}catch(e){}}
 function loadHistoryLS(){try{const s=localStorage.getItem('fund_history');if(s)return JSON.parse(s).map(h=>({start:h.start||h.date||'',end:h.end||'',holdings:h.holdings||[]}));}catch(e){}return [];}
-function saveFundValue(){try{FUND_VALUE>0?localStorage.setItem('fund_value',String(FUND_VALUE)):localStorage.removeItem('fund_value');}catch(e){}}
-function loadFundValue(){try{const s=localStorage.getItem('fund_value');if(s){const v=parseFloat(s);return v>0?v:null;}}catch(e){}return null;}
+function saveValuations(){try{localStorage.setItem('fund_valuations',JSON.stringify(VALUATIONS));}catch(e){}}
+function loadValuations(){
+  try{const s=localStorage.getItem('fund_valuations');if(s)return JSON.parse(s).filter(v=>v&&v.date);}catch(e){}
+  // migrate the old single 'fund_value' (treated as today's figure)
+  try{const old=localStorage.getItem('fund_value');if(old){const v=parseFloat(old);if(v>0)return [{date:new Date().toISOString().slice(0,10),value:v}];}}catch(e){}
+  return [];
+}
 // ---------- upload wiring ----------
-// total fund value (manual)
-function syncFundValueInput(){const el=$('fundValue');if(el&&document.activeElement!==el)el.value=FUND_VALUE>0?FUND_VALUE:'';}
+// total fund value (manual) — the top box records today's value into the series
+function syncFundValueInput(){const el=$('fundValue');if(!el)return;el.type=PRIVACY?'password':'number';if(document.activeElement!==el){const lv=latestValue();el.value=lv>0?lv:'';}}
 $('fundValue').oninput=e=>{
-  const v=parseFloat(e.target.value);
-  FUND_VALUE=v>0?v:null;
-  saveFundValue(); renderHistory();
+  const today=new Date().toISOString().slice(0,10);
+  upsertValuation(today, parseFloat(e.target.value));
+  saveValuations(); renderHistory();
+};
+$('valAdd').onclick=()=>{
+  const today=new Date().toISOString().slice(0,10);
+  if(!VALUATIONS.find(v=>v.date===today))VALUATIONS.push({date:today,value:0});
+  saveValuations(); renderHistory();
+};
+// ---------- export / import (move your data to another computer) ----------
+function exportData(){
+  const data={
+    app:'fund-dashboard', version:1, exported:new Date().toISOString(),
+    funds:FUNDS.map(f=>({n:f.name,r:f.rows.map(x=>[+x.d,x.p])})),
+    holdings:HOLDINGS, history:HISTORY, valuations:VALUATIONS
+  };
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download=`fund-dashboard-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+async function importData(file){
+  try{
+    const data=JSON.parse(await file.text());
+    if(data.app!=='fund-dashboard'&&!data.funds&&!data.valuations){$('errbox').textContent='That file doesn’t look like a Fund Dashboard export.';return;}
+    if(Array.isArray(data.funds))FUNDS=data.funds.map(f=>({name:f.n,rows:(f.r||[]).map(([d,p])=>({d:new Date(d),p}))}));
+    if(Array.isArray(data.holdings))HOLDINGS=data.holdings.map(h=>[h[0],h[1]]);
+    if(Array.isArray(data.history))HISTORY=data.history.map(h=>({start:h.start||h.date||'',end:h.end||'',holdings:h.holdings||[]}));
+    if(Array.isArray(data.valuations))VALUATIONS=data.valuations.filter(v=>v&&v.date);
+    saveHistory(); saveValuations(); saveState(); saveFunds(); syncFundValueInput();
+    $('uploadSection').classList.add('hidden'); $('loadedBar').classList.remove('hidden'); $('dash').classList.remove('hidden');
+    $('errbox').textContent=''; $('loadbar').textContent=`Imported ${FUNDS.length} fund(s), ${VALUATIONS.length} recorded value(s).`;
+    recompute();
+  }catch(err){$('errbox').textContent='Could not read that file: '+(err.message||err);}
+}
+$('exportBtn').onclick=exportData;
+$('importBtn').onclick=()=>$('importInput').click();
+$('importInput').onchange=e=>{if(e.target.files[0])importData(e.target.files[0]);e.target.value='';};
+// ---------- privacy (hide £ values) ----------
+function loadPrivacy(){try{return localStorage.getItem('fund_privacy')==='1';}catch(e){return false;}}
+function applyPrivacy(){$('privacyToggle').checked=PRIVACY;syncFundValueInput();renderHistory();}
+$('privacyToggle').onchange=e=>{PRIVACY=e.target.checked;try{localStorage.setItem('fund_privacy',PRIVACY?'1':'');}catch(_){}applyPrivacy();};
+// ---------- clear only personal values (keep loaded fund prices) ----------
+$('clearValues').onclick=()=>{
+  if(!confirm('Clear your holdings, historic snapshots and recorded £ values? Loaded fund prices are kept.'))return;
+  HOLDINGS=[];HISTORY=[];VALUATIONS=[];
+  ['fund_holdings','fund_history','fund_valuations','fund_value'].forEach(k=>localStorage.removeItem(k));
+  syncFundValueInput(); recompute();
 };
 const drop=$('drop'),input=$('fileInput');
 drop.onclick=()=>input.click();
@@ -771,7 +911,7 @@ $('addMore')&&($('addMore').onclick=()=>input.click());
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
 drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
 input.onchange=e=>handleFiles(e.target.files);
-$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;FUND_VALUE=null;localStorage.removeItem('fund_data');localStorage.removeItem('fund_history');localStorage.removeItem('fund_value');syncFundValueInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];localStorage.removeItem('fund_data');localStorage.removeItem('fund_history');localStorage.removeItem('fund_value');localStorage.removeItem('fund_valuations');syncFundValueInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 async function handleFiles(fileList){
   const all=[...fileList];
   const zips=all.filter(f=>/\.zip$/i.test(f.name));
@@ -803,7 +943,8 @@ async function handleFiles(fileList){
     const src=saved&&saved.length?saved:DEFAULT_HOLDINGS;
     HOLDINGS=src.filter(([n])=>FUNDS.find(f=>f.name===n)).map(h=>[h[0],h[1]]);
   }
-  if(FUND_VALUE==null){FUND_VALUE=loadFundValue();syncFundValueInput();}
+  if(!VALUATIONS.length){VALUATIONS=loadValuations();}
+  PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput();
   if(!HISTORY.length)HISTORY=loadHistoryLS();
   $('uploadSection').classList.add('hidden');
   $('loadedBar').classList.remove('hidden');
@@ -816,7 +957,7 @@ async function handleFiles(fileList){
   if(!cached.length)return;
   FUNDS=cached;
   HISTORY=loadHistoryLS();
-  FUND_VALUE=loadFundValue(); syncFundValueInput();
+  VALUATIONS=loadValuations(); PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput();
   const saved=loadHoldings();
   const src=saved&&saved.length?saved:DEFAULT_HOLDINGS;
   HOLDINGS=src.filter(([n])=>FUNDS.find(f=>f.name===n)).map(h=>[h[0],h[1]]);
