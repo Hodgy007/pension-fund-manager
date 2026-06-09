@@ -1428,6 +1428,13 @@ $('addMore')&&($('addMore').onclick=()=>input.click());
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
 drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
 input.onchange=e=>handleFiles(e.target.files);
+// allow dropping files anywhere on the page (the big drop zone is hidden once the dashboard loads)
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>{
+  if(e.target.closest&&e.target.closest('#drop'))return; // already handled by the drop zone
+  e.preventDefault();
+  if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);
+});
 $('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];PROJ={};COMPARE=new Set();FACTSHEETS=[];['fund_data','fund_history','fund_value','fund_valuations','fund_contributions','fund_projection','fund_compare','fund_factsheets'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 async function handleFiles(fileList){
   const all=[...fileList];
@@ -1443,12 +1450,13 @@ async function handleFiles(fileList){
   }
   if(!items.length){$('loadbar').textContent='';$('errbox').textContent='No .xlsx or .pdf files found inside the zip(s).';return;}
   $('loadbar').textContent=`Reading ${items.length} file(s)${zips.length?` (incl. ${zips.length} zip)`:''}…`;
-  let added=0,skipped=0,sheets=0;
+  let added=0,skipped=0,sheets=0; const pdfErrs=[];
   for(const item of items){
     try{
       if(/\.pdf$/i.test(item.name)){
+        if(!window.pdfjsLib){pdfErrs.push('PDF reader (pdf.js) failed to load — check your network or any ad/script blocker.');skipped++;continue;}
         const F=parseFactsheet(await extractPdfPages(item.buf));
-        if(!F){skipped++;continue;}
+        if(!F){skipped++;pdfErrs.push(`${item.name}: couldn’t read this factsheet’s layout.`);continue;}
         const ix=FACTSHEETS.findIndex(x=>normName(x.name)===normName(F.name));
         if(ix>=0)FACTSHEETS[ix]=F; else FACTSHEETS.push(F);
         sheets++;
@@ -1459,8 +1467,9 @@ async function handleFiles(fileList){
         if(ix>=0)FUNDS[ix]=r; else FUNDS.push(r);
         added++;
       }
-    }catch(err){skipped++;}
+    }catch(err){skipped++; if(/\.pdf$/i.test(item.name))pdfErrs.push(`${item.name}: ${err&&err.message||err}`);}
   }
+  if(pdfErrs.length)$('errbox').textContent=pdfErrs.slice(0,3).join('  ·  ');
   if(sheets)saveFactsheets();
   $('loadbar').textContent=`Loaded ${added} fund(s)${sheets?`, ${sheets} factsheet(s)`:''}${skipped?', skipped '+skipped:''}.`;
   if(!FUNDS.length&&!FACTSHEETS.length)return;
