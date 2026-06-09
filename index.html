@@ -7,6 +7,7 @@
 <script>try{if(localStorage.getItem('fund_theme')==='light')document.documentElement.classList.add('light');}catch(e){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Spline+Sans+Mono:wght@400;500;600&family=Spline+Sans:wght@400;500;600;700&display=swap');
 :root{
@@ -82,6 +83,19 @@ h2 .n{font-family:var(--mono);font-size:12px;color:var(--faint);margin-left:10px
 .cmp-chip:hover{border-color:var(--faint);color:var(--ink)}
 .cmp-chip.on{color:var(--ink);border-color:transparent}
 .cmp-chip .cdot{width:10px;height:10px;border-radius:50%;background:var(--faint);flex-shrink:0}
+/* look-through bars + overlap */
+.lt-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.lt-grid{grid-template-columns:1fr}}
+.lt-bar{display:grid;grid-template-columns:130px 1fr 52px;align-items:center;gap:10px;margin-bottom:7px;font-size:13px}
+.lt-bar .lt-name{color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lt-track{height:9px;background:var(--panel2);border-radius:5px;overflow:hidden}
+.lt-fill{display:block;height:100%;border-radius:5px}
+.lt-pct{font-family:var(--mono);font-size:12px;text-align:right;color:var(--ink)}
+.ov-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.ov-row:last-child{border-bottom:none}
+.ov-row .ov-tot{font-family:var(--mono);margin-left:auto;font-size:13px}
+.ov-row .ov-via{font-size:11.5px;color:var(--faint)}
+.ov-flag{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;background:rgba(212,166,74,.16);color:var(--gold);padding:2px 7px;border-radius:4px}
 .btn{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 16px;border-radius:8px;cursor:pointer;transition:.15s}
 .btn:hover{border-color:var(--faint)}
 .btn.gold{background:var(--gold);color:#1a1205;border-color:var(--gold);font-weight:600}
@@ -174,18 +188,19 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
 <div id="uploadSection">
   <div id="drop">
     <div class="fileicon">📄</div>
-    <div class="big">Drop your fund <code>.xlsx</code> files or a <code>.zip</code> here</div>
-    <div class="small">or <b>click to browse</b> · select all of them at once · re-drop newer downloads anytime to update</div>
+    <div class="big">Drop your fund <code>.xlsx</code> prices, factsheet <code>.pdf</code>s, or a <code>.zip</code> here</div>
+    <div class="small">or <b>click to browse</b> · select all of them at once · xlsx give prices &amp; returns, PDFs add charges, allocation &amp; look-through</div>
     <div id="loadbar"></div>
     <div id="errbox" class="err"></div>
   </div>
-  <input type="file" id="fileInput" accept=".xlsx,.xls,.zip" multiple class="hidden">
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf,.zip" multiple class="hidden">
 </div>
 
 <!-- LOADED STATE -->
 <div id="loadedBar" class="card hidden" style="margin-top:16px">
   <div class="loaded-bar">
     <span class="chip"><b id="fcount">0</b> funds loaded</span>
+    <span class="chip hidden" id="fsChip"><b id="fscount">0</b> factsheets</span>
     <span class="chip">priced to <b id="asof">—</b></span>
     <button class="btn" id="addMore">+ Add / update files</button>
     <button class="btn" id="exportBtn">⬇ Export</button>
@@ -276,6 +291,9 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
 
   <h2>Holdings, fund by fund<span class="n">/ HIGHLIGHTED</span></h2>
   <div class="grid hold-grid" id="holdCards"></div>
+
+  <h2>Look-through &amp; overlap<span class="n">/ WHAT YOU ACTUALLY HOLD</span></h2>
+  <div id="lookThrough"></div>
 
   <h2>Compare funds over time<span class="n">/ REBASED TO 100</span></h2>
   <div class="card">
@@ -384,6 +402,7 @@ let PORT=null;
 let VALUATIONS=[];   // manual: [{date:'YYYY-MM-DD',value:£},...] real recorded pot values
 let CONTRIBUTIONS=[];// manual: [{date,amount}] money paid in (+) or taken out (−)
 let PROJ={};         // retirement projection inputs
+let FACTSHEETS=[];   // parsed PDF factsheets: [{name,asOf,ocf,unitPrice,launch,objective,cum,ann,assetSplit,geoSplit,holdings}]
 let COMPARE=new Set();// fund names selected in the comparison chart
 const CMP_COLORS=['#4a9eff','#d4a64a','#3fb950','#c77dff','#f0556d','#36cfc9','#ff9f43','#9aa7b8','#a0d911','#eb2f96'];
 // helpers over the recorded valuations
@@ -452,12 +471,93 @@ async function expandZip(file){
     const entry=zip.files[path];
     if(entry.dir) continue;
     if(path.startsWith('__MACOSX/')||path.split('/').pop().startsWith('.')) continue;
-    if(!/\.x(lsx|ls)$/i.test(path)) continue;
+    if(!/\.(x(lsx|ls)|pdf)$/i.test(path)) continue;
     const name=path.split('/').pop();
     const buf=await entry.async('arraybuffer');
     out.push({name,buf});
   }
   return out;
+}
+// ---------- PDF factsheet parsing (Scottish Widows template) ----------
+async function extractPdfPages(buf){
+  if(!window.pdfjsLib)throw new Error('PDF reader not loaded');
+  if(pdfjsLib.GlobalWorkerOptions&&!pdfjsLib.GlobalWorkerOptions.workerSrc)
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  const pages=[];
+  for(let p=1;p<=doc.numPages;p++){
+    const tc=await (await doc.getPage(p)).getTextContent();
+    pages.push({items:tc.items.filter(i=>i.str.trim()).map(i=>({s:i.str,x:i.transform[4],y:i.transform[5],h:i.height||i.transform[3]}))});
+  }
+  return pages;
+}
+function rowText(items,xmax){
+  const its=items.filter(i=>xmax==null||i.x<xmax).slice().sort((a,b)=> b.y-a.y || a.x-b.x);
+  const rows=[]; let ly=null,cur=null;
+  for(const it of its){ if(ly===null||Math.abs(it.y-ly)>3){cur=[];rows.push(cur);ly=it.y;} cur.push(it); }
+  return rows.map(r=>r.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ')).join(' ').replace(/\s+/g,' ').trim();
+}
+function parseFactsheet(pages){
+  if(!pages.length||!pages[0].items.length)return null;
+  const F={source:'pdf'};
+  const p1=pages[0].items, maxh=Math.max(...p1.map(i=>i.h));
+  F.name=p1.filter(i=>i.h>maxh-0.5).map(i=>i.s.trim()).join(' ').replace(/\s+/g,' ').trim();
+  const meta=rowText(p1,195), full=pages.map(p=>rowText(p.items)).join(' ');
+  const g=(t,re,f=1)=>{const x=t.match(re);return x?x[f]:null;};
+  F.unitPrice=parseFloat((g(meta,/Unit Price\s+([\d,]+(?:\.\d+)?)p/)||'').replace(/,/g,''))||null;
+  F.ocf=parseFloat(g(meta,/(?:Yearly Fund Charges|Fund Charges|OCF|Ongoing Charge)\s+([\d.]+)\s*%/))||null;
+  F.launch=g(meta,/Launch Date\s+(\d{2}\/\d{2}\/\d{4})/);
+  F.asOf=g(full,/Split as at\s+(\d{2}\/\d{2}\/\d{4})/)||g(full,/to\s+(\d{2}\/\d{2}\/\d{4})\)/);
+  F.objective=(g(meta,/Fund Objective\s+(.+?)\s+Fund Features/)||'').trim();
+  const nums=(re,n)=>{const x=full.match(re);return x?x.slice(1,1+n).map(parseFloat):null;};
+  const five='\\s+(-?[\\d.]+)%\\s+(-?[\\d.]+)%\\s+(-?[\\d.]+)%\\s+(-?[\\d.]+)%\\s+(-?[\\d.]+)%';
+  const cf=nums(new RegExp('Cumulative Performance.*?Fund'+five),5), cb=nums(new RegExp('Cumulative Performance.*?Benchmark\\*?'+five),5);
+  if(cf)F.cum={labels:['3M','6M','1Y','3Y','5Y'],fund:cf,bench:cb};
+  const af=nums(new RegExp('Annualised Performance.*?Fund\\s+(-?[\\d.]+)%\\s+(-?[\\d.]+)%\\s+(-?[\\d.]+)%'),3);
+  const ab=nums(new RegExp('Annualised Performance.*?Benchmark\\*?\\s+(-?[\\d.]+)%\\s+(-?[\\d.]+)%\\s+(-?[\\d.]+)%'),3);
+  if(af)F.ann={labels:['3Y','5Y','10Y'],fund:af,bench:ab};
+  // positional: splits + holdings (right-hand column, sectioned by header)
+  const pg=pages.find(p=>p.items.some(i=>/Asset Split as at/.test(i.s)))||pages[1]||pages[0];
+  const right=pg.items.filter(i=>i.x>180).slice().sort((a,b)=> b.y-a.y || a.x-b.x);
+  const rows=[]; let ly=null,cur=null;
+  for(const it of right){ if(ly===null||Math.abs(it.y-ly)>3){cur={items:[]};rows.push(cur);ly=it.y;} cur.items.push(it); }
+  let state=null; F.holdings=[];F.assetSplit=[];F.geoSplit=[];
+  for(const r of rows){
+    const txt=r.items.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ').replace(/\s+/g,' ').trim();
+    if(/Fund Holdings/.test(txt)){state='hold';continue;}
+    if(/Asset Split as at/.test(txt)){state='asset';continue;}
+    if(/Geographical Split/.test(txt)){state='geo';continue;}
+    if(/Due to rounding|This information|invests in the underlying/.test(txt)){state=null;continue;}
+    const pm=txt.match(/(-?[\d.]+)\s*%/); if(!state||!pm)continue;
+    const label=txt.replace(/-?[\d.]+\s*%/,'').trim(); if(!label)continue;
+    if(state==='hold')F.holdings.push({name:label,weight:parseFloat(pm[1])});
+    else (state==='asset'?F.assetSplit:F.geoSplit).push({name:label,pct:parseFloat(pm[1])});
+  }
+  return F.name?F:null;
+}
+// blended look-through across your holdings (matches holdings to factsheets by name)
+function normName(s){return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
+function matchFactsheet(name){
+  const n=normName(name);
+  let f=FACTSHEETS.find(x=>normName(x.name)===n);
+  if(!f)f=FACTSHEETS.find(x=>{const m=normName(x.name);return m&&(m.includes(n)||n.includes(m));});
+  return f||null;
+}
+function lookThrough(){
+  const held=HOLDINGS.filter(([n,w])=>w>0);
+  if(!held.length||!FACTSHEETS.length)return null;
+  const matched=[]; let covered=0,total=0;
+  held.forEach(([n,w])=>{total+=w; const f=matchFactsheet(n); if(f){matched.push({name:n,weight:w,fs:f});covered+=w;}});
+  if(!matched.length)return null;
+  const agg=key=>{const map={};matched.forEach(m=>(m.fs[key]||[]).forEach(({name,pct})=>{map[name]=(map[name]||0)+pct*(m.weight/covered);}));
+    return Object.entries(map).map(([name,pct])=>({name,pct})).sort((a,b)=>b.pct-a.pct);};
+  const umap={};
+  matched.forEach(m=>(m.fs.holdings||[]).forEach(({name,weight})=>{const k=normName(name);
+    if(!umap[k])umap[k]={name,total:0,via:[]}; umap[k].total+=weight*(m.weight/covered); umap[k].via.push({fund:m.name,weight});}));
+  const underlying=Object.values(umap).map(u=>({...u,overlap:u.via.length>1})).sort((a,b)=>b.total-a.total);
+  return {matched,covered,total,coverage:total?covered/total*100:0,
+    asset:agg('assetSplit'),geo:agg('geoSplit'),underlying,
+    unmatched:held.filter(([n])=>!matchFactsheet(n)).map(([n])=>n)};
 }
 // ---------- metrics ----------
 function cat(n){n=n.toLowerCase();
@@ -531,9 +631,10 @@ function recompute(){
 }
 function renderAll(){
   $('fcount').textContent=FUNDS.length;
+  $('fscount').textContent=FACTSHEETS.length; $('fsChip').classList.toggle('hidden',!FACTSHEETS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderProjection(); renderHoldCards(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderProjection(); renderHoldCards(); renderLookThrough(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -555,6 +656,43 @@ function renderPortfolio(){
   d+='<circle cx="60" cy="60" r="30" fill="var(--panel)"/>';
   $('donut').innerHTML=d;
   $('donutLegend').innerHTML=entries.map(([n,p])=>`<div><span class="dot" style="background:${cols[n]||'#888'}"></span>${n}<span class="pc">${p.toFixed(0)}%</span></div>`).join('');
+}
+function ltColor(name){const n=(name||'').toLowerCase();
+  if(/equit|share|stock/.test(n))return C['Equity'];
+  if(/bond|fixed interest|credit|gilt|debt/.test(n))return C['Bonds/Credit'];
+  if(/propert|reit/.test(n))return '#c77dff';
+  if(/cash|money market|liquid/.test(n))return C['Cash'];
+  return C['Multi-Asset/Alt'];}
+function ltBars(list,colorFn){
+  if(!list.length)return '<p class="note" style="color:var(--faint);margin:4px 0">No data.</p>';
+  const peak=Math.max(...list.map(x=>x.pct),1);
+  return list.map(x=>`<div class="lt-bar"><span class="lt-name" title="${x.name}">${x.name}</span>
+    <span class="lt-track"><span class="lt-fill" style="width:${Math.max(2,x.pct/peak*100)}%;background:${colorFn(x.name)}"></span></span>
+    <span class="lt-pct">${x.pct.toFixed(1)}%</span></div>`).join('');
+}
+function renderLookThrough(){
+  const el=$('lookThrough'); if(!el)return;
+  const lt=lookThrough();
+  if(!lt){
+    el.innerHTML=`<div class="card"><p class="note" style="margin:0;color:var(--faint)">${FACTSHEETS.length?`Loaded ${FACTSHEETS.length} factsheet(s), but none match your current holdings by name. Set holdings whose names match the factsheets, or check the fund names.`:'Upload your Scottish Widows fund factsheet PDFs (drop them in the upload area or use “+ Add / update files”) to see a blended look-through of what your holdings actually contain — by asset class, region and underlying fund — and to spot overlap.'}</p></div>`;
+    return;
+  }
+  const overlaps=lt.underlying.filter(u=>u.overlap);
+  el.innerHTML=`<div class="card">
+    <div class="cardlbl">Blended from ${lt.matched.length} holding(s) with factsheets · covering ${lt.coverage.toFixed(0)}% of your portfolio${lt.unmatched.length?` · ${lt.unmatched.length} holding(s) without a factsheet excluded`:''}</div>
+    <div class="lt-grid" style="margin-top:6px">
+      <div><div class="cardlbl" style="color:var(--gold)">Asset allocation</div>${ltBars(lt.asset,ltColor)}</div>
+      <div><div class="cardlbl" style="color:var(--gold)">Geographic allocation</div>${ltBars(lt.geo,()=>'var(--accent)')}</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <div class="cardlbl">Underlying funds — effective exposure across your holdings${overlaps.length?` · <span style="color:var(--gold)">${overlaps.length} reached via more than one of your funds</span>`:''}</div>
+    ${lt.underlying.map(u=>`<div class="ov-row">
+      <div><div>${u.name}${u.overlap?' <span class="ov-flag">overlap</span>':''}</div>
+        <div class="ov-via">via ${u.via.map(v=>`${v.fund} (${v.weight}%)`).join(', ')}</div></div>
+      <span class="ov-tot ${u.overlap?'':''}">${u.total.toFixed(1)}%</span></div>`).join('')}
+    <p class="note" style="margin-top:10px;font-size:12px;color:var(--faint)">“Effective exposure” weights each fund’s underlying holdings by how much of your portfolio sits in that fund. An <span style="color:var(--gold)">overlap</span> flags an underlying fund reached through two or more of your holdings — hidden concentration. Source: your uploaded factsheets.</p>
+  </div>`;
 }
 function renderHoldCards(){
   const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n)).map(([n,w])=>({...FUNDS.find(f=>f.name===n),weight:w})).sort((a,b)=>b.weight-a.weight);
@@ -1220,6 +1358,8 @@ function saveContributions(){try{localStorage.setItem('fund_contributions',JSON.
 function loadContributions(){try{const s=localStorage.getItem('fund_contributions');if(s)return JSON.parse(s).filter(c=>c&&c.date);}catch(e){}return [];}
 function saveProjection(){try{localStorage.setItem('fund_projection',JSON.stringify(PROJ));}catch(e){}}
 function loadProjection(){try{const s=localStorage.getItem('fund_projection');if(s)return JSON.parse(s);}catch(e){}return {};}
+function saveFactsheets(){try{localStorage.setItem('fund_factsheets',JSON.stringify(FACTSHEETS));}catch(e){console.warn('Factsheet cache save failed:',e);}}
+function loadFactsheets(){try{const s=localStorage.getItem('fund_factsheets');if(s)return JSON.parse(s).filter(f=>f&&f.name);}catch(e){}return [];}
 // ---------- upload wiring ----------
 // total fund value (manual) — the top box records today's value into the series
 function syncFundValueInput(){const el=$('fundValue');if(!el)return;el.type=PRIVACY?'password':'number';if(document.activeElement!==el){const lv=latestValue();el.value=lv>0?lv:'';}}
@@ -1243,7 +1383,7 @@ function exportData(){
     app:'fund-dashboard', version:1, exported:new Date().toISOString(),
     funds:FUNDS.map(f=>({n:f.name,r:f.rows.map(x=>[+x.d,x.p])})),
     holdings:HOLDINGS, history:HISTORY, valuations:VALUATIONS,
-    contributions:CONTRIBUTIONS, projection:PROJ
+    contributions:CONTRIBUTIONS, projection:PROJ, factsheets:FACTSHEETS
   };
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');
@@ -1260,9 +1400,10 @@ async function importData(file){
     if(Array.isArray(data.valuations))VALUATIONS=data.valuations.filter(v=>v&&v.date);
     if(Array.isArray(data.contributions))CONTRIBUTIONS=data.contributions.filter(c=>c&&c.date);
     if(data.projection&&typeof data.projection==='object')PROJ=data.projection;
-    saveHistory(); saveValuations(); saveContributions(); saveProjection(); saveState(); saveFunds(); syncFundValueInput();
+    if(Array.isArray(data.factsheets))FACTSHEETS=data.factsheets.filter(f=>f&&f.name);
+    saveHistory(); saveValuations(); saveContributions(); saveProjection(); saveFactsheets(); saveState(); saveFunds(); syncFundValueInput();
     $('uploadSection').classList.add('hidden'); $('loadedBar').classList.remove('hidden'); $('dash').classList.remove('hidden');
-    $('errbox').textContent=''; $('loadbar').textContent=`Imported ${FUNDS.length} fund(s), ${VALUATIONS.length} recorded value(s).`;
+    $('errbox').textContent=''; $('loadbar').textContent=`Imported ${FUNDS.length} fund(s), ${VALUATIONS.length} recorded value(s)${FACTSHEETS.length?`, ${FACTSHEETS.length} factsheet(s)`:''}.`;
     recompute();
   }catch(err){$('errbox').textContent='Could not read that file: '+(err.message||err);}
 }
@@ -1287,32 +1428,42 @@ $('addMore')&&($('addMore').onclick=()=>input.click());
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
 drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
 input.onchange=e=>handleFiles(e.target.files);
-$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];PROJ={};COMPARE=new Set();['fund_data','fund_history','fund_value','fund_valuations','fund_contributions','fund_projection','fund_compare'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];PROJ={};COMPARE=new Set();FACTSHEETS=[];['fund_data','fund_history','fund_value','fund_valuations','fund_contributions','fund_projection','fund_compare','fund_factsheets'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 async function handleFiles(fileList){
   const all=[...fileList];
   const zips=all.filter(f=>/\.zip$/i.test(f.name));
-  const xlsxFiles=all.filter(f=>/\.x(lsx|ls)$/i.test(f.name));
-  if(!zips.length&&!xlsxFiles.length){$('errbox').textContent='No .xlsx or .zip files found in that selection.';return;}
+  const direct=all.filter(f=>/\.(x(lsx|ls)|pdf)$/i.test(f.name));
+  if(!zips.length&&!direct.length){$('errbox').textContent='No .xlsx, .pdf or .zip files found in that selection.';return;}
   $('errbox').textContent='';$('loadbar').textContent='Reading files…';
   const items=[]; // {name, buf}
-  for(const f of xlsxFiles)items.push({name:f.name,buf:await f.arrayBuffer()});
+  for(const f of direct)items.push({name:f.name,buf:await f.arrayBuffer()});
   for(const z of zips){
     try{const extracted=await expandZip(z);items.push(...extracted);}
     catch(err){$('errbox').textContent=`Could not read ${z.name}: ${err.message||err}`;}
   }
-  if(!items.length){$('loadbar').textContent='';$('errbox').textContent='No .xlsx files found inside the zip(s).';return;}
+  if(!items.length){$('loadbar').textContent='';$('errbox').textContent='No .xlsx or .pdf files found inside the zip(s).';return;}
   $('loadbar').textContent=`Reading ${items.length} file(s)${zips.length?` (incl. ${zips.length} zip)`:''}…`;
-  let added=0,skipped=0;
+  let added=0,skipped=0,sheets=0;
   for(const item of items){
-    try{const r=parseWorkbook(item.name,item.buf);
-      if(!r){skipped++;continue;}
-      const ix=FUNDS.findIndex(f=>f.name===r.name);
-      if(ix>=0)FUNDS[ix]=r; else FUNDS.push(r);
-      added++;
+    try{
+      if(/\.pdf$/i.test(item.name)){
+        const F=parseFactsheet(await extractPdfPages(item.buf));
+        if(!F){skipped++;continue;}
+        const ix=FACTSHEETS.findIndex(x=>normName(x.name)===normName(F.name));
+        if(ix>=0)FACTSHEETS[ix]=F; else FACTSHEETS.push(F);
+        sheets++;
+      }else{
+        const r=parseWorkbook(item.name,item.buf);
+        if(!r){skipped++;continue;}
+        const ix=FUNDS.findIndex(f=>f.name===r.name);
+        if(ix>=0)FUNDS[ix]=r; else FUNDS.push(r);
+        added++;
+      }
     }catch(err){skipped++;}
   }
-  $('loadbar').textContent=`Loaded ${added} fund(s)${skipped?', skipped '+skipped:''}.`;
-  if(!FUNDS.length)return;
+  if(sheets)saveFactsheets();
+  $('loadbar').textContent=`Loaded ${added} fund(s)${sheets?`, ${sheets} factsheet(s)`:''}${skipped?', skipped '+skipped:''}.`;
+  if(!FUNDS.length&&!FACTSHEETS.length)return;
   // initialise holdings on first load
   if(!HOLDINGS.length){
     const saved=loadHoldings();
@@ -1322,6 +1473,7 @@ async function handleFiles(fileList){
   if(!VALUATIONS.length){VALUATIONS=loadValuations();}
   if(!CONTRIBUTIONS.length)CONTRIBUTIONS=loadContributions();
   if(!Object.keys(PROJ).length)PROJ=loadProjection();
+  if(!FACTSHEETS.length)FACTSHEETS=loadFactsheets();
   if(!COMPARE.size)COMPARE=loadCompare()||new Set(HOLDINGS.filter(h=>h[1]>0).map(h=>h[0]));
   PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput();
   if(!HISTORY.length)HISTORY=loadHistoryLS();
@@ -1336,7 +1488,7 @@ async function handleFiles(fileList){
   if(!cached.length)return;
   FUNDS=cached;
   HISTORY=loadHistoryLS();
-  VALUATIONS=loadValuations(); CONTRIBUTIONS=loadContributions(); PROJ=loadProjection(); PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput();
+  VALUATIONS=loadValuations(); CONTRIBUTIONS=loadContributions(); PROJ=loadProjection(); FACTSHEETS=loadFactsheets(); PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput();
   const saved=loadHoldings();
   const src=saved&&saved.length?saved:DEFAULT_HOLDINGS;
   HOLDINGS=src.filter(([n])=>FUNDS.find(f=>f.name===n)).map(h=>[h[0],h[1]]);
