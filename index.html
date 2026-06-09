@@ -217,6 +217,7 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
     <div class="fundval-input"><span class="cur">£</span><input id="fundValue" type="number" min="0" step="100" placeholder="e.g. 50000"></div>
     <span class="note" id="fundValueNote">Manual entry — today's total value of your pot. Saved with a date so your recorded values build an exact growth chart over time.</span>
   </div>
+  <div id="upStatus" class="note" style="display:none;margin-top:10px;font-family:var(--mono);font-size:12.5px"></div>
 </div>
 
 <!-- DASHBOARD -->
@@ -1439,20 +1440,21 @@ window.addEventListener('drop',e=>{
   if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);
 });
 $('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];PROJ={};COMPARE=new Set();FACTSHEETS=[];['fund_data','fund_history','fund_value','fund_valuations','fund_contributions','fund_projection','fund_compare','fund_factsheets'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+function upMsg(text,isErr){const u=$('upStatus');if(u){u.style.display=text?'block':'none';u.textContent=text||'';u.style.color=isErr?'var(--neg)':'var(--mute)';}const e=$('errbox');if(e&&isErr)e.textContent=text;const l=$('loadbar');if(l&&!isErr)l.textContent=text;}
 async function handleFiles(fileList){
   const all=[...fileList];
   const zips=all.filter(f=>/\.zip$/i.test(f.name));
   const direct=all.filter(f=>/\.(x(lsx|ls)|pdf)$/i.test(f.name));
-  if(!zips.length&&!direct.length){$('errbox').textContent='No .xlsx, .pdf or .zip files found in that selection.';return;}
-  $('errbox').textContent='';$('loadbar').textContent='Reading files…';
+  if(!zips.length&&!direct.length){upMsg('No .xlsx, .pdf or .zip files found in that selection.',true);return;}
+  $('errbox').textContent='';upMsg('Reading files…');
   const items=[]; // {name, buf}
   for(const f of direct)items.push({name:f.name,buf:await f.arrayBuffer()});
   for(const z of zips){
     try{const extracted=await expandZip(z);items.push(...extracted);}
-    catch(err){$('errbox').textContent=`Could not read ${z.name}: ${err.message||err}`;}
+    catch(err){upMsg(`Could not read ${z.name}: ${err.message||err}`,true);}
   }
-  if(!items.length){$('loadbar').textContent='';$('errbox').textContent='No .xlsx or .pdf files found inside the zip(s).';return;}
-  $('loadbar').textContent=`Reading ${items.length} file(s)${zips.length?` (incl. ${zips.length} zip)`:''}…`;
+  if(!items.length){upMsg('No .xlsx or .pdf files found inside the zip(s).',true);return;}
+  upMsg(`Reading ${items.length} file(s)${zips.length?` (incl. ${zips.length} zip)`:''}…`);
   let added=0,skipped=0,sheets=0; const pdfErrs=[];
   for(const item of items){
     try{
@@ -1472,9 +1474,12 @@ async function handleFiles(fileList){
       }
     }catch(err){skipped++; if(/\.pdf$/i.test(item.name))pdfErrs.push(`${item.name}: ${err&&err.message||err}`);}
   }
-  if(pdfErrs.length)$('errbox').textContent=pdfErrs.slice(0,3).join('  ·  ');
   if(sheets)saveFactsheets();
-  $('loadbar').textContent=`Loaded ${added} fund(s)${sheets?`, ${sheets} factsheet(s)`:''}${skipped?', skipped '+skipped:''}.`;
+  const summary=`Loaded ${added} fund(s)${sheets?`, ${sheets} factsheet(s)`:''}${skipped?`, skipped ${skipped}`:''}.`;
+  $('loadbar').textContent=summary;
+  const us=$('upStatus');
+  if(us){us.style.display='block';us.textContent=summary+(pdfErrs.length?'  '+pdfErrs.slice(0,2).join('  ·  '):'');us.style.color=pdfErrs.length?'var(--neg)':'var(--mute)';}
+  if(pdfErrs.length)$('errbox').textContent=pdfErrs.slice(0,3).join('  ·  ');
   if(!FUNDS.length&&!FACTSHEETS.length)return;
   // initialise holdings on first load
   if(!HOLDINGS.length){
