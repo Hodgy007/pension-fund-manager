@@ -104,6 +104,10 @@ h2 .n{font-family:var(--mono);font-size:10px;color:var(--faint);margin-left:12px
 .btn.gold{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
 .btn.gold:hover{opacity:.9}
 .hidden{display:none!important}
+/* recorded values + contributions side by side */
+.val-contrib-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:760px){.val-contrib-grid{grid-template-columns:1fr}}
+.val-contrib-grid .card{padding:18px}
 /* portfolio summary */
 .psum{grid-template-columns:repeat(3,1fr);align-items:stretch}
 @media(max-width:1100px){.psum{grid-template-columns:repeat(2,1fr)}}
@@ -315,7 +319,8 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 
   <h2>Historic holdings &amp; actual return<span class="n">/ TIME-WEIGHTED</span></h2>
   <div id="historicSummary"></div>
-  <div class="card" style="margin-top:14px">
+  <div class="val-contrib-grid" style="margin-top:14px">
+  <div class="card">
     <div class="cardlbl">Recorded total values · exact</div>
     <p class="note" style="font-size:12.5px;color:var(--mute);margin:-6px 0 14px">Type in your pot's total value on the dates you have statements for. With two or more dated values the chart above shows your <b>exact</b> total value and growth — your real money, not an estimate from fund prices. (Today's value from the box at the top is included automatically.)</p>
     <div id="valRows"></div>
@@ -323,13 +328,14 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
       <button class="btn" id="valAdd">+ Add a dated value</button>
     </div>
   </div>
-  <div class="card" style="margin-top:14px">
+  <div class="card">
     <div class="cardlbl">Contributions &amp; withdrawals · optional</div>
     <p class="note" style="font-size:12.5px;color:var(--mute);margin:-6px 0 14px">Record money you paid <b>in</b> (positive) or took <b>out</b> (negative) between your recorded values. This lets the chart separate true investment growth from the cash you added, and shows a money-weighted (IRR) return.</p>
     <div id="contribRows"></div>
     <div class="he-foot" style="margin-top:14px">
       <button class="btn" id="contribAdd">+ Add a contribution</button>
     </div>
+  </div>
   </div>
   <div class="card" style="margin-top:14px">
     <div class="cardlbl">Record what funds you held and the dates you held them. Give each holding period a start and end date — leave the end blank to run it up to the latest prices (or the next period). We chain those daily-rebalanced periods into one continuous performance line.</div>
