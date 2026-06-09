@@ -122,6 +122,8 @@ table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
 th:hover{color:var(--ink)}
+.tbl-scroll{scrollbar-width:thin}
+.tbl-scroll thead th{position:sticky;top:0;background:var(--panel);z-index:2}
 th .arr{opacity:.4;font-size:9px}
 td{padding:11px 12px;text-align:right;border-bottom:1px solid #20262f;font-family:var(--mono);font-variant-numeric:tabular-nums}
 td:first-child{font-family:var(--font);font-weight:500}
@@ -310,7 +312,7 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
 
   <h2>Every fund<span class="n">/ SORTABLE</span></h2>
   <div class="tbl-controls" id="filters"></div>
-  <div class="card" style="padding:6px 10px;overflow-x:auto">
+  <div class="card tbl-scroll" style="padding:0 10px;overflow:auto;max-height:476px">
     <table id="tbl"><thead></thead><tbody></tbody></table>
   </div>
 
