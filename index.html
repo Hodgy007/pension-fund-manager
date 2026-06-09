@@ -902,7 +902,7 @@ function drawCompareChart(){
     return {name:f.name,color:CMP_COLORS[i%CMP_COLORS.length],pts:rows.map(r=>({t:+r.d,v:r.p/base*100}))};
   }).filter(Boolean);
   if(!series.length){el.innerHTML='<text x="380" y="180" text-anchor="middle" fill="#5d6878" font-family="monospace" font-size="13">Selected funds don’t overlap in time.</text>';return;}
-  const W=760,H=360,pad={l:50,r:14,t:14,b:30};
+  const W=760,H=360,pad={l:50,r:14,t:14,b:46};
   const t0=commonStart,t1=maxEnd,tspan=(t1-t0)||1;
   let vmin=Infinity,vmax=-Infinity;series.forEach(s=>s.pts.forEach(p=>{vmin=Math.min(vmin,p.v);vmax=Math.max(vmax,p.v);}));
   const ystep=niceStep((vmax-vmin)||1);
@@ -910,8 +910,14 @@ function drawCompareChart(){
   const X=t=>pad.l+((t-t0)/tspan)*(W-pad.l-pad.r), Y=v=>H-pad.b-((v-lo)/vspan)*(H-pad.t-pad.b);
   let g='';
   for(let v=lo;v<=hi+0.001;v+=ystep)g+=`<line class="gridline" x1="${pad.l}" y1="${Y(v)}" x2="${W-pad.r}" y2="${Y(v)}" opacity=".5"/><text class="sc-lbl" x="${pad.l-8}" y="${Y(v)+3}" text-anchor="end">${Math.round(v)}</text>`;
-  const y0=new Date(t0).getFullYear(),y1=new Date(t1).getFullYear();
-  for(let yr=y0;yr<=y1;yr++){const tx=+new Date(yr,0,1);if(tx<t0||tx>t1)continue;g+=`<line class="gridline" x1="${X(tx)}" y1="${pad.t}" x2="${X(tx)}" y2="${H-pad.b}" opacity=".3"/><text class="sc-lbl" x="${X(tx)}" y="${H-pad.b+16}" text-anchor="middle">${yr}</text>`;}
+  // x-axis: evenly spaced date ticks across the window (always labelled)
+  const fmtT=t=>new Date(t).toLocaleDateString('en-GB',{month:'short',year:tspan>2.2*365*864e5?'numeric':'2-digit'});
+  const TICKS=5;
+  for(let i=0;i<=TICKS;i++){const tx=t0+tspan*(i/TICKS);
+    g+=`<line class="gridline" x1="${X(tx)}" y1="${pad.t}" x2="${X(tx)}" y2="${H-pad.b}" opacity=".25"/>`;
+    g+=`<text class="sc-lbl" x="${X(tx)}" y="${H-pad.b+16}" text-anchor="middle">${fmtT(tx)}</text>`;}
+  g+=`<line x1="${pad.l}" y1="${H-pad.b}" x2="${W-pad.r}" y2="${H-pad.b}" stroke="var(--line)" stroke-width="1"/>`;
+  g+=`<text class="axis-lbl" x="${(pad.l+W-pad.r)/2}" y="${H-5}" text-anchor="middle">Date →</text>`;
   if(lo<=100&&hi>=100)g+=`<line x1="${pad.l}" y1="${Y(100)}" x2="${W-pad.r}" y2="${Y(100)}" stroke="#3a4452" stroke-dasharray="3 3"/>`;
   series.forEach(s=>{g+=`<path d="${s.pts.map((p,i)=>`${i?'L':'M'}${X(p.t).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(' ')}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;});
   // hover
