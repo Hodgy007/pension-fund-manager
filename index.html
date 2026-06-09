@@ -437,7 +437,8 @@ function renderScatter(){
   sc.querySelectorAll('.sc-pt').forEach(c=>{const f=sf[c.dataset.i];c.onmousemove=e=>showTip(e,f);c.onmouseleave=()=>tip.style.opacity=0;});
 }
 let sortKey='r3y',sortDir=-1,filt='All';
-const cols=[['name','Fund'],['cat','Class'],['weight','Held'],['last_price','Price'],['r1m','1M'],['r6m','6M'],['r1y','1Y'],['r3y','3Y'],['ann','Ann.'],['vol','Vol'],['mdd','MaxDD'],['sharpe','R/R']];
+const cols=[['name','Fund'],['cat','Class'],['weight','Held'],['last_price','Price'],['last_date','As of'],['r1m','1M'],['r6m','6M'],['r1y','1Y'],['r3y','3Y'],['ann','Ann.'],['vol','Vol'],['mdd','MaxDD'],['sharpe','R/R']];
+const fmtMonth=d=>d instanceof Date&&!isNaN(d)?d.toLocaleDateString('en-GB',{month:'short',year:'numeric'}):'—';
 function renderTable(){
   const cats=['All','Held','Equity','Bonds/Credit','Multi-Asset/Alt','Cash','Property'];
   $('filters').innerHTML=cats.map(c=>`<div class="filt ${c===filt?'on':''}" data-c="${c}">${c}</div>`).join('');
@@ -455,6 +456,7 @@ function renderTable(){
     <td><span class="cat-pill" style="color:${C[f.cat]}">${f.cat}</span></td>
     <td>${f.weight>0?f.weight+'%':'—'}</td>
     <td>${f.last_price!=null?f.last_price.toFixed(1):'—'}</td>
+    <td>${fmtMonth(f.last_date)}</td>
     <td class="${cls(f.r1m)}">${f0(f.r1m)}</td>
     <td class="${cls(f.r6m)}">${f0(f.r6m)}</td>
     <td class="${cls(f.r1y)}">${f0(f.r1y)}</td>
