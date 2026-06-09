@@ -264,7 +264,9 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <div class="fundval-row">
     <label for="fundValue">Total fund value</label>
     <div class="fundval-input"><span class="cur">£</span><input id="fundValue" type="number" min="0" step="100" placeholder="e.g. 50000"></div>
-    <span class="note" id="fundValueNote">Manual entry — today's total value of your pot. Saved with a date so your recorded values build an exact growth chart over time.</span>
+    <label for="monthlyContrib" style="margin-left:8px">Monthly contribution</label>
+    <div class="fundval-input"><span class="cur">£</span><input id="monthlyContrib" type="number" min="0" step="10" placeholder="e.g. 250"></div>
+    <span class="note" id="fundValueNote">Today's pot value plus your regular monthly payment. The monthly figure feeds the growth chart so you can separate real investment growth from the money you pay in.</span>
   </div>
   <div id="upStatus" class="note" style="display:none;margin-top:10px;font-family:var(--mono);font-size:12.5px"></div>
 </div>
@@ -468,6 +470,8 @@ let HISTORY=[];      // [{start:'YYYY-MM-DD',end:'YYYY-MM-DD',holdings:[[name,we
 let PORT=null;
 let VALUATIONS=[];   // manual: [{date:'YYYY-MM-DD',value:£},...] real recorded pot values
 let CONTRIBUTIONS=[];// manual: [{date,amount}] money paid in (+) or taken out (−)
+let MONTHLY=0;       // regular monthly contribution (£), feeds the growth chart
+let EXCLUDE_CONTRIB=false; // chart toggle: show investment growth only (net of contributions)
 let PROJ={};         // retirement projection inputs
 let FACTSHEETS=[];   // parsed PDF factsheets: [{name,asOf,ocf,unitPrice,launch,objective,cum,ann,assetSplit,geoSplit,holdings}]
 let COMPARE=new Set();// fund names selected in the comparison chart
@@ -488,6 +492,23 @@ function upsertValuation(date,value){
 function cleanContributions(){
   return CONTRIBUTIONS.filter(c=>c&&c.date&&isFinite(+c.amount)&&+c.amount!==0)
     .map(c=>({date:c.date,amount:+c.amount})).sort((a,b)=>a.date.localeCompare(b.date));
+}
+// generate monthly contribution flows from the regular monthly figure, one per
+// month strictly between the first and last recorded valuation dates.
+function monthlyFlows(){
+  if(!(MONTHLY>0))return [];
+  const vals=cleanValuations(); if(vals.length<2)return [];
+  const start=new Date(vals[0].date), end=new Date(vals[vals.length-1].date);
+  const out=[]; const d=new Date(start.getFullYear(),start.getMonth()+1,start.getDate());
+  while(d<end){out.push({date:d.toISOString().slice(0,10),amount:MONTHLY});d.setMonth(d.getMonth()+1);}
+  return out;
+}
+// manual contributions plus auto-generated monthly ones (deduped by date, manual wins)
+function effectiveContributions(){
+  const manual=cleanContributions();
+  const have=new Set(manual.map(c=>c.date));
+  const merged=[...manual,...monthlyFlows().filter(c=>!have.has(c.date))];
+  return merged.sort((a,b)=>a.date.localeCompare(b.date));
 }
 // internal rate of return from dated cashflows: cfs=[{t:yearsFromStart,cf}]
 function irr(cfs){
@@ -1041,20 +1062,27 @@ function computeValuations(){
   const ann=yrs>0.1?Math.pow(vals[vals.length-1]/vals[0],1/yrs)-1:null;
   let peak=vals[0],mdd=0; for(const x of vals){peak=Math.max(peak,x);mdd=Math.min(mdd,x/peak-1);}
   // contributions / withdrawals between the first and last recorded value
+  // (manual entries plus auto-generated monthly contributions)
   const t0=+dates[0], tN=+dates[dates.length-1];
-  const flows=cleanContributions().filter(c=>{const t=+new Date(c.date);return t>t0&&t<=tN;});
+  const flows=effectiveContributions().filter(c=>{const t=+new Date(c.date);return t>t0&&t<=tN;});
   const paidIn=flows.reduce((a,c)=>a+c.amount,0);
   const growthAbs=vals[vals.length-1]-vals[0]-paidIn;
   // money-weighted (IRR): opening balance + each flow are outflows, final value an inflow
   const yrsOf=t=>(t-t0)/(365.25*864e5);
   const cfs=[{t:0,cf:-vals[0]},...flows.map(c=>({t:yrsOf(+new Date(c.date)),cf:-c.amount})),{t:yrsOf(tN),cf:vals[vals.length-1]}];
   const mwr=flows.length?irr(cfs):null;
+  // cumulative contributions paid in by a given time
+  const paidInBy=t=>flows.filter(c=>+new Date(c.date)<=t).reduce((a,c)=>a+c.amount,0);
   // cost-basis line for charting: opening value + cumulative contributions to date
   const marks=[...new Set([t0,tN,...flows.map(c=>+new Date(c.date))])].sort((a,b)=>a-b);
   const basisDates=marks.map(t=>new Date(t));
-  const basisVals=marks.map(t=>vals[0]+flows.filter(c=>+new Date(c.date)<=t).reduce((a,c)=>a+c.amount,0));
+  const basisVals=marks.map(t=>vals[0]+paidInBy(t));
+  // investment-growth-only series: each recorded value minus the contributions
+  // paid in up to that date (so the line shows pot value driven by growth alone)
+  const growthVals=dates.map((d,i)=>vals[i]-paidInBy(+d));
   return {from:dates[0],to:dates[dates.length-1],cum:cum*100,ann:ann!=null?ann*100:null,mdd:mdd*100,
     startValue:vals[0],endValue:vals[vals.length-1],nav:{dates,vals},
+    growth:{dates,vals:growthVals},
     hasFlows:flows.length>0,paidIn,growthAbs,mwr:mwr!=null?mwr*100:null,basis:{dates:basisDates,vals:basisVals}};
 }
 // draws the total-value chart. opts.actual = exact recorded series (gold, dotted markers);
@@ -1165,10 +1193,13 @@ function renderHistory(){
         <div class="stat"><div class="lbl">Investment growth</div><div class="val sm ${cls(act.growthAbs)}">${fmtMoney(act.growthAbs)}</div></div>
         <div class="stat"><div class="lbl">Return on money</div><div class="val sm ${cls(act.mwr)}">${f0(act.mwr)}</div></div>
       </div>`:''}
-      <div style="margin-top:16px"><svg viewBox="0 0 760 300" id="navChart" style="width:100%;height:auto"></svg></div>
-      <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)"><span style="color:var(--gold)">Gold line &amp; dots</span> = your exact recorded total value.${act.hasFlows?' <span style="color:var(--pos)">Dashed green</span> = money you’ve paid in (cost basis); the gap up to gold is pure investment growth, and “return on money” is the money-weighted (IRR) return that strips out the timing of your payments.':est?' <span style="color:var(--accent)">Dashed blue</span> = the blended fund-price estimate, for comparison.':' Record contributions below to split this into money paid in vs investment growth.'}</p>
+      ${act.hasFlows?`<label class="toggle" style="margin-top:14px"><input type="checkbox" id="exclContribToggle" ${EXCLUDE_CONTRIB?'checked':''}><span class="track"><span class="knob"></span></span><span class="tlbl">Investment growth only (strip out contributions)</span></label>`:''}
+      <div style="margin-top:14px"><svg viewBox="0 0 760 300" id="navChart" style="width:100%;height:auto"></svg></div>
+      <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)">${act.hasFlows&&EXCLUDE_CONTRIB?'<span style="color:var(--gold)">Gold line</span> = your pot value with contributions stripped out — what your starting money grew to from investment returns alone. Toggle off to see your full recorded value.':`<span style="color:var(--gold)">Gold line &amp; dots</span> = your exact recorded total value.${act.hasFlows?' <span style="color:var(--pos)">Dashed green</span> = money you’ve paid in (cost basis); the gap up to gold is pure investment growth, and “return on money” is the money-weighted (IRR) return that strips out the timing of your payments.':est?' <span style="color:var(--accent)">Dashed blue</span> = the blended fund-price estimate, for comparison.':' Record contributions below to split this into money paid in vs investment growth.'}`}</p>
       </div>`;
-    drawTotalChart({estimate:est&&!act.hasFlows?est.nav:null,actual:act.nav,basis:act.hasFlows?act.basis:null});
+    if(act.hasFlows&&EXCLUDE_CONTRIB)drawTotalChart({estimate:null,actual:act.growth,basis:null});
+    else drawTotalChart({estimate:est&&!act.hasFlows?est.nav:null,actual:act.nav,basis:act.hasFlows?act.basis:null});
+    const ect=$('exclContribToggle'); if(ect)ect.onchange=e=>{EXCLUDE_CONTRIB=e.target.checked;renderHistory();};
   } else if(est){
     // ESTIMATE only (no/one recorded value): blended fund-price line, scaled if a value exists
     const valueStats=est.valued?`
@@ -1645,6 +1676,13 @@ $('fundValue').oninput=e=>{
   upsertValuation(today, parseFloat(e.target.value));
   saveValuations(); renderHistory();
 };
+function syncMonthlyInput(){const el=$('monthlyContrib');if(!el)return;el.type=PRIVACY?'password':'number';if(document.activeElement!==el)el.value=MONTHLY>0?MONTHLY:'';}
+function saveMonthly(){try{localStorage.setItem('fund_monthly',String(MONTHLY||0));}catch(e){}}
+function loadMonthly(){try{const s=localStorage.getItem('fund_monthly');const v=parseFloat(s);return v>0?v:0;}catch(e){return 0;}}
+$('monthlyContrib').oninput=e=>{
+  MONTHLY=parseFloat(e.target.value)||0;
+  saveMonthly(); renderHistory();
+};
 $('valAdd').onclick=()=>{
   const today=new Date().toISOString().slice(0,10);
   if(!VALUATIONS.find(v=>v.date===today))VALUATIONS.push({date:today,value:0});
@@ -1660,7 +1698,7 @@ function exportData(){
     app:'fund-dashboard', version:1, exported:new Date().toISOString(),
     funds:FUNDS.map(f=>({n:f.name,r:f.rows.map(x=>[+x.d,x.p])})),
     holdings:HOLDINGS, history:HISTORY, valuations:VALUATIONS,
-    contributions:CONTRIBUTIONS, projection:PROJ, factsheets:FACTSHEETS
+    contributions:CONTRIBUTIONS, monthly:MONTHLY, projection:PROJ, factsheets:FACTSHEETS
   };
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');
@@ -1676,9 +1714,10 @@ async function importData(file){
     if(Array.isArray(data.history))HISTORY=data.history.map(h=>({start:h.start||h.date||'',end:h.end||'',holdings:h.holdings||[]}));
     if(Array.isArray(data.valuations))VALUATIONS=data.valuations.filter(v=>v&&v.date);
     if(Array.isArray(data.contributions))CONTRIBUTIONS=data.contributions.filter(c=>c&&c.date);
+    if(isFinite(+data.monthly))MONTHLY=+data.monthly||0;
     if(data.projection&&typeof data.projection==='object')PROJ=data.projection;
     if(Array.isArray(data.factsheets))FACTSHEETS=data.factsheets.filter(f=>f&&f.name);
-    saveHistory(); saveValuations(); saveContributions(); saveProjection(); saveFactsheets(); saveState(); saveFunds(); syncFundValueInput();
+    saveHistory(); saveValuations(); saveContributions(); saveMonthly(); saveProjection(); saveFactsheets(); saveState(); saveFunds(); syncFundValueInput(); syncMonthlyInput();
     $('uploadSection').classList.add('hidden'); $('loadedBar').classList.remove('hidden'); $('dash').classList.remove('hidden');
     $('errbox').textContent=''; $('loadbar').textContent=`Imported ${FUNDS.length} fund(s), ${VALUATIONS.length} recorded value(s)${FACTSHEETS.length?`, ${FACTSHEETS.length} factsheet(s)`:''}.`;
     recompute();
@@ -1689,14 +1728,14 @@ $('importBtn').onclick=()=>$('importInput').click();
 $('importInput').onchange=e=>{if(e.target.files[0])importData(e.target.files[0]);e.target.value='';};
 // ---------- privacy (hide £ values) ----------
 function loadPrivacy(){try{return localStorage.getItem('fund_privacy')==='1';}catch(e){return false;}}
-function applyPrivacy(){$('privacyToggle').checked=PRIVACY;syncFundValueInput();renderProjection();renderHistory();}
+function applyPrivacy(){$('privacyToggle').checked=PRIVACY;syncFundValueInput();syncMonthlyInput();renderProjection();renderHistory();}
 $('privacyToggle').onchange=e=>{PRIVACY=e.target.checked;try{localStorage.setItem('fund_privacy',PRIVACY?'1':'');}catch(_){}applyPrivacy();};
 // ---------- clear only personal values (keep loaded fund prices) ----------
 $('clearValues').onclick=()=>{
   if(!confirm('Clear your holdings, historic snapshots, recorded £ values, contributions and projection? Loaded fund prices are kept.'))return;
-  HOLDINGS=[];HISTORY=[];VALUATIONS=[];CONTRIBUTIONS=[];PROJ={};
-  ['fund_holdings','fund_history','fund_valuations','fund_value','fund_contributions','fund_projection'].forEach(k=>localStorage.removeItem(k));
-  syncFundValueInput(); recompute();
+  HOLDINGS=[];HISTORY=[];VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;PROJ={};
+  ['fund_holdings','fund_history','fund_valuations','fund_value','fund_contributions','fund_monthly','fund_projection'].forEach(k=>localStorage.removeItem(k));
+  syncFundValueInput(); syncMonthlyInput(); recompute();
 };
 const drop=$('drop'),input=$('fileInput');
 if(drop&&input){
@@ -1715,7 +1754,7 @@ window.addEventListener('drop',e=>{
   e.preventDefault();
   if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);
 });
-$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];PROJ={};COMPARE=new Set();FACTSHEETS=[];['fund_data','fund_history','fund_value','fund_valuations','fund_contributions','fund_projection','fund_compare','fund_factsheets'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];['fund_data','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_projection','fund_compare','fund_factsheets'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 function upMsg(text,isErr){const u=$('upStatus');if(u){u.style.display=text?'block':'none';u.textContent=text||'';u.style.color=isErr?'var(--neg)':'var(--mute)';}const e=$('errbox');if(e&&isErr)e.textContent=text;const l=$('loadbar');if(l&&!isErr)l.textContent=text;}
 async function handleFiles(fileList){
   const all=[...fileList];
@@ -1768,7 +1807,8 @@ async function handleFiles(fileList){
   if(!Object.keys(PROJ).length)PROJ=loadProjection();
   if(!FACTSHEETS.length)FACTSHEETS=loadFactsheets();
   if(!COMPARE.size)COMPARE=loadCompare()||new Set(HOLDINGS.filter(h=>h[1]>0).map(h=>h[0]));
-  PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput();
+  if(!MONTHLY)MONTHLY=loadMonthly();
+  PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput(); syncMonthlyInput();
   if(!HISTORY.length)HISTORY=loadHistoryLS();
   $('uploadSection').classList.add('hidden');
   $('loadedBar').classList.remove('hidden');
@@ -1782,7 +1822,7 @@ async function handleFiles(fileList){
   if(!cached.length)return;
   FUNDS=cached;
   HISTORY=loadHistoryLS();
-  VALUATIONS=loadValuations(); CONTRIBUTIONS=loadContributions(); PROJ=loadProjection(); FACTSHEETS=loadFactsheets(); PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput();
+  VALUATIONS=loadValuations(); CONTRIBUTIONS=loadContributions(); MONTHLY=loadMonthly(); PROJ=loadProjection(); FACTSHEETS=loadFactsheets(); PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput(); syncMonthlyInput();
   const saved=loadHoldings();
   const src=saved&&saved.length?saved:DEFAULT_HOLDINGS;
   HOLDINGS=src.filter(([n])=>FUNDS.find(f=>f.name===n)).map(h=>[h[0],h[1]]);
