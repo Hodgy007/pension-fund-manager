@@ -102,7 +102,8 @@ h2 .n{font-family:var(--mono);font-size:11px;color:var(--faint);margin-left:12px
 .btn.gold{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
 .hidden{display:none!important}
 /* portfolio summary */
-.psum{grid-template-columns:1.3fr 1fr;align-items:stretch}
+.psum{grid-template-columns:1.3fr 1fr 1fr;align-items:stretch}
+@media(max-width:1100px){.psum{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){.psum{grid-template-columns:1fr}}
 .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:12px}
 .stat{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
@@ -152,12 +153,13 @@ svg{display:block;width:100%;overflow:visible}
 .filt:hover{border-color:var(--primary);color:var(--primary)}
 .filt.on{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);text-align:right;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap;font-weight:600}
-th:first-child,td:first-child{text-align:left}
-th:hover{color:var(--primary)}
+table th,table td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);font-family:var(--mono);font-variant-numeric:tabular-nums}
+table th{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);cursor:pointer;user-select:none;white-space:nowrap;font-weight:600}
+table th:first-child,table td:first-child{text-align:left;font-family:var(--font)}
+table th:hover{color:var(--primary)}
 .tbl-scroll{scrollbar-width:thin}
 .tbl-scroll thead th{position:sticky;top:0;background:var(--panel);z-index:2}
-th .arr{opacity:.3;font-size:9px}
+table th .arr{opacity:.3;font-size:9px}
 td{padding:12px 14px;text-align:right;border-bottom:1px solid var(--line);font-family:var(--mono);font-variant-numeric:tabular-nums}
 td:first-child{font-family:var(--font);font-weight:500}
 tr.held{background:linear-gradient(90deg,rgba(31,111,235,.06),transparent 70%)}
@@ -280,7 +282,18 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
         <div class="legend" id="donutLegend"></div>
       </div>
     </div>
+    <div class="card">
+      <div class="cardlbl">Annual charges</div>
+      <div class="stat-row">
+        <div class="stat"><div class="lbl">Blended OCF</div><div class="val sm" id="pocf">—</div></div>
+        <div class="stat"><div class="lbl">Annual cost</div><div class="val sm" id="pannCost">—</div></div>
+      </div>
+      <p class="note" style="margin-top:12px;font-size:12px">Ongoing Charge Figure (OCF) is the annual cost as % of your fund value. Upload factsheets to see charges.</p>
+    </div>
   </div>
+
+  <h2>Charges analysis<span class="n">/ ONGOING COST OF YOUR HOLDINGS</span></h2>
+  <div id="chargesAnalysis"></div>
 
   <h2>Top picks for max growth<span class="n">/ HIGHEST ANNUALISED RETURN</span></h2>
   <div class="card">
@@ -633,6 +646,39 @@ function metrics(f){
   f.sharpe=(ann&&vol)?ann/vol:null;
   return f;
 }
+// charge calculations
+function getBlendedOCF(){
+  const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n));
+  if(!held.length)return null;
+  const totalWeight=held.reduce((a,[,w])=>a+w,0);
+  if(totalWeight===0)return null;
+  let totalOCF=0;
+  for(const [name,weight] of held){
+    const fs=FACTSHEETS.find(f=>normName(f.name)===normName(name));
+    if(fs&&fs.ocf!=null)totalOCF+=fs.ocf*(weight/totalWeight);
+  }
+  return totalOCF>0?totalOCF:null;
+}
+function getAnnualChargeCost(){
+  const ocf=getBlendedOCF();
+  const value=latestValue();
+  if(!ocf||!value)return null;
+  return value*(ocf/100);
+}
+function getChargesForPeriod(startDate,endDate,holdings){
+  const start=new Date(startDate), end=new Date(endDate);
+  const days=(end-start)/(24*60*60*1000);
+  if(days<=0)return null;
+  let totalOCF=0, totalWeight=0;
+  for(const [name,weight] of holdings){
+    const fs=FACTSHEETS.find(f=>normName(f.name)===normName(name));
+    if(fs&&fs.ocf!=null){totalOCF+=fs.ocf*weight;totalWeight+=weight;}
+  }
+  if(totalWeight===0)return null;
+  const avgOCF=totalOCF/totalWeight;
+  const years=days/365.25;
+  return {ocf:avgOCF,days,years};
+}
 function buildPortfolio(){
   const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n));
   if(!held.length)return null;
@@ -674,11 +720,11 @@ function renderAll(){
   $('fscount').textContent=FACTSHEETS.length; $('fsChip').classList.toggle('hidden',!FACTSHEETS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderProjection(); renderHoldCards(); renderLookThrough(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
-  if(!PORT){['p1y','p3y','pann','pvol','pmdd','psharpe'].forEach(i=>$(i).textContent='—');$('donut').innerHTML='';$('donutLegend').innerHTML='<span class="note">Add holdings below to see your blended numbers.</span>';$('hcount').textContent=0;return;}
+  if(!PORT){['p1y','p3y','pann','pvol','pmdd','psharpe'].forEach(i=>$(i).textContent='—');$('pocf').textContent='—';$('pannCost').textContent='—';$('donut').innerHTML='';$('donutLegend').innerHTML='<span class="note">Add holdings below to see your blended numbers.</span>';$('hcount').textContent=0;return;}
   $('hcount').textContent=PORT.held.length;
   $('p1y').textContent=f0(PORT.r1y);$('p1y').className='val '+cls(PORT.r1y);
   $('p3y').textContent=f0(PORT.r3y);$('p3y').className='val '+cls(PORT.r3y);
@@ -686,6 +732,10 @@ function renderPortfolio(){
   $('pvol').textContent=f1(PORT.vol);
   $('pmdd').textContent=f1(PORT.mdd);$('pmdd').className='val sm '+cls(PORT.mdd);
   $('psharpe').textContent=(PORT.ann/PORT.vol).toFixed(2);
+  const ocf=getBlendedOCF();
+  const annCost=getAnnualChargeCost();
+  $('pocf').textContent=ocf!=null?ocf.toFixed(3)+'%':'—';
+  $('pannCost').textContent=annCost!=null?fmtMoney(annCost):'—';
   const cols={'Multi-Asset':'#d4a64a','Bonds':'#3fb950','Equity':'#4a9eff','Cash':'#9aa7b8','Property':'#c77dff'};
   const entries=Object.entries(PORT.alloc).sort((a,b)=>b[1]-a[1]);
   let a0=-90,d='';
@@ -696,6 +746,70 @@ function renderPortfolio(){
   d+='<circle cx="60" cy="60" r="30" fill="var(--panel)"/>';
   $('donut').innerHTML=d;
   $('donutLegend').innerHTML=entries.map(([n,p])=>`<div><span class="dot" style="background:${cols[n]||'#888'}"></span>${n}<span class="pc">${p.toFixed(0)}%</span></div>`).join('');
+}
+function renderChargesAnalysis(){
+  const el=$('chargesAnalysis');
+  if(!el)return;
+  const ocf=getBlendedOCF();
+  if(!ocf){
+    el.innerHTML='<p class="note" style="color:var(--faint)">Upload factsheets or set holdings to see charges analysis.</p>';
+    return;
+  }
+  const value=latestValue();
+  const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n));
+  let html=`<div class="card">
+    <div class="cardlbl">Your holdings · charges breakdown</div>
+    <div style="overflow-x:auto"><table style="font-size:12px;width:100%"><tr><th style="text-align:left">Fund</th><th style="text-align:right">Weight</th><th style="text-align:right">OCF</th><th style="text-align:right">Annual cost</th></tr>`;
+  let totalCost=0;
+  for(const [name,weight] of held){
+    const f=FUNDS.find(x=>x.name===name);
+    const fs=FACTSHEETS.find(x=>normName(x.name)===normName(name));
+    const fundOCF=fs?.ocf;
+    const fundCost=value&&fundOCF?(value*weight/100)*fundOCF/100:0;
+    totalCost+=fundCost;
+    html+=`<tr><td style="text-align:left">${name}</td><td style="text-align:right">${weight.toFixed(1)}%</td><td style="text-align:right">${fundOCF!=null?fundOCF.toFixed(3)+'%':'—'}</td><td style="text-align:right">${value&&fundOCF?fmtMoney(fundCost):'—'}</td></tr>`;
+  }
+  html+=`<tr style="border-top:1px solid var(--line);font-weight:600"><td style="text-align:left">Total annual cost</td><td></td><td style="text-align:right">${ocf.toFixed(3)}%</td><td style="text-align:right">${value?fmtMoney(totalCost):'—'}</td></tr></table></div>`;
+  html+=`</div>`;
+
+  if(value){
+    html+=`<div class="card" style="margin-top:14px">
+      <div class="cardlbl">Projected charges over time</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        <div class="fund-detail-stat"><div class="label">1 Year</div><div class="value">${fmtMoney(totalCost*1)}</div></div>
+        <div class="fund-detail-stat"><div class="label">5 Years</div><div class="value">${fmtMoney(totalCost*5)}</div></div>
+        <div class="fund-detail-stat"><div class="label">10 Years</div><div class="value">${fmtMoney(totalCost*10)}</div></div>
+        <div class="fund-detail-stat"><div class="label">20 Years</div><div class="value">${fmtMoney(totalCost*20)}</div></div>
+      </div>
+      <p class="note" style="margin-top:12px;font-size:12px">Assumes fund value stays at £${fmtMoney(value).replace('£','')} and charges remain constant. Actual charges may vary.</p>
+    </div>`;
+  }
+
+  if(HISTORY.length){
+    html+=`<div class="card" style="margin-top:14px">
+      <div class="cardlbl">Charges for holding periods</div>
+      <div style="display:flex;flex-direction:column;gap:8px">`;
+    for(let i=0;i<HISTORY.length;i++){
+      const h=HISTORY[i];
+      if(!h.start||!h.holdings||!h.holdings.length)continue;
+      const end=h.end?new Date(h.end):new Date();
+      const chargeData=getChargesForPeriod(h.start,h.end||new Date().toISOString().split('T')[0],h.holdings);
+      if(!chargeData)continue;
+      const startVal=VALUATIONS.find(v=>v.date===h.start)?.value||value||0;
+      const periodCost=startVal*(chargeData.ocf/100)*chargeData.years;
+      const fmt=d=>new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+      html+=`<div style="padding:10px;background:var(--panel2);border-radius:6px;border:1px solid var(--line)">
+        <div style="font-weight:600;font-size:12px">${fmt(h.start)} to ${fmt(h.end||new Date())}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;font-size:12px;color:var(--mute)">
+          <div>Avg OCF: <strong>${chargeData.ocf.toFixed(3)}%</strong></div>
+          <div>Duration: <strong>${chargeData.years.toFixed(2)} years</strong></div>
+        </div>
+        ${startVal?`<div style="margin-top:6px;font-size:12px;color:var(--mute)">Estimated charges: <strong>${fmtMoney(periodCost)}</strong></div>`:''}
+      </div>`;
+    }
+    html+=`</div></div>`;
+  }
+  el.innerHTML=html;
 }
 function ltColor(name){const n=(name||'').toLowerCase();
   if(/equit|share|stock/.test(n))return C['Equity'];
