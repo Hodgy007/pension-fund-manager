@@ -674,7 +674,8 @@ function renderLookThrough(){
   const el=$('lookThrough'); if(!el)return;
   const lt=lookThrough();
   if(!lt){
-    el.innerHTML=`<div class="card"><p class="note" style="margin:0;color:var(--faint)">${FACTSHEETS.length?`Loaded ${FACTSHEETS.length} factsheet(s), but none match your current holdings by name. Set holdings whose names match the factsheets, or check the fund names.`:'Upload your Scottish Widows fund factsheet PDFs (drop them in the upload area or use “+ Add / update files”) to see a blended look-through of what your holdings actually contain — by asset class, region and underlying fund — and to spot overlap.'}</p></div>`;
+    el.innerHTML=`<div class="card"><p class="note" style="margin:0 0 12px;color:var(--faint)">${FACTSHEETS.length?`Loaded ${FACTSHEETS.length} factsheet(s), but none match your current holdings by name. Loaded factsheets: ${FACTSHEETS.map(f=>f.name).join(', ')}. Set holdings whose names match these, or tell me and I’ll relax the matching.`:'Upload your Scottish Widows fund factsheet PDFs to see a blended look-through of what your holdings actually contain — by asset class, region and underlying fund — and to spot overlap.'}</p>
+      <button class="btn gold" onclick="document.getElementById('fileInput').click()">+ Upload factsheet PDFs</button></div>`;
     return;
   }
   const overlaps=lt.underlying.filter(u=>u.overlap);
