@@ -57,8 +57,9 @@ h2 .n{font-family:var(--mono);font-size:12px;color:var(--faint);margin-left:10px
 .proj-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 @media(max-width:760px){.proj-grid{grid-template-columns:repeat(2,1fr)}}
 .proj-grid label{display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
-.proj-grid input{font-family:var(--mono);font-size:15px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 11px;width:100%;text-align:right}
-.proj-grid input:focus{outline:none;border-color:var(--gold)}
+.proj-grid input,.proj-grid select{font-family:var(--mono);font-size:15px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 11px;width:100%;text-align:right}
+.proj-grid select{text-align:left;font-size:12.5px}
+.proj-grid input:focus,.proj-grid select:focus{outline:none;border-color:var(--gold)}
 .cmp-controls{display:flex;gap:8px;flex-wrap:wrap}
 .cmp-chips{display:flex;gap:7px;flex-wrap:wrap}
 .cmp-chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;background:var(--panel2);border:1px solid var(--line);color:var(--mute);padding:6px 11px;border-radius:20px;cursor:pointer;transition:.13s}
@@ -211,20 +212,30 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
 
   <h2>Will it be enough?<span class="n">/ PROJECTION</span></h2>
   <div class="card">
-    <div class="cardlbl">Project your pot to retirement. Historical return &amp; volatility drive a range of outcomes (1,000+ simulations) — a spread of possibilities, not a promise.</div>
+    <div class="cardlbl">Project your pot to retirement with UK tax built in (HMRC <span id="taxYear">2025/26</span>, rest-of-UK). Historical return &amp; volatility drive 1,500 simulations — a spread of possibilities, not a promise.</div>
     <div class="proj-grid" id="projInputs">
       <label>Current age<input type="number" id="pjAge" min="16" max="100" step="1"></label>
       <label>Retirement age<input type="number" id="pjRet" min="40" max="100" step="1"></label>
       <label>Pot value now (£)<input type="number" id="pjPot" min="0" step="500"></label>
       <label>Contribution (£/month)<input type="number" id="pjMon" min="0" step="50"></label>
+      <label>Contribution is<select id="pjBasis"><option value="takehome">From my take-home (relief added)</option><option value="gross">Before-tax / salary sacrifice</option></select></label>
+      <label>My income tax rate<select id="pjRate"><option value="0">Non-taxpayer (0%)</option><option value="20">Basic (20%)</option><option value="40">Higher (40%)</option><option value="45">Additional (45%)</option></select></label>
       <label>Expected return (%/yr)<input type="number" id="pjRetn" step="0.1"></label>
       <label>Volatility (%/yr)<input type="number" id="pjVol" min="0" step="0.1"></label>
-      <label>Contribution rises (%/yr)<input type="number" id="pjInfl" min="0" step="0.5"></label>
+      <label>Contribution rises (%/yr)<input type="number" id="pjEsc" min="0" step="0.5"></label>
+      <label>Inflation / CPI (%/yr)<input type="number" id="pjCpi" min="0" step="0.1"></label>
+      <label>Annual allowance (£)<input type="number" id="pjAA" min="0" step="1000"></label>
       <label>Target pot (£, optional)<input type="number" id="pjTgt" min="0" step="1000"></label>
     </div>
+    <label class="toggle" style="margin-top:14px" title="Show projected pounds in today's spending power"><input type="checkbox" id="pjReal" checked><span class="track"><span class="knob"></span></span><span class="tlbl">Show in today's money</span></label>
     <div id="projOut" style="margin-top:16px"></div>
     <div style="margin-top:14px"><svg viewBox="0 0 760 320" id="projChart" style="width:100%;height:auto"></svg></div>
-    <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)">Defaults come from your blended holdings (return &amp; volatility) and latest recorded pot value — change any of them. <span style="color:var(--accent)">Shaded band</span> = the middle 80% of outcomes (10th–90th percentile); <span style="color:var(--gold)">gold line</span> = the median. Returns assume charges and inflation are not deducted unless you lower the return yourself. Not a forecast or advice.</p>
+    <div class="proj-grid" style="margin-top:16px;grid-template-columns:repeat(2,1fr);max-width:540px">
+      <label>Annual withdrawal rate (%)<input type="number" id="pjWr" min="0" step="0.5"></label>
+      <label>Other taxable income (£/yr)<input type="number" id="pjOther" min="0" step="500"></label>
+    </div>
+    <div id="projRetire" style="margin-top:14px"></div>
+    <p class="note" style="margin-top:8px;font-size:12px;color:var(--faint)">Defaults come from your blended holdings (return &amp; volatility) and latest recorded pot. <span style="color:var(--accent)">Shaded band</span> = middle 80% of outcomes (10th–90th percentile); <span style="color:var(--gold)">gold line</span> = median. Tax relief is added to contributions and the retirement breakdown uses current income-tax bands, the 25% tax-free lump sum (capped at £268,275) and the £60,000 annual allowance. Estimates only — they ignore fund charges, the State Pension unless you add it, allowance taper/MPAA and your wider circumstances, and HMRC figures change each Budget. Not a forecast or financial advice.</p>
   </div>
 
   <h2>Top picks for max growth<span class="n">/ HIGHEST ANNUALISED RETURN</span></h2>
@@ -320,6 +331,21 @@ const cls=v=>v==null||isNaN(v)?'':v>=0?'pos':'neg';
 let PRIVACY=false;   // when true, mask £ amounts for over-the-shoulder privacy
 const fmtMoney=v=>PRIVACY?'£•••••':'£'+Math.round(v).toLocaleString('en-GB');
 function niceStep(span){const raw=span/6,mag=Math.pow(10,Math.floor(Math.log10(raw)||0)),n=raw/mag;return (n<1.5?1:n<3?2:n<7?5:10)*mag;}
+// ---------- UK tax figures (HMRC, 2025/26, rest-of-UK: England/Wales/NI) ----------
+// Editable headline values (allowance, marginal rate) are exposed as inputs; the
+// income-tax bands below are fixed for the tax year and change at each Budget.
+const TAX={year:'2025/26',pa:12570,paTaperFrom:100000,basicBand:37700,addnThresholdTaxable:112570,
+  rateBasic:.20,rateHigher:.40,rateAddn:.45,lumpSumAllowance:268275,annualAllowance:60000,fullStatePension:11973};
+// income tax on a gross annual income (incl. personal-allowance taper over £100k)
+function incomeTax(gross){
+  if(!(gross>0))return 0;
+  let pa=TAX.pa; if(gross>TAX.paTaperFrom)pa=Math.max(0,TAX.pa-(gross-TAX.paTaperFrom)/2);
+  let t=Math.max(0,gross-pa),tax=0;
+  const b=Math.min(t,TAX.basicBand); tax+=b*TAX.rateBasic; t-=b;
+  const hh=Math.min(t,TAX.addnThresholdTaxable-TAX.basicBand); tax+=hh*TAX.rateHigher; t-=hh;
+  tax+=Math.max(0,t)*TAX.rateAddn;
+  return tax;
+}
 
 // default holdings (match the Scottish Widows download names)
 const DEFAULT_HOLDINGS=[];
@@ -911,59 +937,107 @@ function projDefaults(){
     age:PROJ.age??40, ret:PROJ.ret??67,
     pot:PROJ.pot??(latestValue()||0),
     mon:PROJ.mon??200,
+    basis:PROJ.basis||'takehome',
+    rate:PROJ.rate??20,
     retn:PROJ.retn??(PORT&&PORT.ann!=null?+PORT.ann.toFixed(1):5),
     vol:PROJ.vol??(PORT&&PORT.vol!=null?+PORT.vol.toFixed(1):12),
-    infl:PROJ.infl??0,
-    tgt:PROJ.tgt??0
+    esc:PROJ.esc??0,
+    cpi:PROJ.cpi??2.5,
+    aa:PROJ.aa??TAX.annualAllowance,
+    tgt:PROJ.tgt??0,
+    real:PROJ.real!==false,
+    wr:PROJ.wr??4,
+    other:PROJ.other??0
   };
+}
+// work out what lands in the pot (gross) vs what leaves your take-home (net)
+function contribCalc(p){
+  const r=p.rate/100;
+  if(p.basis==='gross') // salary sacrifice / net-pay: entered figure is the gross into the pot
+    return {grossMon:p.mon, netMon:p.mon*(1-r), extraReliefAnnual:0};
+  // relief at source: basic-rate 20% is added into the pot; higher/additional reclaimed as cash
+  const grossMon = p.rate>=20 ? p.mon/0.8 : p.mon;
+  const extraReliefAnnual = grossMon*12*Math.max(0,p.rate-20)/100;
+  return {grossMon, netMon:p.mon, extraReliefAnnual};
 }
 function projectMC(p){
   const years=Math.round(p.ret-p.age);
   if(years<=0||years>80)return null;
-  const N=1500, mu=p.retn/100, sig=Math.max(0,p.vol/100), g=Math.max(0,p.infl/100);
+  const cc=contribCalc(p);
+  const N=1500, mu=p.retn/100, sig=Math.max(0,p.vol/100), g=Math.max(0,p.esc/100), cpi=Math.max(0,p.cpi/100);
+  const realF=y=>p.real?1/Math.pow(1+cpi,y):1;
   const yearVals=Array.from({length:years+1},()=>new Float64Array(N));
-  let totalPaid=p.pot;
   for(let s=0;s<N;s++){
-    let v=p.pot, annual=p.mon*12;
+    let v=p.pot, annual=cc.grossMon*12;
     yearVals[0][s]=v;
-    for(let y=1;y<=years;y++){
-      let r=mu+sig*gaussian(); if(r<-0.95)r=-0.95;
-      v=v*(1+r)+annual; annual*=(1+g);
-      yearVals[y][s]=v;
-    }
+    for(let y=1;y<=years;y++){let r=mu+sig*gaussian(); if(r<-0.95)r=-0.95; v=v*(1+r)+annual; annual*=(1+g); yearVals[y][s]=v;}
   }
-  // contributions paid in total (with the same yearly escalation, deterministic)
-  let annual=p.mon*12; for(let y=1;y<=years;y++){totalPaid+=annual;annual*=(1+g);}
   const p10=[],p50=[],p90=[];
-  for(let y=0;y<=years;y++){p10.push(pctile(yearVals[y],.1));p50.push(pctile(yearVals[y],.5));p90.push(pctile(yearVals[y],.9));}
-  const finals=yearVals[years];
-  const probTgt=p.tgt>0?[...finals].filter(v=>v>=p.tgt).length/N:null;
-  return {years,startAge:p.age,p10,p50,p90,totalPaid,tgt:p.tgt,probTgt,
-    finalP10:p10[years],finalP50:p50[years],finalP90:p90[years]};
+  for(let y=0;y<=years;y++){const f=realF(y);p10.push(pctile(yearVals[y],.1)*f);p50.push(pctile(yearVals[y],.5)*f);p90.push(pctile(yearVals[y],.9)*f);}
+  const finals=[...yearVals[years]].map(v=>v*realF(years));
+  // always-real median for the (today's-bands) retirement breakdown
+  const medianReal=pctile(yearVals[years],.5)/Math.pow(1+cpi,years);
+  // total contributions: gross into pot, net out of take-home (escalated)
+  let totalGross=p.pot, totalNet=p.pot, a=cc.grossMon*12, an=cc.netMon*12;
+  for(let y=1;y<=years;y++){totalGross+=a;totalNet+=an;a*=(1+g);an*=(1+g);}
+  const probTgt=p.tgt>0?finals.filter(v=>v>=p.tgt).length/N:null;
+  return {years,startAge:p.age,p10,p50,p90,real:p.real,cpi:p.cpi,
+    finalP10:p10[years],finalP50:p50[years],finalP90:p90[years],medianReal,
+    totalGross,totalNet,reliefInPot:totalGross-totalNet,extraReliefAnnual:cc.extraReliefAnnual,
+    grossAnnualFirst:cc.grossMon*12,aa:p.aa,tgt:p.tgt,probTgt,wr:p.wr,other:p.other};
 }
 function renderProjection(){
+  const ty=$('taxYear'); if(ty)ty.textContent=TAX.year;
   const d=projDefaults();
   // reflect current values into the inputs (don't fight the user mid-type)
   const set=(id,v)=>{const el=$(id);if(el&&document.activeElement!==el)el.value=(v||v===0)?v:'';};
   set('pjAge',d.age);set('pjRet',d.ret);set('pjPot',d.pot);set('pjMon',d.mon);
-  set('pjRetn',d.retn);set('pjVol',d.vol);set('pjInfl',d.infl);set('pjTgt',d.tgt);
-  const potEl=$('pjPot'); if(potEl)potEl.type=PRIVACY?'password':'number';
-  const tgtEl=$('pjTgt'); if(tgtEl)tgtEl.type=PRIVACY?'password':'number';
+  set('pjRetn',d.retn);set('pjVol',d.vol);set('pjEsc',d.esc);set('pjCpi',d.cpi);
+  set('pjAA',d.aa);set('pjTgt',d.tgt);set('pjWr',d.wr);set('pjOther',d.other);
+  const sv=(id,v)=>{const el=$(id);if(el&&document.activeElement!==el)el.value=v;};
+  sv('pjBasis',d.basis); sv('pjRate',d.rate);
+  const rl=$('pjReal'); if(rl)rl.checked=d.real;
+  ['pjPot','pjTgt','pjOther'].forEach(id=>{const el=$(id);if(el)el.type=PRIVACY?'password':'number';});
   const s=projectMC(d);
-  if(!s){$('projOut').innerHTML='<p class="note" style="color:var(--faint);margin:0">Set a current age below your retirement age to see a projection.</p>';$('projChart').innerHTML='';return;}
+  if(!s){$('projOut').innerHTML='<p class="note" style="color:var(--faint);margin:0">Set a current age below your retirement age to see a projection.</p>';$('projChart').innerHTML='';$('projRetire').innerHTML='';return;}
   const retYear=new Date().getFullYear()+s.years;
+  const moneyTag=s.real?" <span style='color:var(--faint);font-weight:400'>(today's money)</span>":'';
+  const aaWarn=s.grossAnnualFirst>s.aa?`<p class="note" style="margin:12px 0 0;color:var(--neg)">⚠ Your contributions of about ${fmtMoney(s.grossAnnualFirst)}/yr (incl. relief) exceed the ${fmtMoney(s.aa)} annual allowance — the excess can be taxed unless covered by carry-forward. (Allowance may also be lower if you've flexibly accessed a pension (MPAA £10,000) or are a high earner (taper).)</p>`:'';
+  const reliefNote=`<p class="note" style="margin:12px 0 0;color:var(--mute)">Tax relief adds about <b>${fmtMoney(s.reliefInPot)}</b> to your pension over the period${s.extraReliefAnnual>0?`, and as a ${d.rate}% taxpayer you can reclaim a further ~<b>${fmtMoney(s.extraReliefAnnual)}/yr</b> through Self Assessment`:''}. Your own money in: ${fmtMoney(s.totalNet)}.</p>`;
   $('projOut').innerHTML=`
     <div class="stat-row">
-      <div class="stat"><div class="lbl">Likely pot at ${s.startAge+s.years} (${retYear})</div><div class="val">${fmtMoney(s.finalP50)}</div></div>
-      <div class="stat"><div class="lbl">You'll have paid in</div><div class="val sm">${fmtMoney(s.totalPaid)}</div></div>
-      <div class="stat"><div class="lbl">Investment growth</div><div class="val sm ${cls(s.finalP50-s.totalPaid)}">${fmtMoney(s.finalP50-s.totalPaid)}</div></div>
+      <div class="stat"><div class="lbl">Likely pot at ${s.startAge+s.years} (${retYear})${moneyTag}</div><div class="val">${fmtMoney(s.finalP50)}</div></div>
+      <div class="stat"><div class="lbl">Goes into your pot</div><div class="val sm">${fmtMoney(s.totalGross)}</div></div>
+      <div class="stat"><div class="lbl">Investment growth</div><div class="val sm ${cls(s.finalP50-s.totalGross)}">${fmtMoney(s.finalP50-s.totalGross)}</div></div>
     </div>
     <div class="stat-row" style="margin-top:10px">
       <div class="stat"><div class="lbl">Unlucky (10th pct)</div><div class="val sm">${fmtMoney(s.finalP10)}</div></div>
       <div class="stat"><div class="lbl">Lucky (90th pct)</div><div class="val sm">${fmtMoney(s.finalP90)}</div></div>
       ${s.tgt>0?`<div class="stat"><div class="lbl">Chance of reaching ${fmtMoney(s.tgt)}</div><div class="val sm ${s.probTgt>=0.5?'pos':'neg'}">${Math.round(s.probTgt*100)}%</div></div>`:'<div class="stat"><div class="lbl">Set a target</div><div class="val sm" style="color:var(--faint)">—</div></div>'}
-    </div>`;
+    </div>${reliefNote}${aaWarn}`;
   drawProjChart(s);
+  // ----- at-retirement tax breakdown (today's money, current bands) -----
+  const pot=s.medianReal;
+  const tfc=Math.min(0.25*pot,TAX.lumpSumAllowance);
+  const drawPot=pot-tfc;
+  const pensionGross=drawPot*(d.wr/100);
+  const totalGrossInc=pensionGross+(d.other||0);
+  const tax=incomeTax(totalGrossInc);
+  const netInc=totalGrossInc-tax;
+  $('projRetire').innerHTML=`<div class="card" style="background:var(--panel2);padding:16px">
+    <div class="cardlbl" style="color:var(--gold)">At retirement · median pot ${fmtMoney(pot)} · today's money, ${TAX.year} bands</div>
+    <div class="stat-row">
+      <div class="stat"><div class="lbl">Tax-free cash (25%${0.25*pot>TAX.lumpSumAllowance?', capped':''})</div><div class="val sm pos">${fmtMoney(tfc)}</div></div>
+      <div class="stat"><div class="lbl">Rest of pot (taxable)</div><div class="val sm">${fmtMoney(drawPot)}</div></div>
+      <div class="stat"><div class="lbl">Drawn at ${d.wr||0}%/yr</div><div class="val sm">${fmtMoney(pensionGross)}</div></div>
+    </div>
+    <div class="stat-row" style="margin-top:10px">
+      <div class="stat"><div class="lbl">Gross income/yr${d.other>0?' (incl. other)':''}</div><div class="val sm">${fmtMoney(totalGrossInc)}</div></div>
+      <div class="stat"><div class="lbl">Income tax/yr</div><div class="val sm neg">${fmtMoney(tax)}</div></div>
+      <div class="stat"><div class="lbl">Net income/yr</div><div class="val">${fmtMoney(netInc)}</div></div>
+    </div>
+    <p class="note" style="margin:12px 0 0;color:var(--faint)">Assumes you take the 25% tax-free lump sum, then draw ${d.wr||0}% of the remaining pot a year as taxable income${d.other>0?`, on top of ${fmtMoney(d.other)} of other taxable income (e.g. State Pension)`:' (add the State Pension or other income above)'}. A flat-rate, single-year view — real drawdown, the State Pension and your tax position will vary.</p>
+  </div>`;
 }
 function drawProjChart(s){
   const el=$('projChart'); if(!el)return;
@@ -988,13 +1062,17 @@ function drawProjChart(s){
   el.innerHTML=g;
 }
 function readProjInputs(){
-  const num=id=>{const v=parseFloat($(id).value);return isNaN(v)?null:v;};
-  PROJ={age:num('pjAge'),ret:num('pjRet'),pot:num('pjPot'),mon:num('pjMon'),retn:num('pjRetn'),vol:num('pjVol'),infl:num('pjInfl'),tgt:num('pjTgt')};
-  // drop nulls so defaults can fill them
+  const num=id=>{const el=$(id);if(!el)return null;const v=parseFloat(el.value);return isNaN(v)?null:v;};
+  const val=id=>$(id)?$(id).value:undefined;
+  PROJ={age:num('pjAge'),ret:num('pjRet'),pot:num('pjPot'),mon:num('pjMon'),
+    basis:val('pjBasis'),rate:num('pjRate'),retn:num('pjRetn'),vol:num('pjVol'),
+    esc:num('pjEsc'),cpi:num('pjCpi'),aa:num('pjAA'),tgt:num('pjTgt'),
+    real:$('pjReal')?$('pjReal').checked:true,wr:num('pjWr'),other:num('pjOther')};
   Object.keys(PROJ).forEach(k=>{if(PROJ[k]==null)delete PROJ[k];});
   saveProjection(); renderProjection();
 }
-['pjAge','pjRet','pjPot','pjMon','pjRetn','pjVol','pjInfl','pjTgt'].forEach(id=>{const el=$(id);if(el)el.oninput=readProjInputs;});
+['pjAge','pjRet','pjPot','pjMon','pjRetn','pjVol','pjEsc','pjCpi','pjAA','pjTgt','pjWr','pjOther'].forEach(id=>{const el=$(id);if(el)el.oninput=readProjInputs;});
+['pjBasis','pjRate','pjReal'].forEach(id=>{const el=$(id);if(el)el.onchange=readProjInputs;});
 function renderObs(){
   const o=[];
   const named=(arr)=>arr.map(f=>`${f.name} (${f0(f.r3y)})`).join(', ');
