@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fund Dashboard</title>
+<script>try{if(localStorage.getItem('fund_theme')==='light')document.documentElement.classList.add('light');}catch(e){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
@@ -14,11 +15,24 @@
   --pos:#3fb950; --neg:#f0556d; --gold:#d4a64a; --accent:#4a9eff;
   --font:'Spline Sans',sans-serif; --disp:'Fraunces',serif; --mono:'Spline Sans Mono',monospace;
 }
+html.light{
+  --bg:#f5f7fb; --panel:#ffffff; --panel2:#eef1f7; --line:#d9dfe9;
+  --ink:#1a2230; --mute:#5a6678; --faint:#8a94a6;
+  --pos:#1f9d40; --neg:#d83a52; --gold:#b07d22; --accent:#2f7fe0;
+}
+/* a few hard-coded dark tones need a light-mode counterpart */
+html.light td{border-bottom-color:#e6eaf1}
+html.light tr:hover td{background:#eef2f8}
+html.light tr.held:hover td{background:rgba(176,125,34,.12)}
+html.light .tip{background:#1b2230f2;color:#e8edf4}
+html.light .tip .r{color:#aab4c4}
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.5;
   background-image:radial-gradient(circle at 15% -10%,rgba(74,158,255,.07),transparent 40%),radial-gradient(circle at 90% 0%,rgba(212,166,74,.06),transparent 35%);
   background-attachment:fixed;padding:0 0 80px}
 .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.theme-toggle{position:fixed;top:14px;right:14px;z-index:200;width:40px;height:40px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-size:18px;line-height:1;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center}
+.theme-toggle:hover{border-color:var(--faint);transform:scale(1.06)}
 header{padding:42px 0 24px;border-bottom:1px solid var(--line);margin-bottom:28px}
 .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:14px}
 h1{font-family:var(--disp);font-weight:500;font-size:clamp(28px,5vw,44px);letter-spacing:-.01em;line-height:1.05}
@@ -147,6 +161,7 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
 </style>
 </head>
 <body>
+<button id="themeToggle" class="theme-toggle" title="Switch light / dark mode" aria-label="Toggle theme">🌙</button>
 <div class="wrap">
 <header>
   <div class="eyebrow" id="eyebrow">Fund Dashboard · upload your monthly downloads</div>
@@ -326,6 +341,17 @@ footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-si
 
 <script>
 const $=id=>document.getElementById(id);
+// ---------- light / dark theme ----------
+(function(){
+  const btn=$('themeToggle'); if(!btn)return;
+  const sync=()=>{btn.textContent=document.documentElement.classList.contains('light')?'☀️':'🌙';};
+  sync();
+  btn.onclick=()=>{
+    const light=document.documentElement.classList.toggle('light');
+    try{localStorage.setItem('fund_theme',light?'light':'dark');}catch(e){}
+    sync();
+  };
+})();
 const C={'Equity':'#4a9eff','Bonds/Credit':'#3fb950','Multi-Asset/Alt':'#d4a64a','Cash':'#9aa7b8','Property':'#c77dff','Other':'#8b97a8'};
 const f0=(v,d=1)=>v==null||isNaN(v)?'—':(v>0?'+':'')+v.toFixed(d)+'%';
 const f1=(v,d=1)=>v==null||isNaN(v)?'—':v.toFixed(d)+'%';
@@ -525,8 +551,8 @@ function renderPortfolio(){
   entries.forEach(([n,p])=>{const a1=a0+p*3.6,r=54,cx=60,cy=60;
     const x0=cx+r*Math.cos(a0*Math.PI/180),y0=cy+r*Math.sin(a0*Math.PI/180);
     const x1=cx+r*Math.cos(a1*Math.PI/180),y1=cy+r*Math.sin(a1*Math.PI/180);
-    d+=`<path d="M${cx} ${cy} L${x0} ${y0} A${r} ${r} 0 ${p>50?1:0} 1 ${x1} ${y1} Z" fill="${cols[n]||'#888'}" stroke="#161b22" stroke-width="2"/>`;a0=a1;});
-  d+='<circle cx="60" cy="60" r="30" fill="#161b22"/>';
+    d+=`<path d="M${cx} ${cy} L${x0} ${y0} A${r} ${r} 0 ${p>50?1:0} 1 ${x1} ${y1} Z" fill="${cols[n]||'#888'}" stroke="var(--panel)" stroke-width="2"/>`;a0=a1;});
+  d+='<circle cx="60" cy="60" r="30" fill="var(--panel)"/>';
   $('donut').innerHTML=d;
   $('donutLegend').innerHTML=entries.map(([n,p])=>`<div><span class="dot" style="background:${cols[n]||'#888'}"></span>${n}<span class="pc">${p.toFixed(0)}%</span></div>`).join('');
 }
