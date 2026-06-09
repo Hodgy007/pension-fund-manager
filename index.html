@@ -174,9 +174,41 @@ tr.held:hover td{background:rgba(212,166,74,.13)}
 .note{font-size:13.5px;color:var(--mute)}
 footer{margin-top:50px;padding-top:24px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);line-height:1.7}
 .err{color:var(--neg);font-size:13px;margin-top:10px}
+/* fund details modal */
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:none;z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.modal-overlay.open{display:flex}
+.modal-content{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:600px;max-height:85vh;overflow-y:auto;padding:28px;position:relative}
+.modal-close{position:absolute;top:12px;right:12px;background:none;border:none;color:var(--mute);font-size:24px;cursor:pointer;padding:4px 8px;transition:.15s}
+.modal-close:hover{color:var(--ink)}
+.fund-detail-header{margin-bottom:20px;border-bottom:1px solid var(--line);padding-bottom:20px}
+.fund-detail-name{font-family:var(--disp);font-weight:600;font-size:20px;margin-bottom:8px}
+.fund-detail-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--mute)}
+.fund-detail-meta span{display:flex;align-items:center;gap:4px}
+.fund-detail-section{margin-bottom:20px}
+.fund-detail-section h3{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin-bottom:10px}
+.fund-detail-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:600px){.fund-detail-2col{grid-template-columns:1fr}}
+.fund-detail-stat{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px;text-align:center}
+.fund-detail-stat .label{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+.fund-detail-stat .value{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--ink)}
+.fund-holdings-list{display:flex;flex-direction:column;gap:8px}
+.fund-holding-row{display:flex;justify-content:space-between;align-items:center;padding:8px;background:var(--panel2);border-radius:6px;font-size:13px}
+.fund-holding-pct{font-family:var(--mono);color:var(--gold);font-weight:600}
+.fund-splits{display:flex;flex-direction:column;gap:8px}
+.fund-split-item{display:flex;justify-content:space-between;align-items:center;padding:8px;background:var(--panel2);border-radius:6px;font-size:13px}
+.fund-split-bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:6px}
+.fund-split-fill{height:100%;background:var(--gold);border-radius:4px}
+.clickable-fund{cursor:pointer;user-select:none}
+.clickable-fund:hover{color:var(--accent);text-decoration:underline}
 </style>
 </head>
 <body>
+<div id="fundModal" class="modal-overlay" onclick="if(event.target===this)closeFundModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeFundModal()">×</button>
+    <div id="fundModalBody"></div>
+  </div>
+</div>
 <button id="themeToggle" class="theme-toggle" title="Switch light / dark mode" aria-label="Toggle theme">🌙</button>
 <div class="wrap">
 <header>
@@ -752,7 +784,7 @@ function renderTable(){
   else if(filt!=='All')rows=rows.filter(f=>f.cat===filt);
   rows.sort((a,b)=>{let x=a[sortKey],y=b[sortKey];if(typeof x==='string')return x.localeCompare(y)*sortDir;return ((x==null?-1e9:x)-(y==null?-1e9:y))*sortDir;});
   $('tbl').querySelector('tbody').innerHTML=rows.map(f=>`<tr class="${heldNames.has(f.name)?'held':''}">
-    <td>${f.name}${f.new?'<span class="tag new">NEW</span>':''}</td>
+    <td><span class="clickable-fund" onclick="openFundModal('${f.name.replace(/'/g,"\\\'")}')">${f.name}</span>${f.new?'<span class="tag new">NEW</span>':''}</td>
     <td><span class="cat-pill" style="color:${C[f.cat]}">${f.cat}</span></td>
     <td>${f.weight>0?f.weight+'%':'—'}</td>
     <td>${f.last_price!=null?f.last_price.toFixed(1):'—'}</td>
@@ -775,7 +807,7 @@ function renderTopPicks(){
   $('topPicks').innerHTML=picks.map((f,i)=>`
     <div class="card" style="padding:14px">
       <div class="cardlbl" style="color:var(--gold)">#${i+1} · ${f.cat}</div>
-      <div style="font-weight:600;font-size:14px;margin:6px 0 12px;line-height:1.3">${f.name}</div>
+      <div style="font-weight:600;font-size:14px;margin:6px 0 12px;line-height:1.3"><span class="clickable-fund" onclick="openFundModal('${f.name.replace(/'/g,"\\\'")}')">${f.name}</span></div>
       <div class="stat-row">
         <div class="stat"><div class="lbl">Annualised</div><div class="val sm ${cls(f.ann)}">${f0(f.ann)}</div></div>
         <div class="stat"><div class="lbl">3-Year</div><div class="val sm ${cls(f.r3y)}">${f0(f.r3y)}</div></div>
@@ -1303,6 +1335,83 @@ function renderObs(){
     `These notes are generated mechanically from the price history you loaded. They ignore fund charges, tax, how the funds move together, and — most importantly — your own goals, timeframe and risk appetite. For a personal recommendation, speak to a regulated financial adviser.`]);
 
   $('obs').innerHTML=o.map(([h,p])=>`<div class="o"><h4>${h}</h4><p>${p}</p></div>`).join('');
+}
+// ---------- fund details modal ----------
+function closeFundModal(){$('fundModal').classList.remove('open');}
+function openFundModal(fundName){
+  const f=FUNDS.find(x=>x.name===fundName); if(!f)return;
+  const fs=FACTSHEETS.find(x=>normName(x.name)===normName(fundName));
+  let html=`<div class="fund-detail-header">
+    <div class="fund-detail-name">${f.name}</div>
+    <div class="fund-detail-meta">
+      <span><strong>${f.cat}</strong></span>
+      ${f.last_price!=null?`<span>Unit price: £${f.last_price.toFixed(2)}</span>`:''}
+      ${fs?.asOf?`<span>Factsheet: ${fs.asOf}</span>`:''}
+    </div>
+  </div>`;
+
+  html+=`<div class="fund-detail-2col">
+    <div class="fund-detail-stat"><div class="label">3-Yr Return</div><div class="value ${cls(f.r3y)}">${f0(f.r3y)}</div></div>
+    <div class="fund-detail-stat"><div class="label">Annualised</div><div class="value">${f1(f.ann)}</div></div>
+    <div class="fund-detail-stat"><div class="label">Volatility</div><div class="value">${f1(f.vol)}</div></div>
+    <div class="fund-detail-stat"><div class="label">Max Drawdown</div><div class="value neg">${f1(f.mdd)}</div></div>
+  </div>`;
+
+  if(fs){
+    if(fs.ocf!=null){
+      html+=`<div class="fund-detail-section">
+        <h3>Charges (OCF)</h3>
+        <div class="fund-detail-stat"><div class="value">${fs.ocf.toFixed(3)}%</div><div class="label">Annual ongoing charge</div></div>
+      </div>`;
+    }
+    if(fs.objective){
+      html+=`<div class="fund-detail-section">
+        <h3>Objective</h3>
+        <p style="color:var(--mute);font-size:13px;line-height:1.6">${fs.objective}</p>
+      </div>`;
+    }
+    if(fs.assetSplit&&fs.assetSplit.length){
+      html+=`<div class="fund-detail-section">
+        <h3>Asset Allocation</h3>
+        <div class="fund-splits">`;
+      fs.assetSplit.forEach(a=>{
+        const pct=a.pct||0;
+        html+=`<div class="fund-split-item">
+          <span>${a.name}</span>
+          <span style="font-family:var(--mono);font-weight:600;color:var(--gold)">${pct.toFixed(1)}%</span>
+          <div class="fund-split-bar" style="width:100%;grid-column:1/-1"><div class="fund-split-fill" style="width:${pct}%"></div></div>
+        </div>`;
+      });
+      html+=`</div></div>`;
+    }
+    if(fs.geoSplit&&fs.geoSplit.length){
+      html+=`<div class="fund-detail-section">
+        <h3>Geographic Exposure</h3>
+        <div class="fund-splits">`;
+      fs.geoSplit.forEach(g=>{
+        const pct=g.pct||0;
+        html+=`<div class="fund-split-item">
+          <span>${g.name}</span>
+          <span style="font-family:var(--mono);font-weight:600;color:var(--gold)">${pct.toFixed(1)}%</span>
+          <div class="fund-split-bar" style="width:100%;grid-column:1/-1"><div class="fund-split-fill" style="width:${pct}%"></div></div>
+        </div>`;
+      });
+      html+=`</div></div>`;
+    }
+    if(fs.holdings&&fs.holdings.length){
+      html+=`<div class="fund-detail-section">
+        <h3>Top Holdings</h3>
+        <div class="fund-holdings-list">`;
+      fs.holdings.slice(0,10).forEach(h=>{
+        html+=`<div class="fund-holding-row"><span>${h.name}</span><span class="fund-holding-pct">${h.weight.toFixed(1)}%</span></div>`;
+      });
+      html+=`</div></div>`;
+    }
+  } else {
+    html+=`<p style="color:var(--faint);font-style:italic">No factsheet available. Upload a PDF to see charges, allocation, and holdings.</p>`;
+  }
+  $('fundModalBody').innerHTML=html;
+  $('fundModal').classList.add('open');
 }
 // ---------- holdings editor ----------
 function renderHoldEditor(){
