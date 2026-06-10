@@ -50,7 +50,8 @@ export function loadApp() {
   const exportNames = [
     'irr', 'pctile', 'niceStep', 'incomeTax', 'cat', 'parseDate', 'normName',
     'cleanName', 'gaussian', 'cleanValuations', 'cleanContributions',
-    'monthlyFlows', 'effectiveContributions', 'computeValuations', 'latestValue', 'TAX',
+    'monthlyFlows', 'effectiveContributions', 'computeValuations', 'latestValue',
+    'periodsPerYear', 'TAX',
   ];
 
   const epilogue = `

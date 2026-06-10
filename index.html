@@ -521,6 +521,18 @@ function irr(cfs){
 // standard normal (Box–Muller)
 function gaussian(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
 function pctile(arr,q){const a=[...arr].sort((x,y)=>x-y);const idx=(a.length-1)*q,lo=Math.floor(idx),hi=Math.ceil(idx);return a[lo]+(a[hi]-a[lo])*(idx-lo);}
+// number of return observations per year, inferred from the actual spacing of the
+// price dates — so volatility is annualised correctly whether the data is daily,
+// weekly or monthly (daily trading data naturally recovers ~252).
+function periodsPerYear(times){
+  if(!times||times.length<3)return 252;
+  const a=+times[0], b=+times[times.length-1];
+  const spanDays=(b-a)/864e5;
+  if(!(spanDays>0))return 252;
+  const avgGap=spanDays/(times.length-1);
+  if(!(avgGap>0))return 252;
+  return 365.25/avgGap;
+}
 
 // ---------- parsing ----------
 function cleanName(fn){
@@ -683,7 +695,7 @@ function metrics(f){
   const dr=[]; for(let i=1;i<n;i++)dr.push(rows[i].p/rows[i-1].p-1);
   let vol=null;
   if(dr.length>5){const m=dr.reduce((a,b)=>a+b,0)/dr.length;
-    const v=dr.reduce((a,b)=>a+(b-m)**2,0)/dr.length; vol=Math.sqrt(v)*Math.sqrt(252)*100;}
+    const v=dr.reduce((a,b)=>a+(b-m)**2,0)/dr.length; vol=Math.sqrt(v)*Math.sqrt(periodsPerYear(rows.map(r=>r.d)))*100;}
   let peak=rows[0].p,mdd=0; for(const r of rows){peak=Math.max(peak,r.p);mdd=Math.min(mdd,r.p/peak-1);}
   const ann=yrs>0.1?((last.p/first.p)**(1/yrs)-1)*100:null;
   f.cat=cat(f.name); f.last_price=last.p; f.npts=n; f.new=n<60;
@@ -745,7 +757,7 @@ function buildPortfolio(){
   const rr=(days)=>{const t=new Date(dates[dates.length-1]);t.setDate(t.getDate()-days);if(dates[0]>t)return null;const p0=pb(t);return p0?(idx[idx.length-1]/p0-1)*100:null;};
   const dr=[];for(let i=1;i<idx.length;i++)dr.push(idx[i]/idx[i-1]-1);
   const m=dr.reduce((a,b)=>a+b,0)/dr.length,v=dr.reduce((a,b)=>a+(b-m)**2,0)/dr.length;
-  const vol=Math.sqrt(v)*Math.sqrt(252)*100;
+  const vol=Math.sqrt(v)*Math.sqrt(periodsPerYear(common))*100;
   let peak=idx[0],mdd=0;for(const x of idx){peak=Math.max(peak,x);mdd=Math.min(mdd,x/peak-1);}
   const yrs=(dates[dates.length-1]-dates[0])/(365.25*864e5);
   const ann=((idx[idx.length-1]/idx[0])**(1/yrs)-1)*100;
@@ -1049,7 +1061,7 @@ function computeHistory(){
   const dr=[]; for(let i=1;i<vals.length;i++)dr.push(vals[i]/vals[i-1]-1);
   const m=dr.reduce((a,b)=>a+b,0)/dr.length;
   const v=dr.reduce((a,b)=>a+(b-m)**2,0)/dr.length;
-  const vol=Math.sqrt(v)*Math.sqrt(252)*100;
+  const vol=Math.sqrt(v)*Math.sqrt(periodsPerYear(dates))*100;
   let peak=vals[0],mdd=0; for(const x of vals){peak=Math.max(peak,x);mdd=Math.min(mdd,x/peak-1);}
   // scale the index to real money using the most recent recorded value.
   // that value is treated as "today" — i.e. the final point of the series.
@@ -1609,6 +1621,28 @@ function openFundModal(fundName){
   </div>`;
 
   if(fs){
+    // performance vs benchmark (parsed from the factsheet)
+    const perfTable=(perf,title)=>{
+      if(!perf||!perf.fund||!perf.fund.length)return '';
+      const head=`<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:12px;padding:6px 10px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)">
+        <span>${title}</span><span style="text-align:right">Fund</span><span style="text-align:right">Benchmark</span><span style="text-align:right;min-width:46px">+/−</span></div>`;
+      const rows=perf.labels.map((lab,i)=>{
+        const fv=perf.fund[i], bv=perf.bench&&perf.bench[i];
+        const diff=(fv!=null&&!isNaN(fv)&&bv!=null&&!isNaN(bv))?fv-bv:null;
+        const pc=v=>v==null||isNaN(v)?'—':(v>0?'+':'')+v.toFixed(1)+'%';
+        return `<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;padding:9px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;font-size:12.5px">
+          <span style="font-weight:500">${lab}</span>
+          <span style="font-family:var(--mono);text-align:right">${pc(fv)}</span>
+          <span style="font-family:var(--mono);text-align:right;color:var(--mute)">${pc(bv)}</span>
+          <span class="${cls(diff)}" style="font-family:var(--mono);text-align:right;min-width:46px;font-weight:600">${diff==null?'—':(diff>0?'+':'')+diff.toFixed(1)}</span>
+        </div>`;
+      }).join('');
+      return `<div class="fund-detail-section"><h3>Performance vs benchmark</h3>
+        <div class="fund-holdings-list">${head}${rows}</div>
+        <p class="note" style="margin-top:8px;font-size:11px;color:var(--faint)">Fund vs its stated benchmark, from the factsheet. <span class="pos">Green</span> = ahead of benchmark, <span class="neg">red</span> = behind. Capital return, before charges.</p>
+      </div>`;
+    };
+    html+=perfTable(fs.cum,'Cumulative')||perfTable(fs.ann,'Annualised');
     if(fs.ocf!=null){
       html+=`<div class="fund-detail-section">
         <h3>Charges (OCF)</h3>

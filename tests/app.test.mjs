@@ -116,3 +116,28 @@ test('computeValuations: returns null with fewer than two recorded values', () =
   app.set({ VALUATIONS: [{ date: '2020-01-01', value: 10000 }], CONTRIBUTIONS: [], MONTHLY: 0 });
   assert.equal(F.computeValuations(), null);
 });
+
+test('periodsPerYear: daily price data recovers ~252', () => {
+  // a year of business-day-ish dates (skip weekends) ~ 261 points
+  const days = [];
+  let d = new Date('2021-01-01');
+  while (d < new Date('2022-01-01')) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) days.push(new Date(d));
+    d = new Date(d.getTime() + 864e5);
+  }
+  const ppy = F.periodsPerYear(days);
+  assert.ok(ppy > 230 && ppy < 280, `daily data should annualise ~252, got ${ppy}`);
+});
+
+test('periodsPerYear: weekly data ~52, monthly ~12', () => {
+  const weekly = Array.from({ length: 53 }, (_, i) => new Date(2021, 0, 1 + i * 7));
+  const monthly = Array.from({ length: 13 }, (_, i) => new Date(2021, i, 1));
+  assert.ok(Math.abs(F.periodsPerYear(weekly) - 52) < 4, F.periodsPerYear(weekly));
+  assert.ok(Math.abs(F.periodsPerYear(monthly) - 12) < 1.5, F.periodsPerYear(monthly));
+});
+
+test('periodsPerYear: falls back to 252 on degenerate input', () => {
+  assert.equal(F.periodsPerYear([]), 252);
+  assert.equal(F.periodsPerYear([new Date()]), 252);
+});
