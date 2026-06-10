@@ -1,0 +1,13 @@
+{
+  "name": "pension-fund-manager",
+  "version": "1.0.0",
+  "description": "In-browser pension fund dashboard. Single-file app; this package.json only drives syntax checks and tests.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check-syntax.mjs",
+    "test": "node --test tests/app.test.mjs",
+    "ci": "npm run check && npm test"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Syntax gate: fails the build if the inline app script won't parse
+      # (this is the check that would have caught the smart-quote outage).
+      - name: Check inline script syntax
+        run: npm run check
+      # Unit tests for the financial functions, run against the real shipping code.
+      - name: Run tests
+        run: npm test
