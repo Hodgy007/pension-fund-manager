@@ -313,6 +313,18 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     </div>
   </div>
 
+  <h2>Set your holdings<span class="n">/ YOUR PORTFOLIO ALLOCATION</span></h2>
+  <div class="card">
+    <div class="cardlbl">Pick the funds you own and their weight (%)</div>
+    <div id="heRows"></div>
+    <div class="he-foot">
+      <button class="btn" id="heAdd">+ Add holding</button>
+      <button class="btn" id="heNorm" title="Scale your weights so they add up to 100%">Normalise to 100%</button>
+      <span class="he-total" id="heTotal">Total: 0%</span>
+      <button class="btn gold" id="heApply">Apply</button>
+    </div>
+  </div>
+
   <h2>Charges analysis<span class="n">/ ONGOING COST OF YOUR HOLDINGS</span></h2>
   <div id="chargesAnalysis"></div>
 
@@ -351,18 +363,6 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <div id="historyRows"></div>
     <div class="he-foot" style="margin-top:14px">
       <button class="btn gold" id="histAdd">+ Add holding period (from current holdings, starting today)</button>
-    </div>
-  </div>
-
-  <h2>Set your holdings<span class="n">/ YOUR PORTFOLIO ALLOCATION</span></h2>
-  <div class="card">
-    <div class="cardlbl">Pick the funds you own and their weight (%)</div>
-    <div id="heRows"></div>
-    <div class="he-foot">
-      <button class="btn" id="heAdd">+ Add holding</button>
-      <button class="btn" id="heNorm" title="Scale your weights so they add up to 100%">Normalise to 100%</button>
-      <span class="he-total" id="heTotal">Total: 0%</span>
-      <button class="btn gold" id="heApply">Apply</button>
     </div>
   </div>
 
