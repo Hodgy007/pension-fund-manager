@@ -112,6 +112,19 @@ test('monthlyFlows: generates one flow per month between first and last value', 
   assert.ok(flows.every(f => f.amount === 100));
 });
 
+test('monthlyFlows: no month-end date drift (31st clamps, no Mar 3)', () => {
+  app.set({ VALUATIONS: [{ date: '2021-01-31', value: 10000 }, { date: '2021-06-30', value: 11000 }], CONTRIBUTIONS: [], MONTHLY: 50 });
+  const flows = F.monthlyFlows();
+  // every generated date must be a valid calendar date and never spill into the next month
+  for (const f of flows) {
+    const [y, m, d] = f.date.split('-').map(Number);
+    const reparsed = new Date(y, m - 1, d);
+    assert.equal(reparsed.getMonth(), m - 1, `date ${f.date} drifted into another month`);
+  }
+  // Feb should clamp to the 28th, not roll to Mar 3
+  assert.ok(flows.some(f => f.date === '2021-02-28'), `expected a clamped 2021-02-28, got ${flows.map(f => f.date).join(', ')}`);
+});
+
 test('computeValuations: returns null with fewer than two recorded values', () => {
   app.set({ VALUATIONS: [{ date: '2020-01-01', value: 10000 }], CONTRIBUTIONS: [], MONTHLY: 0 });
   assert.equal(F.computeValuations(), null);

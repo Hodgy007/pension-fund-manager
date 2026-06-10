@@ -140,6 +140,11 @@ h2 .n{font-family:var(--mono);font-size:10px;color:var(--faint);margin-left:12px
 @media(max-width:1000px){.hold-grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}}
 @media(max-width:760px){.hold-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:480px){.hold-grid{grid-template-columns:1fr}}
+/* top-picks tiles: equal height, content aligned regardless of fund-name length */
+#topPicks{align-items:stretch}
+#topPicks .card{display:flex;flex-direction:column;height:100%}
+#topPicks .tp-name{font-weight:600;font-size:14px;margin:8px 0 14px;line-height:1.3;min-height:38px;display:flex;align-items:flex-start}
+#topPicks .stat-row:last-child{margin-top:auto}
 .hcard{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:10px;padding:16px;background:var(--panel2);display:flex;flex-direction:column;height:100%}
 .hcard .wt{position:absolute;top:12px;right:12px;background:var(--primary);color:#fff;font-family:var(--mono);font-weight:600;font-size:11px;padding:4px 8px;border-radius:4px}
 .hcard .hname{font-weight:600;font-size:13px;padding-right:50px;line-height:1.4;transition:.15s;flex-grow:1}
@@ -304,6 +309,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
         <div class="stat"><div class="lbl">Annual cost</div><div class="val sm" id="pannCost">—</div></div>
       </div>
       <p class="note" style="margin-top:12px;font-size:12px">Ongoing Charge Figure (OCF) is the annual cost as % of your fund value. Upload factsheets to see charges.</p>
+      <p class="note" id="chargeCoverNote" style="margin-top:6px;font-size:11px;color:var(--gold)"></p>
     </div>
   </div>
 
@@ -451,6 +457,9 @@ const C={'Equity':'#4a9eff','Bonds/Credit':'#3fb950','Multi-Asset/Alt':'#d4a64a'
 const f0=(v,d=1)=>v==null||isNaN(v)?'—':(v>0?'+':'')+v.toFixed(d)+'%';
 const f1=(v,d=1)=>v==null||isNaN(v)?'—':v.toFixed(d)+'%';
 const cls=v=>v==null||isNaN(v)?'':v>=0?'pos':'neg';
+// make a string safe to embed inside onclick="fn('...')" — escapes for both the
+// HTML attribute and the single-quoted JS string, so fund names with quotes work
+const qattr=s=>String(s).replace(/&/g,'&amp;').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
 let PRIVACY=false;   // when true, mask £ amounts for over-the-shoulder privacy
 const fmtMoney=v=>PRIVACY?'£•••••':'£'+Math.round(v).toLocaleString('en-GB');
 function niceStep(span){const raw=span/6,mag=Math.pow(10,Math.floor(Math.log10(raw)||0)),n=raw/mag;return (n<1.5?1:n<3?2:n<7?5:10)*mag;}
@@ -503,13 +512,26 @@ function cleanContributions(){
     .map(c=>({date:c.date,amount:+c.amount})).sort((a,b)=>a.date.localeCompare(b.date));
 }
 // generate monthly contribution flows from the regular monthly figure, one per
-// month strictly between the first and last recorded valuation dates.
+// month strictly between the first and last recorded valuation dates. Anchors to
+// the start day-of-month and clamps to each month's length (no Feb 31 → Mar 3
+// drift), and formats dates locally to avoid timezone shifts.
 function monthlyFlows(){
   if(!(MONTHLY>0))return [];
   const vals=cleanValuations(); if(vals.length<2)return [];
   const start=new Date(vals[0].date), end=new Date(vals[vals.length-1].date);
-  const out=[]; const d=new Date(start.getFullYear(),start.getMonth()+1,start.getDate());
-  while(d<end){out.push({date:d.toISOString().slice(0,10),amount:MONTHLY});d.setMonth(d.getMonth()+1);}
+  const day=start.getDate();
+  const pad=n=>String(n).padStart(2,'0');
+  const out=[];
+  let y=start.getFullYear(), m=start.getMonth()+1; // first month after the start
+  for(let i=0;i<1200;i++){
+    if(m>11){m=0;y++;}
+    const dim=new Date(y,m+1,0).getDate();       // days in this month
+    const dom=Math.min(day,dim);
+    const d=new Date(y,m,dom);
+    if(d>=end)break;
+    out.push({date:`${y}-${pad(m+1)}-${pad(dom)}`,amount:MONTHLY});
+    m++;
+  }
   return out;
 }
 // manual contributions plus auto-generated monthly ones (deduped by date, manual wins)
@@ -716,23 +738,30 @@ function metrics(f){
   return f;
 }
 // charge calculations
+// Returns {ocf, coverage}: ocf is the weighted-average charge across the funds we
+// actually have factsheets for (normalised by their combined weight); coverage is
+// what share of the portfolio that represents. Uses the same fuzzy matching as the
+// look-through, so a fund whose factsheet name differs slightly still counts.
 function getBlendedOCF(){
   const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n));
   if(!held.length)return null;
   const totalWeight=held.reduce((a,[,w])=>a+w,0);
-  if(totalWeight===0)return null;
-  let totalOCF=0;
+  if(totalWeight<=0)return null;
+  let weightedOCF=0, coveredWeight=0;
   for(const [name,weight] of held){
-    const fs=FACTSHEETS.find(f=>normName(f.name)===normName(name));
-    if(fs&&fs.ocf!=null)totalOCF+=fs.ocf*(weight/totalWeight);
+    const fs=matchFactsheet(name);
+    if(fs&&fs.ocf!=null){weightedOCF+=fs.ocf*weight; coveredWeight+=weight;}
   }
-  return totalOCF>0?totalOCF:null;
+  if(coveredWeight<=0)return null;
+  return {ocf:weightedOCF/coveredWeight, coverage:coveredWeight/totalWeight*100};
 }
+// Annual £ charges on the portion of the pot we have charge data for (a transparent
+// lower bound — uncovered funds are left out rather than assumed free or extrapolated).
 function getAnnualChargeCost(){
-  const ocf=getBlendedOCF();
+  const b=getBlendedOCF();
   const value=latestValue();
-  if(!ocf||!value)return null;
-  return value*(ocf/100);
+  if(!b||!value)return null;
+  return value*(b.coverage/100)*(b.ocf/100);
 }
 function getChargesForPeriod(startDate,endDate,holdings){
   const start=new Date(startDate), end=new Date(endDate);
@@ -740,7 +769,7 @@ function getChargesForPeriod(startDate,endDate,holdings){
   if(days<=0)return null;
   let totalOCF=0, totalWeight=0;
   for(const [name,weight] of holdings){
-    const fs=FACTSHEETS.find(f=>normName(f.name)===normName(name));
+    const fs=matchFactsheet(name);
     if(fs&&fs.ocf!=null){totalOCF+=fs.ocf*weight;totalWeight+=weight;}
   }
   if(totalWeight===0)return null;
@@ -801,10 +830,11 @@ function renderPortfolio(){
   $('pvol').textContent=f1(PORT.vol);
   $('pmdd').textContent=f1(PORT.mdd);$('pmdd').className='val sm '+cls(PORT.mdd);
   $('psharpe').textContent=(PORT.ann/PORT.vol).toFixed(2);
-  const ocf=getBlendedOCF();
+  const b=getBlendedOCF();
   const annCost=getAnnualChargeCost();
-  $('pocf').textContent=ocf!=null?ocf.toFixed(3)+'%':'—';
+  $('pocf').textContent=b!=null?b.ocf.toFixed(3)+'%':'—';
   $('pannCost').textContent=annCost!=null?fmtMoney(annCost):'—';
+  const cn=$('chargeCoverNote'); if(cn)cn.textContent=b!=null&&b.coverage<99.5?`Covers ${b.coverage.toFixed(0)}% of your pot — funds without a factsheet are excluded.`:'';
   const cols={'Multi-Asset':'#d4a64a','Bonds':'#3fb950','Equity':'#4a9eff','Cash':'#9aa7b8','Property':'#c77dff'};
   const entries=Object.entries(PORT.alloc).sort((a,b)=>b[1]-a[1]);
   let a0=-90,d='';
@@ -819,38 +849,45 @@ function renderPortfolio(){
 function renderChargesAnalysis(){
   const el=$('chargesAnalysis');
   if(!el)return;
-  const ocf=getBlendedOCF();
-  if(!ocf){
+  const b=getBlendedOCF();
+  if(!b){
     el.innerHTML='<p class="note" style="color:var(--faint)">Upload factsheets or set holdings to see charges analysis.</p>';
     return;
   }
   const value=latestValue();
   const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n));
+  const totalWeight=held.reduce((a,[,w])=>a+w,0)||1; // normalise to share-of-portfolio
   let html=`<div class="card">
-    <div class="cardlbl">Your holdings · charges breakdown</div>
+    <div class="cardlbl">Your holdings · charges breakdown${b.coverage<99.5?` · covers ${b.coverage.toFixed(0)}% of your pot`:''}</div>
     <div style="overflow-x:auto"><table style="font-size:12px;width:100%"><tr><th style="text-align:left">Fund</th><th style="text-align:right">Weight</th><th style="text-align:right">OCF</th><th style="text-align:right">Annual cost</th></tr>`;
   let totalCost=0;
   for(const [name,weight] of held){
-    const f=FUNDS.find(x=>x.name===name);
-    const fs=FACTSHEETS.find(x=>normName(x.name)===normName(name));
-    const fundOCF=fs?.ocf;
-    const fundCost=value&&fundOCF?(value*weight/100)*fundOCF/100:0;
+    const fs=matchFactsheet(name);
+    const fundOCF=fs&&fs.ocf!=null?fs.ocf:null;
+    const share=weight/totalWeight; // normalised so weights summing to <100% don't understate
+    const fundCost=value&&fundOCF!=null?(value*share)*fundOCF/100:0;
     totalCost+=fundCost;
-    html+=`<tr><td style="text-align:left">${name}</td><td style="text-align:right">${weight.toFixed(1)}%</td><td style="text-align:right">${fundOCF!=null?fundOCF.toFixed(3)+'%':'—'}</td><td style="text-align:right">${value&&fundOCF?fmtMoney(fundCost):'—'}</td></tr>`;
+    html+=`<tr><td style="text-align:left">${name}</td><td style="text-align:right">${(share*100).toFixed(1)}%</td><td style="text-align:right">${fundOCF!=null?fundOCF.toFixed(3)+'%':'—'}</td><td style="text-align:right">${value&&fundOCF!=null?fmtMoney(fundCost):'—'}</td></tr>`;
   }
-  html+=`<tr style="border-top:1px solid var(--line);font-weight:600"><td style="text-align:left">Total annual cost</td><td></td><td style="text-align:right">${ocf.toFixed(3)}%</td><td style="text-align:right">${value?fmtMoney(totalCost):'—'}</td></tr></table></div>`;
+  html+=`<tr style="border-top:1px solid var(--line);font-weight:600"><td style="text-align:left">Total annual cost</td><td></td><td style="text-align:right">${b.ocf.toFixed(3)}%</td><td style="text-align:right">${value?fmtMoney(totalCost):'—'}</td></tr></table></div>`;
   html+=`</div>`;
 
   if(value){
+    // compound the pot at your blended annualised return and add ongoing contributions,
+    // so projected charges reflect a growing pot rather than a frozen one
+    const g=PORT&&PORT.ann!=null?PORT.ann/100:0.05;
+    const effRate=(b.coverage/100)*(b.ocf/100); // £ charge rate applied to the whole pot
+    const annualContrib=MONTHLY>0?MONTHLY*12:0;
+    const projCharges=yrs=>{let pot=value,total=0;for(let y=0;y<yrs;y++){const c=pot*effRate;total+=c;pot=(pot+annualContrib)*(1+g)-c;}return total;};
     html+=`<div class="card" style="margin-top:14px">
       <div class="cardlbl">Projected charges over time</div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
-        <div class="fund-detail-stat"><div class="label">1 Year</div><div class="value">${fmtMoney(totalCost*1)}</div></div>
-        <div class="fund-detail-stat"><div class="label">5 Years</div><div class="value">${fmtMoney(totalCost*5)}</div></div>
-        <div class="fund-detail-stat"><div class="label">10 Years</div><div class="value">${fmtMoney(totalCost*10)}</div></div>
-        <div class="fund-detail-stat"><div class="label">20 Years</div><div class="value">${fmtMoney(totalCost*20)}</div></div>
+        <div class="fund-detail-stat"><div class="label">1 Year</div><div class="value">${fmtMoney(projCharges(1))}</div></div>
+        <div class="fund-detail-stat"><div class="label">5 Years</div><div class="value">${fmtMoney(projCharges(5))}</div></div>
+        <div class="fund-detail-stat"><div class="label">10 Years</div><div class="value">${fmtMoney(projCharges(10))}</div></div>
+        <div class="fund-detail-stat"><div class="label">20 Years</div><div class="value">${fmtMoney(projCharges(20))}</div></div>
       </div>
-      <p class="note" style="margin-top:12px;font-size:12px">Assumes fund value stays at £${fmtMoney(value).replace('£','')} and charges remain constant. Actual charges may vary.</p>
+      <p class="note" style="margin-top:12px;font-size:12px">Compounds your pot at ${(g*100).toFixed(1)}%/yr${annualContrib?` plus ${fmtMoney(annualContrib)}/yr of contributions`:''} and charges ${(effRate*100).toFixed(2)}% of the value each year. Charges grow with the pot, so they far exceed a flat estimate. Illustrative only.</p>
     </div>`;
   }
 
@@ -939,7 +976,7 @@ function renderLookThrough(){
 function renderHoldCards(){
   const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n)).map(([n,w])=>({...FUNDS.find(f=>f.name===n),weight:w})).sort((a,b)=>b.weight-a.weight);
   $('holdCards').innerHTML=held.length?held.map(f=>`<div class="card hcard"><div class="wt">${f.weight}%</div>
-    <div class="hname clickable-fund" onclick="openFundModal('${f.name.replace(/'/g,"\\\'")}')" title="View fund details">${f.name}</div><div class="hcat">${f.cat}</div>
+    <div class="hname clickable-fund" onclick="openFundModal('${qattr(f.name)}')" title="View fund details">${f.name}</div><div class="hcat">${f.cat}</div>
     <div class="hmetrics">
       <div class="m"><div class="k">1-Year</div><div class="v ${cls(f.r1y)}">${f0(f.r1y)}</div></div>
       <div class="m"><div class="k">3-Year</div><div class="v ${cls(f.r3y)}">${f0(f.r3y)}</div></div>
@@ -970,7 +1007,7 @@ function renderScatter(){
   s+=`<text class="axis-lbl" x="${W/2}" y="${H-6}" text-anchor="middle">Volatility (risk) →</text>`;
   s+=`<text class="axis-lbl" transform="translate(14 ${H/2}) rotate(-90)" text-anchor="middle">3-Year return →</text>`;
   sf.forEach((f,i)=>{const held=heldNames.has(f.name);
-    s+=`<circle class="sc-pt" cx="${X(f.vol)}" cy="${Y(f.r3y)}" r="${held?7:5}" fill="${held?'#d4a64a':C[f.cat]}" fill-opacity="${held?1:.55}" stroke="${held?'#fff':'none'}" stroke-width="${held?1.5:0}" data-i="${i}"/>`;});
+    s+=`<circle class="sc-pt" cx="${X(f.vol)}" cy="${Y(f.r3y)}" r="${held?7:5}" fill="${held?'var(--gold)':C[f.cat]}" fill-opacity="${held?1:.55}" stroke="${held?'var(--ink)':'none'}" stroke-width="${held?1.5:0}" data-i="${i}"/>`;});
   sc.innerHTML=s;
   sc.querySelectorAll('.sc-pt').forEach(c=>{const f=sf[c.dataset.i];c.onmousemove=e=>showTip(e,f);c.onmouseleave=()=>tip.style.opacity=0;});
 }
@@ -990,7 +1027,7 @@ function renderTable(){
   else if(filt!=='All')rows=rows.filter(f=>f.cat===filt);
   rows.sort((a,b)=>{let x=a[sortKey],y=b[sortKey];if(typeof x==='string')return x.localeCompare(y)*sortDir;return ((x==null?-1e9:x)-(y==null?-1e9:y))*sortDir;});
   $('tbl').querySelector('tbody').innerHTML=rows.map(f=>`<tr class="${heldNames.has(f.name)?'held':''}">
-    <td><span class="clickable-fund" onclick="openFundModal('${f.name.replace(/'/g,"\\\'")}')">${f.name}</span>${f.new?'<span class="tag new">NEW</span>':''}</td>
+    <td><span class="clickable-fund" onclick="openFundModal('${qattr(f.name)}')">${f.name}</span>${f.new?'<span class="tag new">NEW</span>':''}</td>
     <td><span class="cat-pill" style="color:${C[f.cat]}">${f.cat}</span></td>
     <td>${f.weight>0?f.weight+'%':'—'}</td>
     <td>${f.last_price!=null?f.last_price.toFixed(1):'—'}</td>
@@ -1013,7 +1050,7 @@ function renderTopPicks(){
   $('topPicks').innerHTML=picks.map((f,i)=>`
     <div class="card" style="padding:14px">
       <div class="cardlbl" style="color:var(--gold)">#${i+1} · ${f.cat}</div>
-      <div style="font-weight:600;font-size:14px;margin:6px 0 12px;line-height:1.3"><span class="clickable-fund" onclick="openFundModal('${f.name.replace(/'/g,"\\\'")}')">${f.name}</span></div>
+      <div class="tp-name"><span class="clickable-fund" onclick="openFundModal('${qattr(f.name)}')">${f.name}</span></div>
       <div class="stat-row">
         <div class="stat"><div class="lbl">Annualised</div><div class="val sm ${cls(f.ann)}">${f0(f.ann)}</div></div>
         <div class="stat"><div class="lbl">3-Year</div><div class="val sm ${cls(f.r3y)}">${f0(f.r3y)}</div></div>
@@ -1615,13 +1652,16 @@ function renderObs(){
 // ---------- fund details modal ----------
 function closeFundModal(){$('fundModal').classList.remove('open');}
 function removeFund(name){
-  if(!confirm(`Remove "${name}" and its price history? Your other funds, holdings and recorded values are kept.`))return;
+  if(!confirm(`Remove "${name}", its price history and factsheet? Your other funds, holdings and recorded values are kept.`))return;
   FUNDS=FUNDS.filter(f=>f.name!==name);
   HOLDINGS=HOLDINGS.filter(([n])=>n!==name);
   COMPARE.delete(name);
   HISTORY.forEach(s=>{if(s.holdings)s.holdings=s.holdings.filter(([n])=>n!==name);});
+  // drop any factsheet that matches this fund, so it stops counting / fuzzy-matching
+  const fs=matchFactsheet(name);
+  if(fs)FACTSHEETS=FACTSHEETS.filter(x=>x!==fs);
   closeFundModal();
-  saveFunds(); saveState(); saveHistory(); saveCompare();
+  saveFunds(); saveState(); saveHistory(); saveCompare(); saveFactsheets();
   recompute();
 }
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeFundModal();});
@@ -1720,7 +1760,7 @@ function openFundModal(fundName){
     html+=`<p style="color:var(--faint);font-style:italic">No factsheet available. Upload a PDF to see charges, allocation, and holdings.</p>`;
   }
   html+=`<div style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;text-align:right">
-    <button class="btn" onclick="removeFund('${f.name.replace(/'/g,"\\\'")}')" style="color:var(--neg);border-color:var(--neg)">Remove this fund</button></div>`;
+    <button class="btn" onclick="removeFund('${qattr(f.name)}')" style="color:var(--neg);border-color:var(--neg)">Remove this fund</button></div>`;
   $('fundModalBody').innerHTML=html;
   $('fundModal').classList.add('open');
 }
@@ -1872,7 +1912,7 @@ $('privacyToggle').onchange=e=>{PRIVACY=e.target.checked;try{localStorage.setIte
 // ---------- clear only personal values (keep loaded fund prices) ----------
 $('clearValues').onclick=()=>{
   if(!confirm('Clear your holdings, historic snapshots, recorded £ values, contributions and projection? Loaded fund prices are kept.'))return;
-  HOLDINGS=[];HISTORY=[];VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;PROJ={};
+  HOLDINGS=[];HISTORY=[];VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;PROJ={};EXCLUDE_CONTRIB=false;CMP_RANGE=0;
   ['fund_holdings','fund_history','fund_valuations','fund_value','fund_contributions','fund_monthly','fund_projection'].forEach(k=>localStorage.removeItem(k));
   syncFundValueInput(); syncMonthlyInput(); recompute();
 };
@@ -1884,7 +1924,9 @@ if(drop&&input){
   ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();drop.classList.add('hot');}));
   ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();drop.classList.remove('hot');}));
   drop.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();handleFiles(e.dataTransfer.files);});
-  input.onchange=e=>{if(e.target.files.length)handleFiles(e.target.files);};
+  // capture the files then reset the input immediately, so re-selecting the same
+  // file always re-fires change — even after a failed/early-return upload
+  input.onchange=e=>{const files=[...e.target.files];e.target.value='';if(files.length)handleFiles(files);};
 }
 // allow dropping files anywhere on the page (the big drop zone is hidden once the dashboard loads)
 window.addEventListener('dragover',e=>e.preventDefault());
@@ -1953,7 +1995,6 @@ async function handleFiles(fileList){
   $('loadedBar').classList.remove('hidden');
   $('dash').classList.remove('hidden');
   recompute();
-  input.value=''; // Reset file input so same file can be selected again
 }
 // restore cached reports on page load
 (function restoreCache(){
