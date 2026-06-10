@@ -255,6 +255,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <span class="chip">priced to <b id="asof">—</b></span>
     <button class="btn" id="addMore">+ Add / update files</button>
     <button class="btn" id="exportBtn">⬇ Export</button>
+    <button class="btn" id="csvBtn" title="Download the fund metrics table as CSV">⬇ CSV</button>
     <button class="btn" id="importBtn">⬆ Import</button>
     <button class="btn" id="clearValues">Clear values</button>
     <button class="btn" id="clearAll">Clear all</button>
@@ -353,6 +354,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <div id="heRows"></div>
     <div class="he-foot">
       <button class="btn" id="heAdd">+ Add holding</button>
+      <button class="btn" id="heNorm" title="Scale your weights so they add up to 100%">Normalise to 100%</button>
       <span class="he-total" id="heTotal">Total: 0%</span>
       <button class="btn gold" id="heApply">Apply</button>
     </div>
@@ -372,6 +374,12 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
       <button class="filt" id="cmpTop">Top 5 growth</button>
       <button class="filt" id="cmpAll">All</button>
       <button class="filt" id="cmpNone">Clear</button>
+    </div>
+    <div class="cmp-controls" id="cmpRanges" style="margin-bottom:8px">
+      <button class="filt" data-range="1">1Y</button>
+      <button class="filt" data-range="3">3Y</button>
+      <button class="filt" data-range="5">5Y</button>
+      <button class="filt" data-range="0">Max</button>
     </div>
     <div class="cmp-chips" id="cmpChips"></div>
     <svg viewBox="0 0 760 360" id="cmpChart" style="width:100%;height:auto;margin-top:8px"></svg>
@@ -475,6 +483,7 @@ let EXCLUDE_CONTRIB=false; // chart toggle: show investment growth only (net of 
 let PROJ={};         // retirement projection inputs
 let FACTSHEETS=[];   // parsed PDF factsheets: [{name,asOf,ocf,unitPrice,launch,objective,cum,ann,assetSplit,geoSplit,holdings}]
 let COMPARE=new Set();// fund names selected in the comparison chart
+let CMP_RANGE=0;     // compare-chart window in years (0 = max available)
 const CMP_COLORS=['#4a9eff','#d4a64a','#3fb950','#c77dff','#f0556d','#36cfc9','#ff9f43','#9aa7b8','#a0d911','#eb2f96'];
 // helpers over the recorded valuations
 function cleanValuations(){
@@ -1343,6 +1352,7 @@ function loadCompare(){try{const s=localStorage.getItem('fund_compare');if(s)ret
 function renderCompare(){
   // keep only names that still exist
   COMPARE=new Set([...COMPARE].filter(n=>FUNDS.find(f=>f.name===n)));
+  const rg=$('cmpRanges'); if(rg)rg.querySelectorAll('.filt').forEach(b=>b.classList.toggle('on',+b.dataset.range===CMP_RANGE));
   const sorted=[...FUNDS].sort((a,b)=>a.name.localeCompare(b.name));
   const colorOf=n=>CMP_COLORS[[...COMPARE].indexOf(n)%CMP_COLORS.length];
   $('cmpChips').innerHTML=sorted.map(f=>{const on=COMPARE.has(f.name);
@@ -1358,15 +1368,17 @@ function drawCompareChart(){
   // common start = latest first-date among selected, so every line begins together
   const commonStart=Math.max(...sel.map(f=>+f.rows[0].d));
   const maxEnd=Math.max(...sel.map(f=>+f.rows[f.rows.length-1].d));
+  // apply the selected date-range window (rebases to 100 at the window start)
+  const windowStart=CMP_RANGE>0?Math.max(commonStart,maxEnd-CMP_RANGE*365.25*864e5):commonStart;
   const series=sel.map((f,i)=>{
-    const rows=f.rows.filter(r=>+r.d>=commonStart);
+    const rows=f.rows.filter(r=>+r.d>=windowStart);
     if(rows.length<2)return null;
     const base=rows[0].p;
     return {name:f.name,color:CMP_COLORS[i%CMP_COLORS.length],pts:rows.map(r=>({t:+r.d,v:r.p/base*100}))};
   }).filter(Boolean);
-  if(!series.length){el.innerHTML='<text x="380" y="180" text-anchor="middle" fill="#5d6878" font-family="monospace" font-size="13">Selected funds don’t overlap in time.</text>';return;}
+  if(!series.length){el.innerHTML='<text x="380" y="180" text-anchor="middle" fill="#5d6878" font-family="monospace" font-size="13">Selected funds don’t overlap in this window.</text>';return;}
   const W=760,H=360,pad={l:50,r:14,t:14,b:46};
-  const t0=commonStart,t1=maxEnd,tspan=(t1-t0)||1;
+  const t0=windowStart,t1=maxEnd,tspan=(t1-t0)||1;
   let vmin=Infinity,vmax=-Infinity;series.forEach(s=>s.pts.forEach(p=>{vmin=Math.min(vmin,p.v);vmax=Math.max(vmax,p.v);}));
   const ystep=niceStep((vmax-vmin)||1);
   const lo=Math.floor(vmin/ystep)*ystep,hi=Math.ceil(vmax/ystep)*ystep,vspan=(hi-lo)||1;
@@ -1402,6 +1414,7 @@ $('cmpHeld').onclick=()=>{COMPARE=new Set(HOLDINGS.filter(h=>h[1]>0).map(h=>h[0]
 $('cmpTop').onclick=()=>{COMPARE=new Set(growthPicks(5).map(f=>f.name));saveCompare();renderCompare();};
 $('cmpAll').onclick=()=>{COMPARE=new Set(FUNDS.map(f=>f.name));saveCompare();renderCompare();};
 $('cmpNone').onclick=()=>{COMPARE=new Set();saveCompare();renderCompare();};
+$('cmpRanges').querySelectorAll('.filt').forEach(b=>b.onclick=()=>{CMP_RANGE=+b.dataset.range;renderCompare();});
 // ---------- retirement projection ----------
 function projDefaults(){
   return {
@@ -1601,6 +1614,17 @@ function renderObs(){
 }
 // ---------- fund details modal ----------
 function closeFundModal(){$('fundModal').classList.remove('open');}
+function removeFund(name){
+  if(!confirm(`Remove "${name}" and its price history? Your other funds, holdings and recorded values are kept.`))return;
+  FUNDS=FUNDS.filter(f=>f.name!==name);
+  HOLDINGS=HOLDINGS.filter(([n])=>n!==name);
+  COMPARE.delete(name);
+  HISTORY.forEach(s=>{if(s.holdings)s.holdings=s.holdings.filter(([n])=>n!==name);});
+  closeFundModal();
+  saveFunds(); saveState(); saveHistory(); saveCompare();
+  recompute();
+}
+window.addEventListener('keydown',e=>{if(e.key==='Escape')closeFundModal();});
 function openFundModal(fundName){
   const f=FUNDS.find(x=>x.name===fundName); if(!f)return;
   const fs=FACTSHEETS.find(x=>normName(x.name)===normName(fundName));
@@ -1695,6 +1719,8 @@ function openFundModal(fundName){
   } else {
     html+=`<p style="color:var(--faint);font-style:italic">No factsheet available. Upload a PDF to see charges, allocation, and holdings.</p>`;
   }
+  html+=`<div style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;text-align:right">
+    <button class="btn" onclick="removeFund('${f.name.replace(/'/g,"\\\'")}')" style="color:var(--neg);border-color:var(--neg)">Remove this fund</button></div>`;
   $('fundModalBody').innerHTML=html;
   $('fundModal').classList.add('open');
 }
@@ -1712,6 +1738,7 @@ function renderHoldEditor(){
 }
 function updTotal(){const t=HOLDINGS.reduce((a,h)=>a+(+h[1]||0),0);const el=$('heTotal');el.textContent='Total: '+t+'%';el.className='he-total '+(t===100?'ok':'bad');}
 $('heAdd').onclick=()=>{if(!FUNDS.length)return;HOLDINGS.push([FUNDS[0].name,0]);renderHoldEditor();};
+$('heNorm').onclick=()=>{const t=HOLDINGS.reduce((a,h)=>a+(+h[1]||0),0);if(t<=0)return;HOLDINGS=HOLDINGS.map(([n,w])=>[n,Math.round((+w||0)/t*1000)/10]);renderHoldEditor();};
 $('heApply').onclick=()=>{HOLDINGS=HOLDINGS.filter(h=>h[1]>0);recompute();};
 function applyPicks(n){
   const picks=growthPicks(n);
@@ -1795,6 +1822,27 @@ function exportData(){
   a.href=url; a.download=`fund-dashboard-${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
+// download the fund metrics table as a spreadsheet-friendly CSV
+function exportCSV(){
+  if(!FUNDS.length)return;
+  const wmap={}; HOLDINGS.forEach(([n,w])=>wmap[n]=w);
+  const fs=name=>FACTSHEETS.find(x=>normName(x.name)===normName(name));
+  const esc=s=>{s=s==null?'':String(s); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const num=v=>v==null||isNaN(v)?'':(+v).toFixed(2);
+  const headers=['Fund','Class','Weight %','OCF %','Last price','As of','1M %','6M %','1Y %','3Y %','Annualised %','Volatility %','Max drawdown %','Return/Risk'];
+  const lines=[headers.join(',')];
+  FUNDS.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(f=>{
+    const sheet=fs(f.name);
+    lines.push([esc(f.name),esc(f.cat),wmap[f.name]||'',sheet&&sheet.ocf!=null?sheet.ocf.toFixed(3):'',
+      num(f.last_price),f.last_date?new Date(f.last_date).toISOString().slice(0,10):'',
+      num(f.r1m),num(f.r6m),num(f.r1y),num(f.r3y),num(f.ann),num(f.vol),num(f.mdd),
+      f.sharpe!=null?f.sharpe.toFixed(2):''].join(','));
+  });
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download=`fund-metrics-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
 async function importData(file){
   try{
     const data=JSON.parse(await file.text());
@@ -1814,6 +1862,7 @@ async function importData(file){
   }catch(err){$('errbox').textContent='Could not read that file: '+(err.message||err);}
 }
 $('exportBtn').onclick=exportData;
+$('csvBtn').onclick=exportCSV;
 $('importBtn').onclick=()=>$('importInput').click();
 $('importInput').onchange=e=>{if(e.target.files[0])importData(e.target.files[0]);e.target.value='';};
 // ---------- privacy (hide £ values) ----------
