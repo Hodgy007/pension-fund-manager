@@ -18,42 +18,123 @@
 
 /* ---- body / backdrop ---- */
 body{
+  /* Stadium-night base: deep navy-teal sky at top, dark pitch-green in lower half */
   background:
-    radial-gradient(ellipse 80% 60% at 50% 0%,rgba(244,197,66,.07) 0%,transparent 55%),
-    radial-gradient(circle at 20% 80%,rgba(13,69,53,.9) 0%,transparent 50%),
-    radial-gradient(circle at 80% 20%,rgba(11,61,46,.8) 0%,transparent 45%),
-    var(--bg);
+    linear-gradient(180deg,
+      #06121c 0%,
+      #091e2e 18%,
+      #0a2436 32%,
+      #092a28 50%,
+      #0a2a1f 65%,
+      #0b3d2e 82%,
+      #082a1e 100%);
   color:var(--ink);font-family:var(--font);line-height:1.55;min-height:100vh;padding:0 0 70px;
   position:relative;overflow-x:hidden;
 }
-/* subtle pitch-line overlay */
+
+/* ---- Layer 1: floodlights + host-nation colour washes ---- */
 body::before{
   content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    repeating-linear-gradient(0deg,transparent,transparent 89px,rgba(255,255,255,.025) 89px,rgba(255,255,255,.025) 90px),
-    repeating-linear-gradient(90deg,transparent,transparent 89px,rgba(255,255,255,.015) 89px,rgba(255,255,255,.015) 90px);
+    /* Floodlight glow — upper-left */
+    radial-gradient(ellipse 55% 45% at 8% 6%,  rgba(230,240,255,.13) 0%, transparent 70%),
+    /* Floodlight glow — upper-right */
+    radial-gradient(ellipse 55% 45% at 92% 6%, rgba(230,240,255,.13) 0%, transparent 70%),
+    /* Floodlight gold warmth centre-top */
+    radial-gradient(ellipse 70% 30% at 50% 0%,  rgba(244,197,66,.09) 0%, transparent 60%),
+    /* Host-nation colour accents — Canada red (top-left corner) */
+    radial-gradient(ellipse 35% 28% at 0% 0%,   rgba(200,35,45,.07) 0%, transparent 75%),
+    /* Host-nation — USA blue (top-right corner) */
+    radial-gradient(ellipse 35% 28% at 100% 0%,  rgba(60,90,200,.07) 0%, transparent 75%),
+    /* Host-nation — Mexico green (bottom centre) */
+    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(0,130,70,.10) 0%, transparent 70%),
+    /* Pitch horizon glow — soft mid-green where sky meets pitch */
+    radial-gradient(ellipse 100% 18% at 50% 52%, rgba(18,90,55,.65) 0%, transparent 100%);
+  animation:floodlightPulse 18s ease-in-out infinite;
 }
-/* faint center-circle ring */
+
+/* ---- Layer 2: pitch texture + mowing stripes + halfway-line/centre-circle ---- */
 body::after{
-  content:"";position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);
-  width:420px;height:420px;border-radius:50%;
-  border:1px solid rgba(255,255,255,.04);
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    /* Mowing stripes — subtle alternating tints in bottom 45% of viewport only */
+    repeating-linear-gradient(
+      180deg,
+      transparent                        0px,
+      transparent                        34px,
+      rgba(255,255,255,.018)             34px,
+      rgba(255,255,255,.018)             36px,
+      transparent                        36px,
+      transparent                        70px,
+      rgba(0,0,0,.025)                   70px,
+      rgba(0,0,0,.025)                   72px
+    ),
+    /* Faint perspective field-line grid (lower portion) */
+    repeating-linear-gradient(90deg,
+      transparent,transparent 119px,
+      rgba(255,255,255,.012) 119px,rgba(255,255,255,.012) 120px
+    );
+  /* Clip stripes to the lower 45% so the sky stays clean */
+  -webkit-mask-image:linear-gradient(180deg,transparent 0%,transparent 54%,#000 68%,#000 100%);
+  mask-image:linear-gradient(180deg,transparent 0%,transparent 54%,#000 68%,#000 100%);
+}
+
+/* ---- Layer 3: SVG hex-mesh texture (very faint depth) ---- */
+/* encoded inline — a repeating hexagonal grid at ~4% opacity */
+.hex-layer{
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 0 L56 16 L56 50 L28 66 L0 50 L0 16Z' fill='none' stroke='rgba(255,255,255,0.04)' stroke-width='0.8'/%3E%3Cpath d='M28 66 L56 50 L56 84 L28 100 L0 84 L0 50Z' fill='none' stroke='rgba(255,255,255,0.04)' stroke-width='0.8'/%3E%3C/svg%3E");
+  background-size:56px 100px;
+  opacity:1;
+  -webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.0) 0%,rgba(0,0,0,.3) 40%,rgba(0,0,0,.4) 100%);
+  mask-image:linear-gradient(180deg,rgba(0,0,0,.0) 0%,rgba(0,0,0,.3) 40%,rgba(0,0,0,.4) 100%);
+}
+
+/* ---- Layer 4: centre-circle ring near bottom of page ---- */
+.circle-layer{
+  position:fixed;left:50%;top:72%;transform:translate(-50%,-50%);
+  width:360px;height:360px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.045);
   pointer-events:none;z-index:0;
 }
-/* ambient hue animation on a gradient layer */
+/* Halfway line */
+.circle-layer::before{
+  content:"";position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%) scaleX(4.5);
+  width:100%;height:1px;
+  background:rgba(255,255,255,.038);
+}
+
+/* ---- ambient drift animation ---- */
 @keyframes ambientShift{
-  0%{opacity:.6;transform:scale(1) translateY(0)}
-  50%{opacity:.85;transform:scale(1.08) translateY(-20px)}
-  100%{opacity:.6;transform:scale(1) translateY(0)}
+  0%  {opacity:.7; transform:scale(1)    translateY(0)}
+  40% {opacity:.95;transform:scale(1.06) translateY(-14px)}
+  70% {opacity:.75;transform:scale(1.03) translateY(8px)}
+  100%{opacity:.7; transform:scale(1)    translateY(0)}
+}
+@keyframes floodlightPulse{
+  0%  {opacity:.85}
+  45% {opacity:1}
+  100%{opacity:.85}
 }
 .ambient-layer{
   position:fixed;inset:0;pointer-events:none;z-index:0;
-  background:radial-gradient(ellipse 55% 40% at 50% 100%,rgba(55,209,143,.06),transparent 70%);
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 95%, rgba(30,122,79,.09), transparent 75%),
+    radial-gradient(ellipse 30% 22% at 12% 8%,  rgba(220,235,255,.07), transparent 75%),
+    radial-gradient(ellipse 30% 22% at 88% 8%,  rgba(220,235,255,.07), transparent 75%);
   animation:ambientShift 22s ease-in-out infinite;
 }
 @media(prefers-reduced-motion:reduce){
   .ambient-layer{animation:none}
-  body::before,body::after{display:none}
+  body::before{animation:none}
+}
+
+/* ---- mobile: reduce paint cost for backdrop ---- */
+@media(max-width:750px){
+  body::after{display:none}
+  .hex-layer{display:none}
+  .circle-layer{width:220px;height:220px;top:75%}
 }
 
 .wrap{max-width:1180px;margin:0 auto;padding:0 22px;position:relative;z-index:1}
@@ -535,6 +616,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
 </head>
 <body>
 <div class="ambient-layer"></div>
+<div class="hex-layer" aria-hidden="true"></div>
+<div class="circle-layer" aria-hidden="true"></div>
 <canvas id="confetti"></canvas>
 <div class="wrap">
   <header>
@@ -590,7 +673,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <label>Draw speed</label>
       <div class="speedrow">
         <span style="font-size:12px;color:var(--faint)">Slow</span>
-        <input type="range" id="speed" min="120" max="1400" step="40" value="600">
+        <input type="range" id="speed" min="0" max="100" step="1" value="55">
         <span style="font-size:12px;color:var(--faint)">Fast</span>
       </div>
       <div class="btnrow" style="margin-top:18px">
@@ -901,8 +984,10 @@ async function runDraw(instant){
 
   if(instant){ seq.forEach(it=>addToBucket(it,false)); finishDraw(mode); return; }
 
-  const speed=parseInt($("speed").value,10);
-  const dwell=Math.max(120,1520-speed);
+  const v=parseInt($("speed").value,10);          // 0 = slow … 100 = fast
+  const t=Math.min(1,Math.max(0,v/100));
+  const MIN_D=140, MAX_D=1700;                     // ms per team: fast … slow
+  const dwell=Math.round(MIN_D*Math.pow(MAX_D/MIN_D,1-t));
   for(const item of seq){
     await sleep(dwell*0.45);
     showBall(item,buckets[item.bi].label);
