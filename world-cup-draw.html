@@ -187,10 +187,14 @@ button:disabled{opacity:.5;cursor:not-allowed}
   .bucket h3 .ct{font-size:10px}
   .slot{padding:9px 11px;font-size:13px;gap:9px}
   .slot .flag{font-size:18px}
-  .hat{font-size:56px}
-  .ball{width:88px;height:88px;font-size:10px}
-  .ball .flag{font-size:24px}
-  .ball .nm{font-size:11px;margin-top:2px}
+  .hat svg{width:80px;height:66px}
+  .ball{width:88px;height:88px}
+  .roundel{width:36px;height:36px}
+  .roundel .flag{font-size:20px}
+  .ball-spec{width:14px;height:9px}
+  .ball-inner{padding:10px 4px 6px;gap:4px}
+  .ball .nm{font-size:9.5px;max-width:76px;padding:2px 5px}
+  .ball-wrap::after{width:60px;height:12px;bottom:-10px}
   .modal{max-width:95vw;border-radius:14px}
   .modal .top{gap:12px;padding:16px;border-radius:14px 14px 0 0}
   .modal .top .bigflag{font-size:40px}
@@ -263,40 +267,171 @@ button:disabled{opacity:.5;cursor:not-allowed}
   pointer-events:none;z-index:0;
   filter:blur(2px);
 }
+
+/* ---- draw bowl (replaces hat emoji) ---- */
 .hat{
-  font-size:80px;line-height:1;display:inline-block;
-  filter:drop-shadow(0 8px 22px rgba(0,0,0,.5));
+  display:inline-block;
+  filter:drop-shadow(0 8px 22px rgba(0,0,0,.5)) drop-shadow(0 0 18px rgba(244,197,66,.25));
   position:relative;z-index:1;
+  transform-origin:50% 90%;
 }
 .hat.shake{animation:shake .5s ease-in-out infinite}
 @keyframes shake{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
 @media(prefers-reduced-motion:reduce){.hat.shake{animation:none}}
-.pulled{margin-top:14px;min-height:120px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1}
-/* ball with 3D highlight + ground shadow */
-.ball{
-  display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
-  background:linear-gradient(145deg,#ffffff 0%,#e8f0ea 45%,#cdd8d0 100%);
-  color:#0a2a1f;border-radius:50%;width:112px;height:112px;
-  font-weight:800;
-  box-shadow:0 12px 28px rgba(0,0,0,.45),inset 0 2px 6px rgba(255,255,255,.8),inset 0 -3px 8px rgba(0,0,0,.15);
-  animation:pop .5s cubic-bezier(.18,1.5,.4,1);
-  padding:6px;text-align:center;position:relative;
+
+/* ---- pulled ball stage area ---- */
+.pulled{margin-top:18px;min-height:150px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1}
+
+/* ---- ball wrapper (for ground shadow + pop) ---- */
+.ball-wrap{
+  display:inline-block;position:relative;
+  animation:pop .52s cubic-bezier(.18,1.5,.4,1);
 }
-.ball::after{
-  content:"";position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);
-  width:70px;height:14px;border-radius:50%;
-  background:radial-gradient(ellipse,rgba(0,0,0,.3) 0%,transparent 70%);
+.ball-wrap::after{
+  content:"";position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);
+  width:80px;height:16px;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(0,0,0,.38) 0%,rgba(0,0,0,.12) 50%,transparent 70%);
   pointer-events:none;
 }
-.ball .flag{font-size:32px;line-height:1}
-.ball .nm{font-size:12.5px;margin-top:3px;line-height:1.15}
+
+/* ---- premium 3D draw ball ---- */
+.ball{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border-radius:50%;width:112px;height:112px;
+  overflow:hidden;
+  position:relative;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,.98) 0%, rgba(255,255,255,.6) 18%, transparent 42%),
+    radial-gradient(circle at 68% 72%, rgba(100,110,105,.35) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, #d8e4de 0%, #b8ccc4 55%, #8fa89e 100%);
+  box-shadow:
+    0 10px 30px rgba(0,0,0,.5),
+    inset 0 2px 8px rgba(255,255,255,.9),
+    inset 0 -4px 10px rgba(0,0,0,.18),
+    inset 2px 2px 6px rgba(255,255,255,.5),
+    inset 0 0 0 1.5px rgba(180,200,190,.4);
+  padding:0;text-align:center;
+}
+/* gold equator band */
+.ball::before{
+  content:"";position:absolute;top:50%;left:0;transform:translateY(-50%);
+  width:100%;height:11px;z-index:1;
+  background:linear-gradient(90deg,
+    transparent 0%,
+    rgba(212,170,30,.15) 8%,
+    rgba(244,197,66,.55) 28%,
+    rgba(255,220,80,.75) 50%,
+    rgba(244,197,66,.55) 72%,
+    rgba(212,170,30,.15) 92%,
+    transparent 100%);
+  box-shadow:0 0 4px rgba(244,197,66,.3);
+}
+/* specular dot highlight */
+.ball-spec{
+  position:absolute;top:16%;left:22%;
+  width:18px;height:12px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.95) 0%,rgba(255,255,255,.4) 60%,transparent 100%);
+  z-index:3;pointer-events:none;
+}
+/* ball inner layout */
+.ball-inner{
+  position:relative;z-index:2;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:12px 6px 8px;
+}
+/* circular flag roundel */
+.roundel{
+  width:46px;height:46px;border-radius:50%;
+  overflow:hidden;
+  border:2px solid rgba(244,197,66,.8);
+  box-shadow:0 0 0 1px rgba(255,255,255,.35),0 2px 8px rgba(0,0,0,.4);
+  flex-shrink:0;
+  background:var(--panel2);
+  display:flex;align-items:center;justify-content:center;
+}
+.roundel .flag-img{
+  width:100% !important;height:100% !important;
+  object-fit:cover;border-radius:0 !important;
+  box-shadow:none !important;
+}
+.roundel .flag{font-size:26px;line-height:1}
+/* nameplate strip */
+.ball .nm{
+  background:rgba(5,20,14,.72);
+  color:#f1f7f3;
+  font-size:10.5px;font-weight:700;
+  line-height:1.2;
+  padding:2px 7px;
+  border-radius:999px;
+  max-width:96px;
+  text-align:center;
+  word-break:break-word;
+  hyphens:auto;
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 1px 4px rgba(0,0,0,.35);
+  position:relative;z-index:2;
+}
+/* glint sweep animation */
+.glint{
+  position:absolute;top:-10%;left:-60%;
+  width:40%;height:120%;
+  background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.55) 50%,transparent 100%);
+  transform:skewX(-10deg);
+  z-index:4;pointer-events:none;
+  animation:glint .8s ease-out forwards;
+}
+@keyframes glint{
+  0%{left:-60%;opacity:1}
+  100%{left:120%;opacity:0}
+}
+@media(prefers-reduced-motion:reduce){.glint{display:none}}
+
+/* ---- done ball (gold variant) ---- */
+.ball.ball-done{
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,248,200,.98) 0%, rgba(255,235,120,.6) 18%, transparent 42%),
+    radial-gradient(circle at 68% 72%, rgba(160,110,0,.35) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, #ffe566 0%, #f4c542 50%, #c89010 100%);
+  box-shadow:
+    0 10px 30px rgba(0,0,0,.5),
+    inset 0 2px 8px rgba(255,255,255,.85),
+    inset 0 -4px 10px rgba(140,80,0,.25),
+    inset 2px 2px 6px rgba(255,240,140,.6),
+    inset 0 0 0 1.5px rgba(220,180,60,.5);
+  color:#3a2c00;
+}
+.ball.ball-done::before{
+  background:linear-gradient(90deg,
+    transparent 0%,
+    rgba(200,144,16,.18) 8%,
+    rgba(160,100,0,.55) 28%,
+    rgba(100,60,0,.45) 50%,
+    rgba(160,100,0,.55) 72%,
+    rgba(200,144,16,.18) 92%,
+    transparent 100%);
+}
+.ball.ball-done .ball-spec{
+  background:radial-gradient(circle,rgba(255,255,255,.95) 0%,rgba(255,240,160,.5) 60%,transparent 100%);
+}
+.ball.ball-done .roundel{
+  background:rgba(80,50,0,.4);
+  border-color:rgba(255,255,255,.5);
+  font-size:26px;
+  display:flex;align-items:center;justify-content:center;
+}
+.ball.ball-done .nm{
+  background:rgba(40,20,0,.75);
+  color:#ffe066;
+  border-color:rgba(255,215,0,.3);
+}
+
 @keyframes pop{
   0%{transform:scale(.15) translateY(40px);opacity:0}
   60%{transform:scale(1.08) translateY(-4px);opacity:1}
   80%{transform:scale(.96) translateY(2px)}
   100%{transform:scale(1) translateY(0);opacity:1}
 }
-.assign{margin-top:12px;font-size:15px;color:var(--mute);min-height:24px;position:relative;z-index:1}
+.assign{margin-top:18px;font-size:15px;color:var(--mute);min-height:24px;position:relative;z-index:1}
 .assign b{color:var(--gold)}
 
 /* ---- buckets ---- */
@@ -475,7 +610,89 @@ button:disabled{opacity:.5;cursor:not-allowed}
     <div class="panel">
       <div class="stage" id="stage">
         <div class="spotlight"></div>
-        <div class="hat" id="hat">🎩</div>
+        <div class="hat" id="hat">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 90" width="110" height="90" aria-label="Draw bowl">
+            <defs>
+              <!-- glass bowl body gradient -->
+              <radialGradient id="bowlGlass" cx="40%" cy="35%" r="65%" fx="35%" fy="30%">
+                <stop offset="0%"   stop-color="#c8f0de" stop-opacity="0.55"/>
+                <stop offset="35%"  stop-color="#1e7a4f" stop-opacity="0.45"/>
+                <stop offset="75%"  stop-color="#0b3d2e" stop-opacity="0.70"/>
+                <stop offset="100%" stop-color="#071e16" stop-opacity="0.85"/>
+              </radialGradient>
+              <!-- gold rim gradient -->
+              <linearGradient id="rimGold" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stop-color="#c89010"/>
+                <stop offset="30%"  stop-color="#f4c542"/>
+                <stop offset="50%"  stop-color="#ffe066"/>
+                <stop offset="70%"  stop-color="#f4c542"/>
+                <stop offset="100%" stop-color="#c89010"/>
+              </linearGradient>
+              <!-- pedestal gradient -->
+              <linearGradient id="pedGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%"   stop-color="#1c6b4f"/>
+                <stop offset="100%" stop-color="#071e16"/>
+              </linearGradient>
+              <!-- inner shadow at top of bowl -->
+              <radialGradient id="innerShadow" cx="50%" cy="0%" r="55%">
+                <stop offset="0%"   stop-color="#000000" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+              </radialGradient>
+              <!-- gloss highlight on bowl rim left side -->
+              <radialGradient id="rimGloss" cx="28%" cy="50%" r="50%">
+                <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.55"/>
+                <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+
+            <!-- soft gold glow under bowl -->
+            <ellipse cx="55" cy="86" rx="36" ry="6" fill="rgba(244,197,66,0.18)" filter="url(#glow)"/>
+            <defs>
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="4"/>
+              </filter>
+            </defs>
+
+            <!-- pedestal -->
+            <rect x="42" y="75" width="26" height="7" rx="3" fill="url(#pedGrad)" stroke="rgba(244,197,66,0.35)" stroke-width="0.8"/>
+            <!-- pedestal base plate -->
+            <rect x="38" y="81" width="34" height="4" rx="2" fill="url(#pedGrad)" stroke="rgba(244,197,66,0.25)" stroke-width="0.7"/>
+
+            <!-- bowl body (elliptical cup) -->
+            <!-- bowl outer fill -->
+            <path d="M 10 36 Q 8 72 55 76 Q 102 72 100 36 Z" fill="url(#bowlGlass)" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+            <!-- inner shadow at top rim area -->
+            <ellipse cx="55" cy="36" rx="45" ry="7" fill="url(#innerShadow)"/>
+
+            <!-- gold rim top ellipse -->
+            <ellipse cx="55" cy="34" rx="45" ry="7.5" fill="none" stroke="url(#rimGold)" stroke-width="4.5"/>
+            <!-- rim gloss overlay -->
+            <ellipse cx="55" cy="34" rx="45" ry="7.5" fill="none" stroke="url(#rimGloss)" stroke-width="2.5"/>
+            <!-- thin inner rim dark line -->
+            <ellipse cx="55" cy="34" rx="42" ry="6.2" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/>
+
+            <!-- small balls nestled inside the bowl -->
+            <!-- ball 1 (left) -->
+            <circle cx="30" cy="60" r="8.5" fill="radial-gradient(circle at 35% 30%, #fff 0%, #c8d8d0 60%, #8fa89e 100%)"/>
+            <circle cx="30" cy="60" r="8.5" fill="#daeade" opacity="0.9"/>
+            <circle cx="27" cy="57" r="3" fill="rgba(255,255,255,0.75)" opacity="0.8"/>
+
+            <!-- ball 2 (center) -->
+            <circle cx="55" cy="63" r="9" fill="#daeade" opacity="0.9"/>
+            <circle cx="52" cy="60" r="3.2" fill="rgba(255,255,255,0.75)" opacity="0.8"/>
+
+            <!-- ball 3 (right) -->
+            <circle cx="80" cy="60" r="8.5" fill="#daeade" opacity="0.9"/>
+            <circle cx="77" cy="57" r="3" fill="rgba(255,255,255,0.75)" opacity="0.8"/>
+
+            <!-- ball 4 (small, peeking at back) -->
+            <circle cx="55" cy="43" r="6.5" fill="#b8ccc4" opacity="0.65"/>
+            <circle cx="53" cy="41" r="2" fill="rgba(255,255,255,0.6)" opacity="0.7"/>
+
+            <!-- bowl front glass sheen -->
+            <path d="M 15 40 Q 14 70 55 74 Q 96 70 95 40" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+          </svg>
+        </div>
         <div class="pulled" id="pulled"></div>
         <div class="assign" id="assignMsg"></div>
       </div>
@@ -665,7 +882,7 @@ function addToBucket(item,animate=true){
   const ct=$("ct-"+item.bi); if(ct) ct.textContent=ul.children.length+" "+(ul.children.length===1?"team":"teams");
 }
 function showBall(item,bucketLabel){
-  $("pulled").innerHTML=`<div class="ball">${flagImg(item.team,"md")}<span class="nm">${escapeHtml(item.team.name)}</span></div>`;
+  $("pulled").innerHTML=`<div class="ball-wrap"><div class="ball"><div class="ball-spec"></div><div class="glint"></div><div class="ball-inner"><div class="roundel">${flagImg(item.team,"md")}</div><span class="nm">${escapeHtml(item.team.name)}</span></div></div></div>`;
   $("assignMsg").innerHTML=`…to <b>${escapeHtml(bucketLabel)}</b>`+(item.pot?` <span style="color:var(--faint)">(Pot ${item.pot})</span>`:"");
 }
 
@@ -697,7 +914,7 @@ async function runDraw(instant){
 function finishDraw(mode){
   state.drawing=false; $("hat").classList.remove("shake");
   $("assignMsg").innerHTML=`<b>${mode==="sweep"?"Sweepstake drawn!":"Draw complete!"}</b> 🎉`;
-  $("pulled").innerHTML=`<div class="ball" style="background:linear-gradient(145deg,#ffe066,#f4c542,#e0ad27);color:#3a2c00"><span class="flag">🏆</span><span class="nm">Done</span></div>`;
+  $("pulled").innerHTML=`<div class="ball-wrap"><div class="ball ball-done"><div class="ball-spec"></div><div class="ball-inner"><div class="roundel"><span class="flag">🏆</span></div><span class="nm">Done</span></div></div></div>`;
   setButtons(false);
   launchConfetti();
 }
