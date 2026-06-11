@@ -55,6 +55,55 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
 /* roster grid */
 .roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:6px}
+
+/* mobile responsive */
+@media (max-width:750px){
+  .wrap{padding:0 12px}
+  header{padding:22px 0 14px}
+  .trophy{font-size:40px}
+  h1{font-size:clamp(22px,5vw,32px)}
+  button{padding:10px 16px;font-size:13px}
+  .btn-primary{padding:10px 16px}
+  button:active{transform:none}
+  textarea,input[type=range]{padding:9px 11px;font-size:13px}
+  label{font-size:12px;margin-bottom:5px}
+  .panel{padding:16px;margin-bottom:16px;border-radius:12px}
+  .panel h2{font-size:15px;margin-bottom:11px}
+  #buckets{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+  .bucket h3{font-size:13px;padding:8px 12px}
+  .bucket h3 .ct{font-size:10px}
+  .slot{padding:9px 11px;font-size:13px;gap:9px}
+  .slot .flag{font-size:18px}
+  .hat{font-size:56px}
+  .ball{width:88px;height:88px;font-size:10px}
+  .ball .flag{font-size:24px}
+  .ball .nm{font-size:11px;margin-top:2px}
+  .modal{max-width:95vw;border-radius:14px}
+  .modal .top{gap:12px;padding:16px;border-radius:14px 14px 0 0}
+  .modal .top .bigflag{font-size:40px}
+  .modal .top h3{font-size:18px}
+  .modal .x{width:28px;height:28px;font-size:14px}
+  .statgrid{grid-template-columns:repeat(3,1fr)}
+  .statgrid div{padding:11px 9px;font-size:12px}
+  .statgrid .v{font-size:15px}
+  .mbody{padding:14px 16px 18px;font-size:13px}
+  .mrow{margin-bottom:6px}
+  .mrow .lab{min-width:70px;font-size:12px}
+  .players .ph{font-size:11px;margin-bottom:7px}
+  .pl{padding:7px 0}
+  .pl .pn{font-size:13px}
+  .pl .pc{font-size:11px}
+  .roster{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+  .chip{padding:7px 9px;font-size:12.5px}
+  .chip .flag{font-size:18px}
+  .chip .info{font-size:9px}
+  .seg button{padding:8px 16px;font-size:12px}
+  .tabs{gap:6px;margin-bottom:14px}
+  .tab{padding:7px 14px;font-size:12px}
+  .hint{font-size:11px;margin-top:5px}
+  .speedrow input[type=range]{margin:0 6px}
+  .footer{font-size:11px;margin-top:20px;line-height:1.5}
+}
 .chip{display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid var(--line);border-radius:9px;
   padding:9px 11px;cursor:pointer;transition:.12s;font-weight:600;font-size:13.5px}
 .chip:hover{border-color:var(--accent);background:var(--panel2);transform:translateY(-1px)}
@@ -513,7 +562,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 
 /* init */
 renderRoster();
-setMode("groups");
+setMode("sweep");
 updateSweepHint();
 </script>
 </body>
