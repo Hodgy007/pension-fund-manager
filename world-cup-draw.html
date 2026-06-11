@@ -567,6 +567,22 @@ button:disabled{opacity:.5;cursor:not-allowed}
   padding:2px 6px;border-radius:6px;flex:none}
 @keyframes fadein{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
 .empty-msg{text-align:center;color:var(--faint);padding:30px;font-style:italic}
+/* final standings leaderboard */
+#leaderboard{margin-top:22px}
+#leaderboard:empty{display:none}
+.lb-title{font-size:13px;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+.lb-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:11px;
+  background:rgba(11,61,46,.5);border:1px solid rgba(255,255,255,.07);margin-bottom:8px;
+  animation:fadein .4s both}
+.lb-row .lb-pos{flex:none;width:26px;text-align:center;font-weight:800;font-size:14px;color:var(--faint)}
+.lb-row .lb-name{font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-row .lb-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex:none}
+.lb-row .lb-ct{font-size:11px;color:var(--faint);font-weight:600}
+.lb-row .lb-sum{font-size:12px;font-weight:800;color:#ffe066;background:rgba(244,197,66,.14);
+  border:1px solid rgba(244,197,66,.3);padding:3px 9px;border-radius:999px;white-space:nowrap}
+.lb-row.lb-top{border-color:rgba(244,197,66,.5);
+  background:linear-gradient(90deg,rgba(244,197,66,.18),rgba(11,61,46,.5))}
+.lb-row.lb-top .lb-pos{font-size:17px;color:#ffe066}
 
 /* ---- modal ---- */
 .overlay{position:fixed;inset:0;background:rgba(4,16,11,.76);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:none;
@@ -827,6 +843,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <h2><span class="dot"></span><span id="resultsTitle">Groups</span></h2>
       <p class="hint" style="margin:-2px 0 14px">Each group shows its combined FIFA ranking (<b>Σ</b>) — the lower the total, the stronger the group. 🥇 marks the toughest.</p>
       <div id="buckets"><p class="empty-msg">Start the draw to fill the board.</p></div>
+      <div id="leaderboard"></div>
     </div>
   </section>
 
@@ -990,6 +1007,7 @@ function dealOrder(seq,n){
 /* ---------------- rendering ---------------- */
 function renderBuckets(buckets){
   const el=$("buckets"); el.innerHTML="";
+  $("leaderboard").innerHTML="";
   state.totals=buckets.map(()=>0);
   buckets.forEach((b,i)=>{
     const box=document.createElement("div"); box.className="bucket";
@@ -1013,6 +1031,24 @@ function updateRankStats(){
     if(md){ const p=place[i]; md.textContent = p===0?"🥇":p===1?"🥈":p===2?"🥉":""; }
     if(box) box.classList.toggle("best", n>0 && place[i]===0);
   });
+}
+// final standings: every group/person sorted toughest (lowest Σ) → easiest
+function renderLeaderboard(mode){
+  const lb=$("leaderboard"); if(!lb) return;
+  const tots=state.totals||[];
+  const rows=tots.map((t,i)=>({i,t,n:($("b-"+i)?$("b-"+i).children.length:0),label:state.buckets[i].label}))
+                 .filter(o=>o.n>0)
+                 .sort((a,b)=>a.t-b.t || a.i-b.i);
+  if(!rows.length){ lb.innerHTML=""; return; }
+  const medal=p=>p===0?"🥇":p===1?"🥈":p===2?"🥉":(p+1)+".";
+  const title=mode==="sweep"?"Final standings — strongest squad first":"Group strength — toughest first";
+  lb.innerHTML=`<div class="lb-title">${title}</div>`+rows.map((o,p)=>
+    `<div class="lb-row${p===0?" lb-top":""}" style="animation-delay:${p*40}ms">`+
+      `<span class="lb-pos">${medal(p)}</span>`+
+      `<span class="lb-name">${escapeHtml(o.label)}</span>`+
+      `<span class="lb-meta"><span class="lb-ct">${o.n} team${o.n===1?"":"s"}</span>`+
+      `<span class="lb-sum">Σ ${o.t}</span></span>`+
+    `</div>`).join("");
 }
 function addToBucket(item,animate=true){
   const ul=$("b-"+item.bi); if(!ul) return;
@@ -1063,6 +1099,7 @@ function finishDraw(mode){
   $("assignMsg").innerHTML=`<b>${mode==="sweep"?"Sweepstake drawn!":"Draw complete!"}</b> 🎉`;
   $("pulled").innerHTML=`<div class="ball-wrap"><div class="ball ball-done"><div class="ball-spec"></div><div class="ball-inner"><div class="roundel"><img class="wc-trophy-img sm" src="assets/world-cup-trophy.png" alt="World Cup Trophy" data-fallback-cls="wc-trophy wc-trophy-sm" onerror="trophyFail(this)"></div><span class="nm">Done</span></div></div></div>`;
   setButtons(false);
+  renderLeaderboard(mode);
   launchConfetti();
 }
 function setButtons(d){ $("drawBtn").disabled=d; $("instantBtn").disabled=d; $("goDraw").disabled=d; }
@@ -1202,7 +1239,8 @@ $("instantBtn").addEventListener("click",()=>runDraw(true));
 $("resetBtn").addEventListener("click",()=>{
   state.drawing=false; $("stage").classList.remove("show"); $("hat").classList.remove("shake");
   $("pulled").innerHTML=""; $("assignMsg").innerHTML="";
-  $("buckets").innerHTML='<p class="empty-msg">Start the draw to fill the board.</p>'; setButtons(false);
+  $("buckets").innerHTML='<p class="empty-msg">Start the draw to fill the board.</p>';
+  $("leaderboard").innerHTML=""; setButtons(false);
 });
 $("overlay").addEventListener("click",e=>{ if(e.target===$("overlay")) closeModal(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
