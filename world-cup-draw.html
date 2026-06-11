@@ -9,20 +9,18 @@
 :root{
   --bg:#0a2a1f; --bg2:#0b3d2e; --panel:#0f4a37; --panel2:#10583f; --line:#1c6b4f;
   --ink:#f1f7f3; --mute:#a7c9b8; --faint:#7fae98;
-  --gold:#f4c542; --accent:#37d18f; --grass:#1e7a4f; --chalk:#eef6f0;
+  --gold:#f4c542; --accent:#37d18f; --grass:#1e7a4f;
   --font:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:
-    radial-gradient(circle at 50% -10%,rgba(55,209,143,.12),transparent 45%),
-    var(--bg);
+body{background:radial-gradient(circle at 50% -10%,rgba(55,209,143,.12),transparent 45%),var(--bg);
   color:var(--ink);font-family:var(--font);line-height:1.55;min-height:100vh;padding:0 0 70px}
 .wrap{max-width:1180px;margin:0 auto;padding:0 22px;position:relative}
-header{text-align:center;padding:42px 0 26px}
-.trophy{font-size:54px;line-height:1;filter:drop-shadow(0 6px 14px rgba(0,0,0,.4))}
-h1{font-weight:800;font-size:clamp(30px,5vw,46px);letter-spacing:-.02em;margin-top:8px}
+header{text-align:center;padding:40px 0 22px}
+.trophy{font-size:52px;line-height:1;filter:drop-shadow(0 6px 14px rgba(0,0,0,.4))}
+h1{font-weight:800;font-size:clamp(28px,5vw,44px);letter-spacing:-.02em;margin-top:8px}
 h1 span{color:var(--gold)}
-.sub{color:var(--mute);margin-top:10px;font-size:15px;max-width:620px;margin-left:auto;margin-right:auto}
+.sub{color:var(--mute);margin-top:10px;font-size:15px;max-width:640px;margin-inline:auto}
 
 .panel{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);
   border-radius:16px;padding:22px;margin-bottom:22px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
