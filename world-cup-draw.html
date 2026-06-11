@@ -3,26 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>World Cup Draw</title>
+<title>World Cup 2026 Draw &amp; Sweepstake</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b3d2e'/%3E%3Ctext x='50' y='72' font-size='58' text-anchor='middle'%3E%E2%9A%BD%3C/text%3E%3C/svg%3E">
 <style>
 :root{
   --bg:#0a2a1f; --bg2:#0b3d2e; --panel:#0f4a37; --panel2:#10583f; --line:#1c6b4f;
   --ink:#f1f7f3; --mute:#a7c9b8; --faint:#7fae98;
-  --gold:#f4c542; --accent:#37d18f; --grass:#1e7a4f; --chalk:#eef6f0;
+  --gold:#f4c542; --accent:#37d18f; --grass:#1e7a4f;
   --font:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:
-    radial-gradient(circle at 50% -10%,rgba(55,209,143,.12),transparent 45%),
-    var(--bg);
+body{background:radial-gradient(circle at 50% -10%,rgba(55,209,143,.12),transparent 45%),var(--bg);
   color:var(--ink);font-family:var(--font);line-height:1.55;min-height:100vh;padding:0 0 70px}
 .wrap{max-width:1180px;margin:0 auto;padding:0 22px;position:relative}
-header{text-align:center;padding:42px 0 26px}
-.trophy{font-size:54px;line-height:1;filter:drop-shadow(0 6px 14px rgba(0,0,0,.4))}
-h1{font-weight:800;font-size:clamp(30px,5vw,46px);letter-spacing:-.02em;margin-top:8px}
+header{text-align:center;padding:40px 0 22px}
+.trophy{font-size:52px;line-height:1;filter:drop-shadow(0 6px 14px rgba(0,0,0,.4))}
+h1{font-weight:800;font-size:clamp(28px,5vw,44px);letter-spacing:-.02em;margin-top:8px}
 h1 span{color:var(--gold)}
-.sub{color:var(--mute);margin-top:10px;font-size:15px;max-width:620px;margin-left:auto;margin-right:auto}
+.sub{color:var(--mute);margin-top:10px;font-size:15px;max-width:640px;margin-inline:auto}
 
 .panel{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);
   border-radius:16px;padding:22px;margin-bottom:22px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
@@ -30,75 +28,114 @@ h1 span{color:var(--gold)}
 .panel h2 .dot{width:9px;height:9px;border-radius:50%;background:var(--gold)}
 
 label{display:block;font-size:12.5px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
-textarea,input,select{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);
+textarea,input[type=range]{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);
   border-radius:10px;padding:11px 13px;font-family:var(--font);font-size:14px;outline:none;transition:.15s}
-textarea:focus,input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(55,209,143,.15)}
 textarea{resize:vertical;min-height:120px;line-height:1.7}
-.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin-bottom:18px}
+textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(55,209,143,.15)}
 .hint{font-size:12px;color:var(--faint);margin-top:6px}
 
-.btnrow{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px}
-button{cursor:pointer;border:none;border-radius:10px;font-family:var(--font);font-weight:700;
-  font-size:14px;padding:12px 22px;transition:.15s;display:inline-flex;align-items:center;gap:8px}
+button{cursor:pointer;border:none;border-radius:10px;font-family:var(--font);font-weight:700;font-size:14px;
+  padding:12px 22px;transition:.15s;display:inline-flex;align-items:center;gap:8px}
 .btn-primary{background:linear-gradient(180deg,var(--gold),#e0ad27);color:#3a2c00;box-shadow:0 6px 16px rgba(244,197,66,.25)}
 .btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 9px 22px rgba(244,197,66,.35)}
 .btn-ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
 .btn-ghost:hover:not(:disabled){border-color:var(--accent)}
 button:disabled{opacity:.5;cursor:not-allowed}
-
-/* Hat / draw stage */
-.stage{display:none;text-align:center;padding:18px 0 6px}
-.stage.show{display:block}
-.hat{font-size:84px;line-height:1;display:inline-block;filter:drop-shadow(0 8px 18px rgba(0,0,0,.45))}
-.hat.shake{animation:shake .5s ease-in-out infinite}
-@keyframes shake{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
-.pulled{margin-top:14px;min-height:64px;display:flex;align-items:center;justify-content:center}
-.ball{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
-  background:linear-gradient(180deg,#fff,#dfe7e1);color:#0a2a1f;border-radius:50%;
-  width:108px;height:108px;font-weight:800;box-shadow:0 10px 24px rgba(0,0,0,.4);
-  animation:pop .45s cubic-bezier(.2,1.4,.5,1);padding:6px;text-align:center}
-.ball .flag{font-size:30px;line-height:1}
-.ball .nm{font-size:13px;margin-top:3px;line-height:1.15}
-@keyframes pop{0%{transform:scale(.2) translateY(30px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
-.assign{margin-top:12px;font-size:15px;color:var(--mute)}
-.assign b{color:var(--gold)}
-
-/* Groups */
-#groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
-.group{background:var(--bg2);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.group h3{background:linear-gradient(90deg,var(--grass),var(--bg2));font-size:14px;font-weight:800;
-  padding:10px 14px;letter-spacing:.06em;text-transform:uppercase;display:flex;justify-content:space-between}
-.group h3 .ct{color:var(--faint);font-weight:600}
-.group ul{list-style:none}
-.slot{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid rgba(255,255,255,.05);
-  font-size:14.5px;font-weight:600;animation:fadein .4s}
-.slot .flag{font-size:22px}
-.slot .pot{margin-left:auto;font-size:11px;color:var(--faint);font-weight:600}
-.slot.empty{color:var(--faint);font-style:italic;font-weight:400;justify-content:center}
-@keyframes fadein{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+.btnrow{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px}
 
 .tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
 .tab{padding:8px 16px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);
   font-size:13px;font-weight:700;cursor:pointer;color:var(--mute)}
 .tab.active{background:var(--gold);color:#3a2c00;border-color:var(--gold)}
 
-.pots{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:6px}
-.pot-box label{display:flex;justify-content:space-between}
-.pot-box .pc{color:var(--gold)}
-.toggle{display:flex;align-items:center;gap:10px;margin-top:4px}
-.toggle input{width:auto}
-.footer{text-align:center;color:var(--faint);font-size:12.5px;margin-top:30px}
+/* mode segmented control */
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
+.seg button{background:transparent;color:var(--mute);padding:10px 20px;border-radius:9px}
+.seg button.on{background:var(--grass);color:#fff}
+
+/* roster grid */
+.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:6px}
+.chip{display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid var(--line);border-radius:9px;
+  padding:9px 11px;cursor:pointer;transition:.12s;font-weight:600;font-size:13.5px}
+.chip:hover{border-color:var(--accent);background:var(--panel2);transform:translateY(-1px)}
+.chip .flag{font-size:20px}
+.chip .info{margin-left:auto;font-size:10px;color:var(--faint)}
+
 .speedrow{display:flex;align-items:center;gap:10px}
 .speedrow input[type=range]{flex:1}
+
+/* stage */
+.stage{display:none;text-align:center;padding:18px 0 6px}
+.stage.show{display:block}
+.hat{font-size:80px;line-height:1;display:inline-block;filter:drop-shadow(0 8px 18px rgba(0,0,0,.45))}
+.hat.shake{animation:shake .5s ease-in-out infinite}
+@keyframes shake{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
+.pulled{margin-top:14px;min-height:120px;display:flex;align-items:center;justify-content:center}
+.ball{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,#fff,#dfe7e1);color:#0a2a1f;border-radius:50%;width:112px;height:112px;
+  font-weight:800;box-shadow:0 10px 24px rgba(0,0,0,.4);animation:pop .45s cubic-bezier(.2,1.4,.5,1);padding:6px;text-align:center}
+.ball .flag{font-size:32px;line-height:1}
+.ball .nm{font-size:12.5px;margin-top:3px;line-height:1.15}
+@keyframes pop{0%{transform:scale(.2) translateY(30px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
+.assign{margin-top:12px;font-size:15px;color:var(--mute);min-height:24px}
+.assign b{color:var(--gold)}
+
+/* buckets (groups or people) */
+#buckets{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+.bucket{background:var(--bg2);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.bucket h3{background:linear-gradient(90deg,var(--grass),var(--bg2));font-size:14px;font-weight:800;
+  padding:10px 14px;letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center}
+.bucket h3 .ct{color:#cdeadd;font-weight:600;font-size:11px}
+.bucket ul{list-style:none}
+.slot{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid rgba(255,255,255,.05);
+  font-size:14px;font-weight:600;cursor:pointer;animation:fadein .4s;transition:.12s}
+.slot:hover{background:var(--panel2)}
+.slot .flag{font-size:21px}
+.slot .pot{margin-left:auto;font-size:10px;color:var(--faint);font-weight:700}
+.slot .chev{margin-left:auto;color:var(--faint);font-size:12px}
+.slot .pot + .chev{margin-left:8px}
+@keyframes fadein{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
 .empty-msg{text-align:center;color:var(--faint);padding:30px;font-style:italic}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(4,16,11,.72);backdrop-filter:blur(3px);display:none;
+  align-items:flex-start;justify-content:center;padding:40px 16px;z-index:100;overflow-y:auto}
+.overlay.show{display:flex}
+.modal{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:18px;
+  max-width:560px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.5);animation:pop .3s ease;overflow:hidden}
+.modal .top{display:flex;align-items:center;gap:16px;padding:22px 24px;border-bottom:1px solid var(--line);
+  background:linear-gradient(90deg,rgba(30,122,79,.5),transparent)}
+.modal .top .bigflag{font-size:52px;line-height:1}
+.modal .top h3{font-size:24px;font-weight:800}
+.modal .top .conf{color:var(--gold);font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+.modal .x{margin-left:auto;background:var(--bg);border:1px solid var(--line);color:var(--ink);width:34px;height:34px;
+  border-radius:8px;font-size:18px;align-self:flex-start;display:flex;align-items:center;justify-content:center;padding:0}
+.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+.statgrid div{background:var(--bg2);padding:14px 12px;text-align:center}
+.statgrid .k{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.statgrid .v{font-size:18px;font-weight:800;margin-top:3px}
+.mbody{padding:18px 24px 24px}
+.mrow{display:flex;gap:10px;font-size:14px;margin-bottom:8px}
+.mrow .lab{color:var(--faint);min-width:96px;font-weight:600}
+.mrow .val{font-weight:600}
+.players{margin-top:16px}
+.players .ph{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:9px}
+.pl{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.pos{font-size:10px;font-weight:800;width:36px;text-align:center;padding:3px 0;border-radius:5px;flex-shrink:0}
+.pos.GK{background:#7a5a1e;color:#ffe8b0}.pos.DEF{background:#1e5a7a;color:#bfe6ff}
+.pos.MID{background:#1e7a4f;color:#bfffd9}.pos.FWD{background:#7a1e3a;color:#ffc0d4}
+.pl .pn{font-weight:600;font-size:14px}
+.pl .pc{margin-left:auto;color:var(--faint);font-size:12px;text-align:right}
+
+.footer{text-align:center;color:var(--faint);font-size:12.5px;margin-top:30px;line-height:1.7}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="trophy">🏆</div>
-    <h1>World Cup <span>Draw</span></h1>
-    <p class="sub">Pull the teams out of the hat and watch them fall into their groups — fully editable, with optional seeding pots.</p>
+    <h1>World Cup <span>2026</span> Draw</h1>
+    <p class="sub">Pull the 48 qualified teams out of the hat — into their groups, or as an office sweepstake. Tap any team for squad &amp; stats.</p>
   </header>
 
   <div class="tabs">
@@ -109,38 +146,28 @@ button:disabled{opacity:.5;cursor:not-allowed}
   <!-- SETUP -->
   <section id="tab-setup">
     <div class="panel">
-      <h2><span class="dot"></span>Teams</h2>
-      <label for="teams">One team per line (optionally add a flag emoji after a comma)</label>
-      <textarea id="teams" spellcheck="false"></textarea>
-      <p class="hint"><span id="teamCount">0</span> teams entered. Format: <code>Brazil, 🇧🇷</code> — the flag is optional.</p>
-      <div class="btnrow">
-        <button class="btn-ghost" id="loadWC">Load 2026 World Cup (48)</button>
-        <button class="btn-ghost" id="loadClassic">Load Classic (32)</button>
-        <button class="btn-ghost" id="clearTeams">Clear</button>
+      <h2><span class="dot"></span>Draw Type</h2>
+      <div class="seg" id="modeSeg">
+        <button data-mode="groups" class="on">🗂️ Group Draw</button>
+        <button data-mode="sweep">🎟️ Sweepstake</button>
       </div>
+      <p class="hint" id="modeHint">Draw the 48 teams into the 12 official groups (A–L).</p>
     </div>
 
-    <div class="panel">
-      <h2><span class="dot"></span>Draw Settings</h2>
-      <div class="controls">
-        <div>
-          <label for="numGroups">Number of groups</label>
-          <input type="number" id="numGroups" min="1" max="26" value="12">
-        </div>
-        <div>
-          <label for="groupSize">Teams per group (target)</label>
-          <input type="number" id="groupSize" min="1" max="12" value="4">
-          <p class="hint">Used to balance the draw &amp; build pots.</p>
-        </div>
-      </div>
-      <div class="toggle">
-        <input type="checkbox" id="usePots">
-        <label for="usePots" style="margin:0;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink)">Use seeding pots (one team per pot in each group)</label>
-      </div>
-      <div id="potsWrap" style="display:none;margin-top:14px">
-        <p class="hint" style="margin-bottom:8px">Teams are split into pots in the order entered: top seeds first. With pots on, each group gets exactly one team from each pot.</p>
-        <div class="pots" id="potsPreview"></div>
-      </div>
+    <div class="panel" id="potsPanel">
+      <h2><span class="dot"></span>Group Options</h2>
+      <label style="display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:600;cursor:pointer">
+        <input type="checkbox" id="usePots" checked style="width:auto">
+        Use seeding pots (one team per pot in each group, FIFA-style)
+      </label>
+      <p class="hint">Pots are built from FIFA ranking, with the three hosts seeded into Pot&nbsp;1.</p>
+    </div>
+
+    <div class="panel" id="peoplePanel" style="display:none">
+      <h2><span class="dot"></span>People</h2>
+      <label for="people">One person per line</label>
+      <textarea id="people" spellcheck="false" placeholder="Alice&#10;Ben&#10;Chloe&#10;Dev&#10;Erin&#10;Femi"></textarea>
+      <p class="hint"><span id="peopleCount">0</span> people · all 48 teams are dealt out round-robin so everyone gets a roughly equal number.</p>
     </div>
 
     <div class="panel">
@@ -148,12 +175,18 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <label>Draw speed</label>
       <div class="speedrow">
         <span style="font-size:12px;color:var(--faint)">Slow</span>
-        <input type="range" id="speed" min="150" max="1400" step="50" value="650">
+        <input type="range" id="speed" min="120" max="1400" step="40" value="600">
         <span style="font-size:12px;color:var(--faint)">Fast</span>
       </div>
       <div class="btnrow" style="margin-top:18px">
         <button class="btn-primary" id="goDraw">🎩 Start the Draw</button>
       </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="dot"></span>The 48 Qualified Teams</h2>
+      <p class="hint" style="margin:0 0 12px">Tap a team for manager, captain and key players.</p>
+      <div class="roster" id="roster"></div>
     </div>
   </section>
 
@@ -171,235 +204,283 @@ button:disabled{opacity:.5;cursor:not-allowed}
         <button class="btn-ghost" id="resetBtn">↺ Reset</button>
       </div>
     </div>
-
     <div class="panel">
-      <h2><span class="dot"></span>Groups</h2>
-      <div id="groups"><p class="empty-msg">Start the draw to fill the groups.</p></div>
+      <h2><span class="dot"></span><span id="resultsTitle">Groups</span></h2>
+      <div id="buckets"><p class="empty-msg">Start the draw to fill the board.</p></div>
     </div>
   </section>
 
-  <p class="footer">⚽ World Cup Draw — runs entirely in your browser. Refresh to start over.</p>
+  <p class="footer">⚽ 2026 FIFA World Cup · 48 teams across Canada, Mexico &amp; the USA.<br>Runs entirely in your browser. Squad data is indicative (June 2026).</p>
+</div>
+
+<!-- team modal -->
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal"></div>
 </div>
 
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
 
-const WC2026 = [
-  ["Canada","🇨🇦"],["Mexico","🇲🇽"],["United States","🇺🇸"],["Argentina","🇦🇷"],["Brazil","🇧🇷"],
-  ["France","🇫🇷"],["England","🏴󠁧󠁢󠁥󠁮󠁧󠁿"],["Spain","🇪🇸"],["Portugal","🇵🇹"],["Netherlands","🇳🇱"],
-  ["Belgium","🇧🇪"],["Germany","🇩🇪"],["Italy","🇮🇹"],["Croatia","🇭🇷"],["Uruguay","🇺🇾"],
-  ["Colombia","🇨🇴"],["Japan","🇯🇵"],["South Korea","🇰🇷"],["Morocco","🇲🇦"],["Senegal","🇸🇳"],
-  ["Switzerland","🇨🇭"],["Denmark","🇩🇰"],["Australia","🇦🇺"],["Iran","🇮🇷"],["Serbia","🇷🇸"],
-  ["Poland","🇵🇱"],["Ecuador","🇪🇨"],["Austria","🇦🇹"],["Ukraine","🇺🇦"],["Sweden","🇸🇪"],
-  ["Nigeria","🇳🇬"],["Ghana","🇬🇭"],["Egypt","🇪🇬"],["Ivory Coast","🇨🇮"],["Cameroon","🇨🇲"],
-  ["Tunisia","🇹🇳"],["Algeria","🇩🇿"],["Saudi Arabia","🇸🇦"],["Qatar","🇶🇦"],["Costa Rica","🇨🇷"],
-  ["Peru","🇵🇪"],["Chile","🇨🇱"],["Wales","🏴󠁧󠁢󠁷󠁬󠁳󠁿"],["Scotland","🏴󠁧󠁢󠁳󠁣󠁴󠁿"],["Turkey","🇹🇷"],
-  ["Norway","🇳🇴"],["New Zealand","🇳🇿"],["Greece","🇬🇷"]
+/* ---------------- 2026 World Cup teams (48) ---------------- */
+const TEAMS = [
+  {name:"Czechia",flag:"🇨🇿",conf:"UEFA",rank:41,apps:11,best:"Runners-up (1934, 1962, as Czechoslovakia)",mgr:"Miroslav Koubek",capt:"Ladislav Krejčí",players:[{n:"Patrik Schick",pos:"FWD",c:"Bayer Leverkusen"},{n:"Tomáš Souček",pos:"MID",c:"West Ham United"},{n:"Adam Hložek",pos:"FWD",c:"Hoffenheim"},{n:"Ladislav Krejčí",pos:"DEF",c:"Wolverhampton"},{n:"Vladimír Coufal",pos:"DEF",c:"West Ham United"},{n:"Matěj Kovář",pos:"GK",c:"Bayer Leverkusen"}]},
+  {name:"Mexico",flag:"🇲🇽",conf:"CONCACAF",rank:17,apps:18,best:"Quarter-finals (1970, 1986)",mgr:"Javier Aguirre",capt:"Edson Álvarez",players:[{n:"Edson Álvarez",pos:"MID",c:"Fenerbahçe"},{n:"Santiago Giménez",pos:"FWD",c:"AC Milan"},{n:"Raúl Jiménez",pos:"FWD",c:"Fulham"},{n:"Guillermo Ochoa",pos:"GK",c:"AVS"},{n:"Gilberto Mora",pos:"MID",c:"Club Tijuana"},{n:"Julián Quiñones",pos:"FWD",c:"Al-Qadsiah"}]},
+  {name:"South Africa",flag:"🇿🇦",conf:"CAF",rank:60,apps:4,best:"Group stage",mgr:"Hugo Broos",capt:"Ronwen Williams",players:[{n:"Ronwen Williams",pos:"GK",c:"Mamelodi Sundowns"},{n:"Lyle Foster",pos:"FWD",c:"Burnley"},{n:"Percy Tau",pos:"FWD",c:"Al Ahly"},{n:"Themba Zwane",pos:"MID",c:"Mamelodi Sundowns"},{n:"Teboho Mokoena",pos:"MID",c:"Mamelodi Sundowns"},{n:"Lebo Mothiba",pos:"FWD",c:"Mamelodi Sundowns"}]},
+  {name:"South Korea",flag:"🇰🇷",conf:"AFC",rank:23,apps:12,best:"Fourth place (2002)",mgr:"Hong Myung-bo",capt:"Son Heung-min",players:[{n:"Son Heung-min",pos:"FWD",c:"Los Angeles FC"},{n:"Kim Min-jae",pos:"DEF",c:"Bayern Munich"},{n:"Lee Kang-in",pos:"MID",c:"Paris Saint-Germain"},{n:"Hwang Hee-chan",pos:"FWD",c:"Wolverhampton"},{n:"Hwang In-beom",pos:"MID",c:"Feyenoord"},{n:"Jo Hyeon-woo",pos:"GK",c:"Ulsan HD"}]},
+  {name:"Bosnia and Herzegovina",flag:"🇧🇦",conf:"UEFA",rank:65,apps:2,best:"Group stage",mgr:"Sergej Barbarez",capt:"Edin Džeko",players:[{n:"Edin Džeko",pos:"FWD",c:"Schalke 04"},{n:"Ermedin Demirović",pos:"FWD",c:"VfB Stuttgart"},{n:"Benjamin Tahirović",pos:"MID",c:"Brøndby IF"},{n:"Esmir Bajraktarević",pos:"MID",c:"PSV Eindhoven"},{n:"Armin Gigović",pos:"MID",c:"Rostov"},{n:"Nikola Vasilj",pos:"GK",c:"St. Pauli"}]},
+  {name:"Canada",flag:"🇨🇦",conf:"CONCACAF",rank:30,apps:3,best:"Group stage",mgr:"Jesse Marsch",capt:"Alphonso Davies",players:[{n:"Alphonso Davies",pos:"DEF",c:"Bayern Munich"},{n:"Jonathan David",pos:"FWD",c:"Juventus"},{n:"Stephen Eustáquio",pos:"MID",c:"FC Porto"},{n:"Tajon Buchanan",pos:"MID",c:"Villarreal"},{n:"Cyle Larin",pos:"FWD",c:"Southampton"},{n:"Maxime Crépeau",pos:"GK",c:"Portland Timbers"}]},
+  {name:"Qatar",flag:"🇶🇦",conf:"AFC",rank:55,apps:2,best:"Group stage",mgr:"Julen Lopetegui",capt:"Hassan Al-Haydos",players:[{n:"Akram Afif",pos:"FWD",c:"Al Sadd"},{n:"Almoez Ali",pos:"FWD",c:"Al Duhail"},{n:"Hassan Al-Haydos",pos:"MID",c:"Al Sadd"},{n:"Boualem Khoukhi",pos:"DEF",c:"Al Sadd"},{n:"Saad Al-Sheeb",pos:"GK",c:"Al Sadd"},{n:"Abdulaziz Hatem",pos:"MID",c:"Al Rayyan"}]},
+  {name:"Switzerland",flag:"🇨🇭",conf:"UEFA",rank:19,apps:13,best:"Quarter-finals (1934, 1938, 1954)",mgr:"Murat Yakin",capt:"Granit Xhaka",players:[{n:"Granit Xhaka",pos:"MID",c:"Sunderland"},{n:"Manuel Akanji",pos:"DEF",c:"Manchester City"},{n:"Gregor Kobel",pos:"GK",c:"Borussia Dortmund"},{n:"Dan Ndoye",pos:"FWD",c:"Nottingham Forest"},{n:"Breel Embolo",pos:"FWD",c:"Rennes"},{n:"Remo Freuler",pos:"MID",c:"Bologna"}]},
+  {name:"Brazil",flag:"🇧🇷",conf:"CONMEBOL",rank:6,apps:23,best:"Winners (1958, 1962, 1970, 1994, 2002)",mgr:"Carlo Ancelotti",capt:"Marquinhos",players:[{n:"Vinícius Júnior",pos:"FWD",c:"Real Madrid"},{n:"Raphinha",pos:"FWD",c:"Barcelona"},{n:"Neymar",pos:"FWD",c:"Santos"},{n:"Marquinhos",pos:"DEF",c:"Paris Saint-Germain"},{n:"Gabriel Magalhães",pos:"DEF",c:"Arsenal"},{n:"Alisson",pos:"GK",c:"Liverpool"}]},
+  {name:"Haiti",flag:"🇭🇹",conf:"CONCACAF",rank:83,apps:2,best:"Group stage (1974)",mgr:"Sébastien Migné",capt:"Johny Placide",players:[{n:"Jean-Ricner Bellegarde",pos:"MID",c:"Wolverhampton"},{n:"Wilson Isidor",pos:"FWD",c:"Sunderland"},{n:"Danley Jean Jacques",pos:"MID",c:"Philadelphia Union"},{n:"Frantzdy Pierrot",pos:"FWD",c:"Gaziantep FK"},{n:"Duckens Nazon",pos:"FWD",c:"Free agent"},{n:"Johny Placide",pos:"GK",c:"Free agent"}]},
+  {name:"Morocco",flag:"🇲🇦",conf:"CAF",rank:7,apps:7,best:"Fourth place (2022)",mgr:"Mohamed Ouahbi",capt:"Achraf Hakimi",players:[{n:"Achraf Hakimi",pos:"DEF",c:"Paris Saint-Germain"},{n:"Yassine Bounou",pos:"GK",c:"Al-Hilal"},{n:"Sofyan Amrabat",pos:"MID",c:"Real Betis"},{n:"Brahim Díaz",pos:"FWD",c:"Real Madrid"},{n:"Bilal El Khannouss",pos:"MID",c:"VfB Stuttgart"},{n:"Ayoub El Kaabi",pos:"FWD",c:"Olympiacos"}]},
+  {name:"Scotland",flag:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",conf:"UEFA",rank:42,apps:9,best:"Group stage",mgr:"Steve Clarke",capt:"Andy Robertson",players:[{n:"Andy Robertson",pos:"DEF",c:"Liverpool"},{n:"Scott McTominay",pos:"MID",c:"Napoli"},{n:"John McGinn",pos:"MID",c:"Aston Villa"},{n:"Kieran Tierney",pos:"DEF",c:"Celtic"},{n:"Angus Gunn",pos:"GK",c:"Norwich City"},{n:"Ché Adams",pos:"FWD",c:"Torino"}]},
+  {name:"Australia",flag:"🇦🇺",conf:"AFC",rank:27,apps:7,best:"Round of 16 (2006, 2022)",mgr:"Tony Popovic",capt:"Mathew Ryan",players:[{n:"Mathew Ryan",pos:"GK",c:"Levante"},{n:"Jordy Bos",pos:"DEF",c:"Feyenoord"},{n:"Nestory Irankunda",pos:"FWD",c:"Watford"},{n:"Cristian Volpato",pos:"MID",c:"Sassuolo"},{n:"Nishan Velupillay",pos:"FWD",c:"Melbourne Victory"},{n:"Mohamed Toure",pos:"FWD",c:"Norwich City"}]},
+  {name:"Paraguay",flag:"🇵🇾",conf:"CONMEBOL",rank:40,apps:9,best:"Quarter-finals (2010)",mgr:"Gustavo Alfaro",capt:"Gustavo Gómez",players:[{n:"Gustavo Gómez",pos:"DEF",c:"Palmeiras"},{n:"Julio Enciso",pos:"FWD",c:"Strasbourg"},{n:"Antonio Sanabria",pos:"FWD",c:"Cremonese"},{n:"Miguel Almirón",pos:"MID",c:"Atlanta United"},{n:"Diego Gómez",pos:"MID",c:"Brighton"},{n:"Damián Bobadilla",pos:"MID",c:"São Paulo"}]},
+  {name:"Türkiye",flag:"🇹🇷",conf:"UEFA",rank:22,apps:3,best:"Third place (2002)",mgr:"Vincenzo Montella",capt:"Hakan Çalhanoğlu",players:[{n:"Hakan Çalhanoğlu",pos:"MID",c:"Inter Milan"},{n:"Arda Güler",pos:"MID",c:"Real Madrid"},{n:"Kenan Yıldız",pos:"FWD",c:"Juventus"},{n:"Ferdi Kadıoğlu",pos:"DEF",c:"Brighton"},{n:"Uğurcan Çakır",pos:"GK",c:"Galatasaray"},{n:"Kerem Aktürkoğlu",pos:"FWD",c:"Benfica"}]},
+  {name:"United States",flag:"🇺🇸",conf:"CONCACAF",rank:17,apps:12,best:"Third place (1930)",mgr:"Mauricio Pochettino",capt:"Christian Pulisic",players:[{n:"Christian Pulisic",pos:"FWD",c:"AC Milan"},{n:"Weston McKennie",pos:"MID",c:"Juventus"},{n:"Tyler Adams",pos:"MID",c:"Bournemouth"},{n:"Antonee Robinson",pos:"DEF",c:"Fulham"},{n:"Folarin Balogun",pos:"FWD",c:"AS Monaco"},{n:"Matt Turner",pos:"GK",c:"New England Revolution"}]},
+  {name:"Curaçao",flag:"🇨🇼",conf:"CONCACAF",rank:82,apps:1,best:"Debut",mgr:"Dick Advocaat",capt:"Leandro Bacuna",players:[{n:"Armando Obispo",pos:"DEF",c:"PSV Eindhoven"},{n:"Riechedly Bazoer",pos:"DEF",c:"Konyaspor"},{n:"Leandro Bacuna",pos:"MID",c:"Iğdır FK"},{n:"Livano Comenencia",pos:"MID",c:"FC Zürich"},{n:"Tahith Chong",pos:"FWD",c:"Sheffield United"},{n:"Eloy Room",pos:"GK",c:"Free agent"}]},
+  {name:"Ecuador",flag:"🇪🇨",conf:"CONMEBOL",rank:23,apps:5,best:"Round of 16 (2006)",mgr:"Sebastián Beccacece",capt:"Enner Valencia",players:[{n:"Moisés Caicedo",pos:"MID",c:"Chelsea"},{n:"Willian Pacho",pos:"DEF",c:"Paris Saint-Germain"},{n:"Piero Hincapié",pos:"DEF",c:"Arsenal"},{n:"Pervis Estupiñán",pos:"DEF",c:"AC Milan"},{n:"Kendry Páez",pos:"MID",c:"River Plate"},{n:"Enner Valencia",pos:"FWD",c:"Pachuca"}]},
+  {name:"Germany",flag:"🇩🇪",conf:"UEFA",rank:10,apps:22,best:"Winners (1954, 1974, 1990, 2014)",mgr:"Julian Nagelsmann",capt:"Joshua Kimmich",players:[{n:"Manuel Neuer",pos:"GK",c:"Bayern Munich"},{n:"Antonio Rüdiger",pos:"DEF",c:"Real Madrid"},{n:"Joshua Kimmich",pos:"MID",c:"Bayern Munich"},{n:"Florian Wirtz",pos:"MID",c:"Liverpool"},{n:"Jamal Musiala",pos:"MID",c:"Bayern Munich"},{n:"Kai Havertz",pos:"FWD",c:"Arsenal"}]},
+  {name:"Ivory Coast",flag:"🇨🇮",conf:"CAF",rank:34,apps:4,best:"Group stage",mgr:"Emerse Faé",capt:"Franck Kessié",players:[{n:"Evan Ndicka",pos:"DEF",c:"AS Roma"},{n:"Wilfried Singo",pos:"DEF",c:"AS Monaco"},{n:"Franck Kessié",pos:"MID",c:"Al-Ahli"},{n:"Nicolas Pépé",pos:"FWD",c:"Villarreal"},{n:"Yan Diomandé",pos:"FWD",c:"RB Leipzig"},{n:"Yahia Fofana",pos:"GK",c:"Angers"}]},
+  {name:"Japan",flag:"🇯🇵",conf:"AFC",rank:18,apps:8,best:"Round of 16 (2002, 2010, 2018, 2022)",mgr:"Hajime Moriyasu",capt:"Wataru Endo",players:[{n:"Wataru Endo",pos:"MID",c:"Liverpool"},{n:"Takefusa Kubo",pos:"FWD",c:"Real Sociedad"},{n:"Ritsu Doan",pos:"FWD",c:"Eintracht Frankfurt"},{n:"Daichi Kamada",pos:"MID",c:"Crystal Palace"},{n:"Ko Itakura",pos:"DEF",c:"Mönchengladbach"},{n:"Ayase Ueda",pos:"FWD",c:"Feyenoord"}]},
+  {name:"Netherlands",flag:"🇳🇱",conf:"UEFA",rank:7,apps:12,best:"Runners-up (1974, 1978, 2010)",mgr:"Ronald Koeman",capt:"Virgil van Dijk",players:[{n:"Virgil van Dijk",pos:"DEF",c:"Liverpool"},{n:"Frenkie de Jong",pos:"MID",c:"Barcelona"},{n:"Cody Gakpo",pos:"FWD",c:"Liverpool"},{n:"Tijjani Reijnders",pos:"MID",c:"Manchester City"},{n:"Memphis Depay",pos:"FWD",c:"Corinthians"},{n:"Jurriën Timber",pos:"DEF",c:"Arsenal"}]},
+  {name:"Sweden",flag:"🇸🇪",conf:"UEFA",rank:38,apps:14,best:"Runners-up (1958)",mgr:"Graham Potter",capt:"Victor Lindelöf",players:[{n:"Victor Lindelöf",pos:"DEF",c:"Aston Villa"},{n:"Viktor Gyökeres",pos:"FWD",c:"Arsenal"},{n:"Alexander Isak",pos:"FWD",c:"Liverpool"},{n:"Anthony Elanga",pos:"FWD",c:"Newcastle United"},{n:"Lucas Bergvall",pos:"MID",c:"Tottenham"},{n:"Isak Hien",pos:"DEF",c:"Atalanta"}]},
+  {name:"Tunisia",flag:"🇹🇳",conf:"CAF",rank:44,apps:7,best:"Group stage",mgr:"Sabri Lamouchi",capt:"Ellyes Skhiri",players:[{n:"Ellyes Skhiri",pos:"MID",c:"Eintracht Frankfurt"},{n:"Aïssa Laïdouni",pos:"MID",c:"Wolfsburg"},{n:"Hannibal Mejbri",pos:"MID",c:"Burnley"},{n:"Montassar Talbi",pos:"DEF",c:"Lorient"},{n:"M.A. Ben Romdhane",pos:"MID",c:"Ferencváros"},{n:"Elias Achouri",pos:"FWD",c:"Copenhagen"}]},
+  {name:"Belgium",flag:"🇧🇪",conf:"UEFA",rank:9,apps:15,best:"Third place (2018)",mgr:"Rudi Garcia",capt:"Youri Tielemans",players:[{n:"Kevin De Bruyne",pos:"MID",c:"Napoli"},{n:"Romelu Lukaku",pos:"FWD",c:"Napoli"},{n:"Youri Tielemans",pos:"MID",c:"Aston Villa"},{n:"Jeremy Doku",pos:"FWD",c:"Manchester City"},{n:"Amadou Onana",pos:"MID",c:"Aston Villa"},{n:"Wout Faes",pos:"DEF",c:"Leicester City"}]},
+  {name:"Egypt",flag:"🇪🇬",conf:"CAF",rank:29,apps:4,best:"Group stage",mgr:"Hossam Hassan",capt:"Mohamed Salah",players:[{n:"Mohamed Salah",pos:"FWD",c:"Liverpool"},{n:"Omar Marmoush",pos:"FWD",c:"Manchester City"},{n:"Mohamed El Shenawy",pos:"GK",c:"Al Ahly"},{n:"Trezeguet",pos:"MID",c:"Al Ahly"},{n:"Hamdy Fathy",pos:"MID",c:"Al-Wakrah"},{n:"Mohamed Hamdy",pos:"DEF",c:"Al Ahly"}]},
+  {name:"Iran",flag:"🇮🇷",conf:"AFC",rank:21,apps:7,best:"Group stage",mgr:"Amir Ghalenoei",capt:"Alireza Jahanbakhsh",players:[{n:"Mehdi Taremi",pos:"FWD",c:"Olympiacos"},{n:"Alireza Jahanbakhsh",pos:"MID",c:"Heerenveen"},{n:"Alireza Beiranvand",pos:"GK",c:"Tractor"},{n:"Saeid Ezatolahi",pos:"MID",c:"Shabab Al-Ahli"},{n:"Ramin Rezaeian",pos:"DEF",c:"Al-Shabab"},{n:"Mehdi Ghayedi",pos:"FWD",c:"Shabab Al-Ahli"}]},
+  {name:"New Zealand",flag:"🇳🇿",conf:"OFC",rank:85,apps:3,best:"Group stage",mgr:"Darren Bazeley",capt:"Chris Wood",players:[{n:"Chris Wood",pos:"FWD",c:"Nottingham Forest"},{n:"Marko Stamenic",pos:"MID",c:"Olympiacos"},{n:"Tommy Smith",pos:"DEF",c:"Colorado Rapids"},{n:"Matthew Garbett",pos:"MID",c:"Torino"},{n:"Liberato Cacace",pos:"DEF",c:"Empoli"},{n:"Alex Paulsen",pos:"GK",c:"Bournemouth"}]},
+  {name:"Cape Verde",flag:"🇨🇻",conf:"CAF",rank:69,apps:1,best:"Debut",mgr:"Bubista",capt:"Ryan Mendes",players:[{n:"Logan Costa",pos:"DEF",c:"Villarreal"},{n:"Ryan Mendes",pos:"FWD",c:"Free agent"},{n:"Kenny Rocha Santos",pos:"MID",c:"Casa Pia"},{n:"Jamiro Monteiro",pos:"MID",c:"San Jose Earthquakes"},{n:"Bryan Teixeira",pos:"FWD",c:"Estrela Amadora"},{n:"Vozinha",pos:"GK",c:"Marsa"}]},
+  {name:"Saudi Arabia",flag:"🇸🇦",conf:"AFC",rank:61,apps:7,best:"Round of 16 (1994)",mgr:"Georgios Donis",capt:"Salem Al-Dawsari",players:[{n:"Salem Al-Dawsari",pos:"FWD",c:"Al-Hilal"},{n:"Saud Abdulhamid",pos:"DEF",c:"Lens"},{n:"Mohamed Kanno",pos:"MID",c:"Al-Hilal"},{n:"Abdullah Al-Hamdan",pos:"FWD",c:"Al-Nassr"},{n:"Musab Al-Juwayr",pos:"MID",c:"Al-Qadsiah"},{n:"Nawaf Al-Aqidi",pos:"GK",c:"Al-Nassr"}]},
+  {name:"Spain",flag:"🇪🇸",conf:"UEFA",rank:2,apps:17,best:"Winners (2010)",mgr:"Luis de la Fuente",capt:"Rodri",players:[{n:"Lamine Yamal",pos:"FWD",c:"Barcelona"},{n:"Rodri",pos:"MID",c:"Manchester City"},{n:"Pedri",pos:"MID",c:"Barcelona"},{n:"Nico Williams",pos:"FWD",c:"Athletic Club"},{n:"Unai Simón",pos:"GK",c:"Athletic Club"},{n:"Marc Cucurella",pos:"DEF",c:"Chelsea"}]},
+  {name:"Uruguay",flag:"🇺🇾",conf:"CONMEBOL",rank:17,apps:15,best:"Winners (1930, 1950)",mgr:"Marcelo Bielsa",capt:"José María Giménez",players:[{n:"Federico Valverde",pos:"MID",c:"Real Madrid"},{n:"Ronald Araújo",pos:"DEF",c:"Barcelona"},{n:"Darwin Núñez",pos:"FWD",c:"Al-Hilal"},{n:"José María Giménez",pos:"DEF",c:"Atlético Madrid"},{n:"Manuel Ugarte",pos:"MID",c:"Manchester United"},{n:"Fernando Muslera",pos:"GK",c:"Galatasaray"}]},
+  {name:"France",flag:"🇫🇷",conf:"UEFA",rank:1,apps:17,best:"Winners (1998, 2018)",mgr:"Didier Deschamps",capt:"Kylian Mbappé",players:[{n:"Kylian Mbappé",pos:"FWD",c:"Real Madrid"},{n:"Ousmane Dembélé",pos:"FWD",c:"Paris Saint-Germain"},{n:"Michael Olise",pos:"MID",c:"Bayern Munich"},{n:"Aurélien Tchouaméni",pos:"MID",c:"Real Madrid"},{n:"William Saliba",pos:"DEF",c:"Arsenal"},{n:"Mike Maignan",pos:"GK",c:"AC Milan"}]},
+  {name:"Iraq",flag:"🇮🇶",conf:"AFC",rank:58,apps:2,best:"Group stage",mgr:"Graham Arnold",capt:"Jalal Hassan",players:[{n:"Aymen Hussein",pos:"FWD",c:"Al-Shorta"},{n:"Ali Al-Hamadi",pos:"FWD",c:"Ipswich Town"},{n:"Zidane Iqbal",pos:"MID",c:"FC Utrecht"},{n:"Merchas Doski",pos:"DEF",c:"Vejle"},{n:"Amir Al-Ammari",pos:"MID",c:"Halmstad"},{n:"Jalal Hassan",pos:"GK",c:"Al-Zawraa"}]},
+  {name:"Norway",flag:"🇳🇴",conf:"UEFA",rank:31,apps:4,best:"Round of 16 (1998)",mgr:"Ståle Solbakken",capt:"Martin Ødegaard",players:[{n:"Erling Haaland",pos:"FWD",c:"Manchester City"},{n:"Martin Ødegaard",pos:"MID",c:"Arsenal"},{n:"Alexander Sørloth",pos:"FWD",c:"Atlético Madrid"},{n:"Antonio Nusa",pos:"MID",c:"RB Leipzig"},{n:"Oscar Bobb",pos:"MID",c:"Manchester City"},{n:"Ørjan Nyland",pos:"GK",c:"Sevilla"}]},
+  {name:"Senegal",flag:"🇸🇳",conf:"CAF",rank:14,apps:4,best:"Quarter-finals (2002)",mgr:"Pape Thiaw",capt:"Kalidou Koulibaly",players:[{n:"Édouard Mendy",pos:"GK",c:"Al-Ahli"},{n:"Kalidou Koulibaly",pos:"DEF",c:"Al-Hilal"},{n:"Idrissa Gana Gueye",pos:"MID",c:"Everton"},{n:"Pape Matar Sarr",pos:"MID",c:"Tottenham"},{n:"Ismaïla Sarr",pos:"FWD",c:"Crystal Palace"},{n:"Nicolas Jackson",pos:"FWD",c:"Bayern Munich"}]},
+  {name:"Algeria",flag:"🇩🇿",conf:"CAF",rank:28,apps:5,best:"Round of 16 (2014)",mgr:"Vladimir Petković",capt:"Riyad Mahrez",players:[{n:"Riyad Mahrez",pos:"FWD",c:"Al-Ahli"},{n:"Ramy Bensebaini",pos:"DEF",c:"Borussia Dortmund"},{n:"Ibrahim Maza",pos:"MID",c:"Bayer Leverkusen"},{n:"Houssem Aouar",pos:"MID",c:"Al-Ittihad"},{n:"Amine Gouiri",pos:"FWD",c:"Marseille"},{n:"Luca Zidane",pos:"GK",c:"Granada"}]},
+  {name:"Argentina",flag:"🇦🇷",conf:"CONMEBOL",rank:3,apps:19,best:"Winners (1978, 1986, 2022)",mgr:"Lionel Scaloni",capt:"Lionel Messi",players:[{n:"Lionel Messi",pos:"FWD",c:"Inter Miami"},{n:"Emiliano Martínez",pos:"GK",c:"Aston Villa"},{n:"Cristian Romero",pos:"DEF",c:"Tottenham"},{n:"Enzo Fernández",pos:"MID",c:"Chelsea"},{n:"Alexis Mac Allister",pos:"MID",c:"Liverpool"},{n:"Lautaro Martínez",pos:"FWD",c:"Inter Milan"}]},
+  {name:"Austria",flag:"🇦🇹",conf:"UEFA",rank:24,apps:8,best:"Third place (1954)",mgr:"Ralf Rangnick",capt:"David Alaba",players:[{n:"David Alaba",pos:"DEF",c:"Real Madrid"},{n:"Marko Arnautović",pos:"FWD",c:"Red Star Belgrade"},{n:"Marcel Sabitzer",pos:"MID",c:"Borussia Dortmund"},{n:"Konrad Laimer",pos:"MID",c:"Bayern Munich"},{n:"Patrick Wimmer",pos:"MID",c:"Wolfsburg"},{n:"Nicolas Seiwald",pos:"MID",c:"RB Leipzig"}]},
+  {name:"Jordan",flag:"🇯🇴",conf:"AFC",rank:63,apps:1,best:"Debut",mgr:"Jamal Sellami",capt:"Mousa Tamari",players:[{n:"Mousa Tamari",pos:"FWD",c:"Rennes"},{n:"Noor Al-Rawabdeh",pos:"MID",c:"Selangor"},{n:"Yazan Al-Arab",pos:"DEF",c:"FC Seoul"},{n:"Ali Olwan",pos:"FWD",c:"Al-Sailiya"},{n:"Ehsan Haddad",pos:"DEF",c:"Al-Hussein"},{n:"Yazeed Abulaila",pos:"GK",c:"Al-Hussein"}]},
+  {name:"Colombia",flag:"🇨🇴",conf:"CONMEBOL",rank:13,apps:7,best:"Quarter-finals (2014)",mgr:"Néstor Lorenzo",capt:"James Rodríguez",players:[{n:"Luis Díaz",pos:"FWD",c:"Bayern Munich"},{n:"James Rodríguez",pos:"MID",c:"Minnesota United"},{n:"Richard Ríos",pos:"MID",c:"Benfica"},{n:"Daniel Muñoz",pos:"DEF",c:"Crystal Palace"},{n:"Jhon Lucumí",pos:"DEF",c:"Bologna"},{n:"David Ospina",pos:"GK",c:"Atlético Nacional"}]},
+  {name:"DR Congo",flag:"🇨🇩",conf:"CAF",rank:46,apps:2,best:"Group stage",mgr:"Sébastien Desabre",capt:"Chancel Mbemba",players:[{n:"Chancel Mbemba",pos:"DEF",c:"Lille"},{n:"Aaron Wan-Bissaka",pos:"DEF",c:"West Ham United"},{n:"Noah Sadiki",pos:"MID",c:"Sunderland"},{n:"Yoane Wissa",pos:"FWD",c:"Newcastle United"},{n:"Cédric Bakambu",pos:"FWD",c:"Real Betis"},{n:"Axel Tuanzebe",pos:"DEF",c:"Burnley"}]},
+  {name:"Portugal",flag:"🇵🇹",conf:"UEFA",rank:5,apps:9,best:"Third place (1966)",mgr:"Roberto Martínez",capt:"Cristiano Ronaldo",players:[{n:"Cristiano Ronaldo",pos:"FWD",c:"Al Nassr"},{n:"Bruno Fernandes",pos:"MID",c:"Manchester United"},{n:"Vitinha",pos:"MID",c:"Paris Saint-Germain"},{n:"Rúben Dias",pos:"DEF",c:"Manchester City"},{n:"Nuno Mendes",pos:"DEF",c:"Paris Saint-Germain"},{n:"Diogo Costa",pos:"GK",c:"FC Porto"}]},
+  {name:"Uzbekistan",flag:"🇺🇿",conf:"AFC",rank:50,apps:1,best:"Debut",mgr:"Fabio Cannavaro",capt:"Eldor Shomurodov",players:[{n:"Abdukodir Khusanov",pos:"DEF",c:"Manchester City"},{n:"Abbosbek Fayzullaev",pos:"MID",c:"Başakşehir"},{n:"Eldor Shomurodov",pos:"FWD",c:"Başakşehir"},{n:"Jaloliddin Masharipov",pos:"MID",c:"Esteghlal"},{n:"Otabek Shukurov",pos:"MID",c:"Bani Yas"},{n:"Igor Sergeev",pos:"FWD",c:"Persepolis"}]},
+  {name:"Croatia",flag:"🇭🇷",conf:"UEFA",rank:10,apps:7,best:"Runners-up (2018)",mgr:"Zlatko Dalić",capt:"Luka Modrić",players:[{n:"Luka Modrić",pos:"MID",c:"AC Milan"},{n:"Joško Gvardiol",pos:"DEF",c:"Manchester City"},{n:"Mateo Kovačić",pos:"MID",c:"Manchester City"},{n:"Petar Sučić",pos:"MID",c:"Inter Milan"},{n:"Andrej Kramarić",pos:"FWD",c:"Hoffenheim"},{n:"Dominik Livaković",pos:"GK",c:"Fenerbahçe"}]},
+  {name:"England",flag:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",conf:"UEFA",rank:4,apps:17,best:"Winners (1966)",mgr:"Thomas Tuchel",capt:"Harry Kane",players:[{n:"Harry Kane",pos:"FWD",c:"Bayern Munich"},{n:"Jude Bellingham",pos:"MID",c:"Real Madrid"},{n:"Declan Rice",pos:"MID",c:"Arsenal"},{n:"Bukayo Saka",pos:"FWD",c:"Arsenal"},{n:"Marc Guéhi",pos:"DEF",c:"Manchester City"},{n:"Jordan Pickford",pos:"GK",c:"Everton"}]},
+  {name:"Ghana",flag:"🇬🇭",conf:"CAF",rank:74,apps:5,best:"Quarter-finals (2010)",mgr:"Carlos Queiroz",capt:"Jordan Ayew",players:[{n:"Thomas Partey",pos:"MID",c:"Villarreal"},{n:"Iñaki Williams",pos:"FWD",c:"Athletic Bilbao"},{n:"Antoine Semenyo",pos:"FWD",c:"Manchester City"},{n:"Jordan Ayew",pos:"FWD",c:"Leicester City"},{n:"Alidu Seidu",pos:"DEF",c:"Rennes"},{n:"Lawrence Ati-Zigi",pos:"GK",c:"St. Gallen"}]},
+  {name:"Panama",flag:"🇵🇦",conf:"CONCACAF",rank:33,apps:2,best:"Group stage",mgr:"Thomas Christiansen",capt:"Aníbal Godoy",players:[{n:"José Córdoba",pos:"DEF",c:"Norwich City"},{n:"Michael Murillo",pos:"DEF",c:"Beşiktaş"},{n:"Adalberto Carrasquilla",pos:"MID",c:"Pumas UNAM"},{n:"Aníbal Godoy",pos:"MID",c:"San Diego FC"},{n:"Ismael Díaz",pos:"FWD",c:"Club León"},{n:"Luis Mejía",pos:"GK",c:"Club Nacional"}]}
 ];
-const CLASSIC = WC2026.slice(0,32);
+const BY_NAME = Object.fromEntries(TEAMS.map(t=>[t.name,t]));
 
-const groupLabel = i => {
-  let s = "";
-  do { s = String.fromCharCode(65 + (i % 26)) + s; i = Math.floor(i / 26) - 1; } while (i >= 0);
-  return s;
-};
-
-let state = { groups: [], drawing:false };
-
-/* ---------- parsing ---------- */
-function parseTeams(){
-  return $("teams").value.split("\n").map(l=>l.trim()).filter(Boolean).map(line=>{
-    const ci = line.indexOf(",");
-    if(ci>=0){
-      const name = line.slice(0,ci).trim();
-      const flag = line.slice(ci+1).trim();
-      return {name, flag};
-    }
-    return {name:line, flag:"⚽"};
-  });
-}
-function setTeams(list){
-  $("teams").value = list.map(([n,f])=>`${n}, ${f}`).join("\n");
-  updateCount();
-}
-function updateCount(){
-  const t = parseTeams();
-  $("teamCount").textContent = t.length;
-  if($("usePots").checked) renderPotsPreview(t);
-}
-
-/* ---------- pots ---------- */
-function buildPots(teams, numGroups){
-  // split into `target` pots of `numGroups` teams, in entry order
-  const pots = [];
-  for(let i=0;i<teams.length;i+=numGroups) pots.push(teams.slice(i,i+numGroups));
-  return pots;
-}
-function renderPotsPreview(teams){
-  const ng = clampInt($("numGroups").value,1,26,12);
-  const pots = buildPots(teams, ng);
-  $("potsPreview").innerHTML = pots.map((p,i)=>`
-    <div class="pot-box">
-      <label>Pot ${i+1} <span class="pc">${p.length}</span></label>
-      <div style="font-size:13px;color:var(--mute);line-height:1.8">
-        ${p.map(t=>`${t.flag} ${escapeHtml(t.name)}`).join("<br>")||"<i>empty</i>"}
-      </div>
-    </div>`).join("");
-}
-
-/* ---------- draw logic ---------- */
-function clampInt(v,min,max,def){ v=parseInt(v,10); if(isNaN(v))return def; return Math.max(min,Math.min(max,v)); }
+/* ---------------- helpers ---------------- */
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
 function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function groupLabel(i){ return String.fromCharCode(65+i); }
+// FIFA-seeded order: 3 hosts first, then by ranking — drives the pots
+function seededTeams(){
+  const hosts=["Canada","Mexico","United States"];
+  const h=hosts.map(n=>BY_NAME[n]);
+  const rest=TEAMS.filter(t=>!hosts.includes(t.name)).sort((a,b)=>a.rank-b.rank);
+  return [...h,...rest];
+}
+function buildPots(order,perPot){ const p=[]; for(let i=0;i<order.length;i+=perPot) p.push(order.slice(i,i+perPot)); return p; }
 
-// Returns an ordered list of {team, groupIndex, pot} representing the draw sequence
+let MODE="groups";
+let state={drawing:false, buckets:[]};
+
+/* ---------------- compute draw ---------------- */
 function computeDraw(){
-  const teams = parseTeams();
-  const ng = clampInt($("numGroups").value,1,26,12);
-  const usePots = $("usePots").checked;
-  const groups = Array.from({length:ng},()=>[]);
-  const sequence = [];
-
+  if(MODE==="sweep") return computeSweep();
+  return computeGroups();
+}
+function computeGroups(){
+  const NG=12, SIZE=4, usePots=$("usePots").checked;
+  const groups=Array.from({length:NG},()=>[]);
+  const seq=[];
   if(usePots){
-    const pots = buildPots(teams, ng);
+    const pots=buildPots(seededTeams(),NG);
     pots.forEach((pot,pi)=>{
-      const order = shuffle(pot);
-      // assign each team in this pot to a distinct group that has room
-      let avail = groups.map((g,i)=>i).filter(i=>groups[i].length===pi);
-      avail = shuffle(avail);
-      order.forEach((team,k)=>{
-        const gi = avail[k % avail.length];
-        groups[gi].push(team);
-        sequence.push({team, groupIndex:gi, pot:pi+1});
-      });
+      const order=shuffle(pot);
+      let avail=shuffle(groups.map((g,i)=>i).filter(i=>groups[i].length===pi));
+      order.forEach((team,k)=>{ const gi=avail[k%avail.length]; groups[gi].push(team); seq.push({team,bi:gi,pot:pi+1}); });
     });
   } else {
-    const order = shuffle(teams);
-    const size = clampInt($("groupSize").value,1,12,4);
-    order.forEach((team)=>{
-      // pick the group with the fewest teams (under target), break ties randomly
-      let candidates = groups.map((g,i)=>i).filter(i=>groups[i].length < size);
-      if(candidates.length===0) candidates = groups.map((g,i)=>i);
-      const min = Math.min(...candidates.map(i=>groups[i].length));
-      candidates = shuffle(candidates.filter(i=>groups[i].length===min));
-      const gi = candidates[0];
-      groups[gi].push(team);
-      sequence.push({team, groupIndex:gi, pot:null});
+    shuffle(TEAMS).forEach(team=>{
+      let cand=groups.map((g,i)=>i).filter(i=>groups[i].length<SIZE);
+      const min=Math.min(...cand.map(i=>groups[i].length));
+      const gi=shuffle(cand.filter(i=>groups[i].length===min))[0];
+      groups[gi].push(team); seq.push({team,bi:gi,pot:null});
     });
   }
-  return {sequence, ng};
+  const buckets=groups.map((g,i)=>({label:"Group "+groupLabel(i), unit:"team"}));
+  return {seq,buckets,mode:"groups"};
 }
+function computeSweep(){
+  const people=$("people").value.split("\n").map(s=>s.trim()).filter(Boolean);
+  if(people.length===0) return {error:"Add at least one person for the sweepstake."};
+  const order=shuffle(people);            // randomise who gets the extra teams
+  const teams=shuffle(TEAMS);
+  const buckets=order.map(p=>({label:p, unit:"team"}));
+  const seq=teams.map((team,i)=>({team,bi:i%order.length,pot:null}));
+  // deal in person-order rounds so the animation feels like dealing a hand
+  seq.sort((a,b)=>{
+    const ra=Math.floor(seqIndex(a,order.length)), rb=Math.floor(seqIndex(b,order.length));
+    return ra-rb || a.bi-b.bi;
+  });
+  return {seq,buckets,mode:"sweep"};
+}
+function seqIndex(item,n){ return item._r!==undefined?item._r:0; }
 
-/* ---------- rendering groups ---------- */
-function renderGroups(ng, filled){
-  const el = $("groups");
-  if(ng===0){ el.innerHTML='<p class="empty-msg">No teams to draw.</p>'; return; }
-  el.style.display="grid";
-  el.innerHTML = "";
-  for(let i=0;i<ng;i++){
-    const box=document.createElement("div");
-    box.className="group";
-    box.innerHTML=`<h3>Group ${groupLabel(i)} <span class="ct" id="ct-${i}"></span></h3><ul id="g-${i}"></ul>`;
-    el.appendChild(box);
+/* assign round order for sweep dealing */
+function dealOrder(seq,n){
+  // group by bucket, then interleave round by round
+  const byBucket={}; seq.forEach(s=>{(byBucket[s.bi]=byBucket[s.bi]||[]).push(s);});
+  const out=[]; let more=true,r=0;
+  while(more){ more=false;
+    for(let b=0;b<n;b++){ const arr=byBucket[b]; if(arr&&arr[r]){ out.push(arr[r]); more=true; } }
+    r++;
   }
-  filled.forEach(item=>addToGroup(item, false));
-}
-function addToGroup(item, animate=true){
-  const ul = $("g-"+item.groupIndex);
-  if(!ul) return;
-  const li=document.createElement("li");
-  li.className="slot";
-  if(!animate) li.style.animation="none";
-  li.innerHTML=`<span class="flag">${item.team.flag}</span><span>${escapeHtml(item.team.name)}</span>${item.pot?`<span class="pot">Pot ${item.pot}</span>`:""}`;
-  ul.appendChild(li);
-  const ct=$("ct-"+item.groupIndex);
-  if(ct) ct.textContent = ul.children.length + (ul.children.length===1?" team":" teams");
+  return out;
 }
 
-/* ---------- animation runner ---------- */
+/* ---------------- rendering ---------------- */
+function renderBuckets(buckets){
+  const el=$("buckets"); el.innerHTML="";
+  buckets.forEach((b,i)=>{
+    const box=document.createElement("div"); box.className="bucket";
+    box.innerHTML=`<h3>${escapeHtml(b.label)} <span class="ct" id="ct-${i}"></span></h3><ul id="b-${i}"></ul>`;
+    el.appendChild(box);
+  });
+}
+function addToBucket(item,animate=true){
+  const ul=$("b-"+item.bi); if(!ul) return;
+  const li=document.createElement("li"); li.className="slot"; if(!animate) li.style.animation="none";
+  li.innerHTML=`<span class="flag">${item.team.flag}</span><span>${escapeHtml(item.team.name)}</span>`+
+    (item.pot?`<span class="pot">Pot ${item.pot}</span>`:`<span class="chev">›</span>`);
+  li.addEventListener("click",()=>openTeam(item.team.name));
+  ul.appendChild(li);
+  const ct=$("ct-"+item.bi); if(ct) ct.textContent=ul.children.length+" "+(ul.children.length===1?"team":"teams");
+}
+function showBall(item,bucketLabel){
+  $("pulled").innerHTML=`<div class="ball"><span class="flag">${item.team.flag}</span><span class="nm">${escapeHtml(item.team.name)}</span></div>`;
+  $("assignMsg").innerHTML=`…to <b>${escapeHtml(bucketLabel)}</b>`+(item.pot?` <span style="color:var(--faint)">(Pot ${item.pot})</span>`:"");
+}
+
+/* ---------------- runner ---------------- */
 async function runDraw(instant){
   if(state.drawing) return;
-  const {sequence, ng} = computeDraw();
-  if(sequence.length===0){ alert("Add some teams first!"); return; }
-  state.drawing = true;
-  state.groups = sequence;
+  const res=computeDraw();
+  if(res.error){ alert(res.error); switchTab("setup"); return; }
+  let {seq,buckets,mode}=res;
+  if(mode==="sweep") seq=dealOrder(seq,buckets.length);
+  state.drawing=true; state.buckets=buckets;
   setButtons(true);
-  renderGroups(ng, []);
-  $("stage").classList.add("show");
-  $("hat").classList.add("shake");
+  $("resultsTitle").textContent = mode==="sweep"?"Sweepstake":"Groups";
+  renderBuckets(buckets);
+  $("stage").classList.add("show"); $("hat").classList.add("shake");
 
-  if(instant){
-    sequence.forEach(it=>addToGroup(it,false));
-    finishDraw();
-    return;
-  }
+  if(instant){ seq.forEach(it=>addToBucket(it,false)); finishDraw(mode); return; }
 
-  const speed = parseInt($("speed").value,10);
-  const dwell = Math.max(140, 1550 - speed); // higher slider = faster
-  for(const item of sequence){
+  const speed=parseInt($("speed").value,10);
+  const dwell=Math.max(120,1520-speed);
+  for(const item of seq){
     await sleep(dwell*0.45);
-    showBall(item);
+    showBall(item,buckets[item.bi].label);
     await sleep(dwell*0.55);
-    addToGroup(item);
+    addToBucket(item);
   }
-  finishDraw();
+  finishDraw(mode);
 }
-function showBall(item){
-  $("pulled").innerHTML =
-    `<div class="ball"><span class="flag">${item.team.flag}</span><span class="nm">${escapeHtml(item.team.name)}</span></div>`;
-  $("assignMsg").innerHTML = `…into <b>Group ${groupLabel(item.groupIndex)}</b>${item.pot?` (Pot ${item.pot})`:""}`;
-}
-function finishDraw(){
-  state.drawing=false;
-  $("hat").classList.remove("shake");
-  $("assignMsg").innerHTML = `<b>Draw complete!</b> 🎉`;
-  $("pulled").innerHTML = `<div class="ball" style="background:linear-gradient(180deg,#f4c542,#e0ad27);color:#3a2c00"><span class="flag">🏆</span><span class="nm">Done</span></div>`;
+function finishDraw(mode){
+  state.drawing=false; $("hat").classList.remove("shake");
+  $("assignMsg").innerHTML=`<b>${mode==="sweep"?"Sweepstake drawn!":"Draw complete!"}</b> 🎉`;
+  $("pulled").innerHTML=`<div class="ball" style="background:linear-gradient(180deg,#f4c542,#e0ad27);color:#3a2c00"><span class="flag">🏆</span><span class="nm">Done</span></div>`;
   setButtons(false);
 }
-function setButtons(drawing){
-  $("drawBtn").disabled = drawing;
-  $("instantBtn").disabled = drawing;
-  $("goDraw").disabled = drawing;
+function setButtons(d){ $("drawBtn").disabled=d; $("instantBtn").disabled=d; $("goDraw").disabled=d; }
+
+/* ---------------- team modal ---------------- */
+function openTeam(name){
+  const t=BY_NAME[name]; if(!t) return;
+  $("modal").innerHTML=`
+    <div class="top">
+      <div class="bigflag">${t.flag}</div>
+      <div><h3>${escapeHtml(t.name)}</h3><div class="conf">${t.conf}</div></div>
+      <button class="x" id="closeX" aria-label="Close">✕</button>
+    </div>
+    <div class="statgrid">
+      <div><div class="k">FIFA Rank</div><div class="v">#${t.rank}</div></div>
+      <div><div class="k">World Cups</div><div class="v">${t.apps}</div></div>
+      <div><div class="k">Best</div><div class="v" style="font-size:13px">${escapeHtml(t.best.split(" (")[0])}</div></div>
+    </div>
+    <div class="mbody">
+      <div class="mrow"><span class="lab">Best result</span><span class="val">${escapeHtml(t.best)}</span></div>
+      <div class="mrow"><span class="lab">Manager</span><span class="val">${escapeHtml(t.mgr)}</span></div>
+      <div class="mrow"><span class="lab">Captain</span><span class="val">${escapeHtml(t.capt)}</span></div>
+      <div class="players">
+        <div class="ph">Key players</div>
+        ${t.players.map(p=>`<div class="pl"><span class="pos ${p.pos}">${p.pos}</span><span class="pn">${escapeHtml(p.n)}</span><span class="pc">${escapeHtml(p.c)}</span></div>`).join("")}
+      </div>
+    </div>`;
+  $("overlay").classList.add("show");
+  $("closeX").addEventListener("click",closeModal);
 }
-const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function closeModal(){ $("overlay").classList.remove("show"); }
 
-/* ---------- util ---------- */
-function escapeHtml(s){ return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+/* ---------------- roster ---------------- */
+function renderRoster(){
+  const el=$("roster");
+  el.innerHTML = seededTeams().map(t=>
+    `<div class="chip" data-name="${escapeHtml(t.name)}"><span class="flag">${t.flag}</span><span>${escapeHtml(t.name)}</span><span class="info">#${t.rank}</span></div>`
+  ).join("");
+  el.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>openTeam(c.dataset.name)));
+}
 
-/* ---------- tabs ---------- */
+/* ---------------- mode + tabs ---------------- */
+function setMode(m){
+  MODE=m;
+  document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.mode===m));
+  $("potsPanel").style.display = m==="groups"?"block":"none";
+  $("peoplePanel").style.display = m==="sweep"?"block":"none";
+  $("modeHint").textContent = m==="groups"
+    ? "Draw the 48 teams into the 12 official groups (A–L)."
+    : "Deal all 48 teams out to a list of people — the classic office sweepstake.";
+}
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
-  $("tab-setup").style.display = name==="setup"?"block":"none";
-  $("tab-draw").style.display  = name==="draw"?"block":"none";
+  $("tab-setup").style.display=name==="setup"?"block":"none";
+  $("tab-draw").style.display=name==="draw"?"block":"none";
 }
 
-/* ---------- wire up ---------- */
+/* ---------------- wire up ---------------- */
 document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>switchTab(t.dataset.tab)));
-$("loadWC").addEventListener("click",()=>setTeams(WC2026));
-$("loadClassic").addEventListener("click",()=>{ setTeams(CLASSIC); $("numGroups").value=8; updateCount(); });
-$("clearTeams").addEventListener("click",()=>{ $("teams").value=""; updateCount(); });
-$("teams").addEventListener("input",updateCount);
-$("numGroups").addEventListener("input",updateCount);
-$("groupSize").addEventListener("input",updateCount);
-$("usePots").addEventListener("change",e=>{
-  $("potsWrap").style.display = e.target.checked?"block":"none";
-  $("groupSize").disabled = e.target.checked;
-  updateCount();
+document.querySelectorAll("#modeSeg button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
+$("people").addEventListener("input",()=>{
+  $("peopleCount").textContent=$("people").value.split("\n").map(s=>s.trim()).filter(Boolean).length;
 });
-$("goDraw").addEventListener("click",()=>{ switchTab("draw"); setTimeout(()=>runDraw(false),250); });
+$("goDraw").addEventListener("click",()=>{
+  if(MODE==="sweep" && $("people").value.split("\n").map(s=>s.trim()).filter(Boolean).length===0){
+    alert("Add at least one person for the sweepstake."); return;
+  }
+  switchTab("draw"); setTimeout(()=>runDraw(false),250);
+});
 $("drawBtn").addEventListener("click",()=>runDraw(false));
 $("instantBtn").addEventListener("click",()=>runDraw(true));
 $("resetBtn").addEventListener("click",()=>{
-  state.drawing=false;
-  $("stage").classList.remove("show");
-  $("hat").classList.remove("shake");
+  state.drawing=false; $("stage").classList.remove("show"); $("hat").classList.remove("shake");
   $("pulled").innerHTML=""; $("assignMsg").innerHTML="";
-  $("groups").innerHTML='<p class="empty-msg">Start the draw to fill the groups.</p>';
-  setButtons(false);
+  $("buckets").innerHTML='<p class="empty-msg">Start the draw to fill the board.</p>'; setButtons(false);
 });
+$("overlay").addEventListener("click",e=>{ if(e.target===$("overlay")) closeModal(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 
 /* init */
-setTeams(WC2026);
+renderRoster();
+setMode("groups");
 </script>
 </body>
 </html>
