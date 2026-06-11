@@ -174,7 +174,11 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <h2><span class="dot"></span>People</h2>
       <label for="people">One person per line</label>
       <textarea id="people" spellcheck="false" placeholder="Alice&#10;Ben&#10;Chloe&#10;Dev&#10;Erin&#10;Femi"></textarea>
-      <p class="hint"><span id="peopleCount">0</span> people · each person draws one team — only the <b>top-ranked</b> teams are used, one per person, then the draw ends.</p>
+      <label style="display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:600;cursor:pointer;margin-top:12px">
+        <input type="checkbox" id="sweepAll" style="width:auto">
+        Use all 48 teams (divide them evenly among everyone)
+      </label>
+      <p class="hint" id="sweepHint">Add people above.</p>
     </div>
 
     <div class="panel">
@@ -344,13 +348,19 @@ function computeGroups(){
 function computeSweep(){
   const people=$("people").value.split("\n").map(s=>s.trim()).filter(Boolean);
   if(people.length===0) return {error:"Add at least one person for the sweepstake."};
-  if(people.length>TEAMS.length) return {error:`Only ${TEAMS.length} teams available — please use ${TEAMS.length} names or fewer.`};
   const n=people.length;
-  const order=shuffle(people);                                  // random person order
-  const topTeams=[...TEAMS].sort((a,b)=>a.rank-b.rank).slice(0,n); // the N best-ranked teams
-  const draw=shuffle(topTeams);                                 // randomise who gets which
+  const order=shuffle(people);                          // random person order (always)
   const buckets=order.map(p=>({label:p,unit:"team"}));
-  const seq=draw.map((team,i)=>({team,bi:i,pot:null}));         // exactly one team per person
+  let seq;
+  if($("sweepAll").checked){
+    // all 48 teams dealt out round-robin so everyone gets a roughly equal share
+    seq=shuffle(TEAMS).map((team,i)=>({team,bi:i%n,pot:null}));
+  } else {
+    // only the N best-ranked teams, exactly one per person, then it ends
+    if(n>TEAMS.length) return {error:`Only ${TEAMS.length} teams available — please use ${TEAMS.length} names or fewer.`};
+    const topTeams=[...TEAMS].sort((a,b)=>a.rank-b.rank).slice(0,n);
+    seq=shuffle(topTeams).map((team,i)=>({team,bi:i,pot:null}));
+  }
   return {seq,buckets,mode:"sweep"};
 }
 
@@ -477,9 +487,14 @@ function switchTab(name){
 /* ---------------- wire up ---------------- */
 document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>switchTab(t.dataset.tab)));
 document.querySelectorAll("#modeSeg button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
-$("people").addEventListener("input",()=>{
-  $("peopleCount").textContent=$("people").value.split("\n").map(s=>s.trim()).filter(Boolean).length;
-});
+function updateSweepHint(){
+  const n=$("people").value.split("\n").map(s=>s.trim()).filter(Boolean).length;
+  $("sweepHint").innerHTML = $("sweepAll").checked
+    ? `<b>${n}</b> people · all 48 teams dealt out round-robin so everyone gets a roughly equal share.`
+    : `<b>${n}</b> people · each draws one of the <b>top-${n||"N"}</b> ranked teams, then the draw ends.`;
+}
+$("people").addEventListener("input",updateSweepHint);
+$("sweepAll").addEventListener("change",updateSweepHint);
 $("goDraw").addEventListener("click",()=>{
   if(MODE==="sweep" && $("people").value.split("\n").map(s=>s.trim()).filter(Boolean).length===0){
     alert("Add at least one person for the sweepstake."); return;
@@ -499,6 +514,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 /* init */
 renderRoster();
 setMode("groups");
+updateSweepHint();
 </script>
 </body>
 </html>
