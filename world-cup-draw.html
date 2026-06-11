@@ -64,6 +64,13 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .speedrow{display:flex;align-items:center;gap:10px}
 .speedrow input[type=range]{flex:1}
 
+/* flag images (render reliably on every platform; emoji is a fallback) */
+.flag-img{display:inline-block;border-radius:3px;object-fit:cover;vertical-align:middle;
+  box-shadow:0 0 0 1px rgba(0,0,0,.2);background:var(--panel2)}
+.flag-img.sm{width:24px;height:17px}
+.flag-img.md{width:34px;height:24px}
+.flag-img.xl{width:58px;height:42px;border-radius:5px}
+
 /* stage */
 .stage{display:none;text-align:center;padding:18px 0 6px}
 .stage.show{display:block}
@@ -167,7 +174,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <h2><span class="dot"></span>People</h2>
       <label for="people">One person per line</label>
       <textarea id="people" spellcheck="false" placeholder="Alice&#10;Ben&#10;Chloe&#10;Dev&#10;Erin&#10;Femi"></textarea>
-      <p class="hint"><span id="peopleCount">0</span> people · all 48 teams are dealt out round-robin so everyone gets a roughly equal number.</p>
+      <p class="hint"><span id="peopleCount">0</span> people · each person draws one team — only the <b>top-ranked</b> teams are used, one per person, then the draw ends.</p>
     </div>
 
     <div class="panel">
@@ -280,6 +287,21 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
 function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function groupLabel(i){ return String.fromCharCode(65+i); }
+// derive an ISO flag code from the emoji so we can show a real flag image
+function flagISO(t){
+  const cps=[...t.flag].map(c=>c.codePointAt(0));
+  const ri=cps.filter(c=>c>=0x1F1E6&&c<=0x1F1FF).map(c=>String.fromCharCode(c-0x1F1E6+97));
+  if(ri.length===2) return ri.join("");
+  if(t.name==="England") return "gb-eng";
+  if(t.name==="Scotland") return "gb-sct";
+  return null;
+}
+function flagImg(t,cls){
+  const iso=flagISO(t);
+  if(!iso) return `<span class="flag">${t.flag}</span>`;
+  return `<img class="flag-img ${cls}" src="https://flagcdn.com/${iso}.svg" alt="${escapeHtml(t.name)}" data-emoji="${t.flag}" onerror="flagFail(this)">`;
+}
+window.flagFail=function(img){ const s=document.createElement("span"); s.className="flag"; s.textContent=img.dataset.emoji||"⚽"; img.replaceWith(s); };
 // FIFA-seeded order: 3 hosts first, then by ranking — drives the pots
 function seededTeams(){
   const hosts=["Canada","Mexico","United States"];
@@ -322,22 +344,18 @@ function computeGroups(){
 function computeSweep(){
   const people=$("people").value.split("\n").map(s=>s.trim()).filter(Boolean);
   if(people.length===0) return {error:"Add at least one person for the sweepstake."};
-  const order=shuffle(people);            // randomise who gets the extra teams
-  const teams=shuffle(TEAMS);
-  const buckets=order.map(p=>({label:p, unit:"team"}));
-  const seq=teams.map((team,i)=>({team,bi:i%order.length,pot:null}));
-  // deal in person-order rounds so the animation feels like dealing a hand
-  seq.sort((a,b)=>{
-    const ra=Math.floor(seqIndex(a,order.length)), rb=Math.floor(seqIndex(b,order.length));
-    return ra-rb || a.bi-b.bi;
-  });
+  if(people.length>TEAMS.length) return {error:`Only ${TEAMS.length} teams available — please use ${TEAMS.length} names or fewer.`};
+  const n=people.length;
+  const order=shuffle(people);                                  // random person order
+  const topTeams=[...TEAMS].sort((a,b)=>a.rank-b.rank).slice(0,n); // the N best-ranked teams
+  const draw=shuffle(topTeams);                                 // randomise who gets which
+  const buckets=order.map(p=>({label:p,unit:"team"}));
+  const seq=draw.map((team,i)=>({team,bi:i,pot:null}));         // exactly one team per person
   return {seq,buckets,mode:"sweep"};
 }
-function seqIndex(item,n){ return item._r!==undefined?item._r:0; }
 
-/* assign round order for sweep dealing */
+/* assign round order for sweep dealing (one team per person, in person order) */
 function dealOrder(seq,n){
-  // group by bucket, then interleave round by round
   const byBucket={}; seq.forEach(s=>{(byBucket[s.bi]=byBucket[s.bi]||[]).push(s);});
   const out=[]; let more=true,r=0;
   while(more){ more=false;
@@ -359,14 +377,14 @@ function renderBuckets(buckets){
 function addToBucket(item,animate=true){
   const ul=$("b-"+item.bi); if(!ul) return;
   const li=document.createElement("li"); li.className="slot"; if(!animate) li.style.animation="none";
-  li.innerHTML=`<span class="flag">${item.team.flag}</span><span>${escapeHtml(item.team.name)}</span>`+
+  li.innerHTML=`${flagImg(item.team,"sm")}<span>${escapeHtml(item.team.name)}</span>`+
     (item.pot?`<span class="pot">Pot ${item.pot}</span>`:`<span class="chev">›</span>`);
   li.addEventListener("click",()=>openTeam(item.team.name));
   ul.appendChild(li);
   const ct=$("ct-"+item.bi); if(ct) ct.textContent=ul.children.length+" "+(ul.children.length===1?"team":"teams");
 }
 function showBall(item,bucketLabel){
-  $("pulled").innerHTML=`<div class="ball"><span class="flag">${item.team.flag}</span><span class="nm">${escapeHtml(item.team.name)}</span></div>`;
+  $("pulled").innerHTML=`<div class="ball">${flagImg(item.team,"md")}<span class="nm">${escapeHtml(item.team.name)}</span></div>`;
   $("assignMsg").innerHTML=`…to <b>${escapeHtml(bucketLabel)}</b>`+(item.pot?` <span style="color:var(--faint)">(Pot ${item.pot})</span>`:"");
 }
 
@@ -408,7 +426,7 @@ function openTeam(name){
   const t=BY_NAME[name]; if(!t) return;
   $("modal").innerHTML=`
     <div class="top">
-      <div class="bigflag">${t.flag}</div>
+      <div class="bigflag">${flagImg(t,"xl")}</div>
       <div><h3>${escapeHtml(t.name)}</h3><div class="conf">${t.conf}</div></div>
       <button class="x" id="closeX" aria-label="Close">✕</button>
     </div>
@@ -435,7 +453,7 @@ function closeModal(){ $("overlay").classList.remove("show"); }
 function renderRoster(){
   const el=$("roster");
   el.innerHTML = seededTeams().map(t=>
-    `<div class="chip" data-name="${escapeHtml(t.name)}"><span class="flag">${t.flag}</span><span>${escapeHtml(t.name)}</span><span class="info">#${t.rank}</span></div>`
+    `<div class="chip" data-name="${escapeHtml(t.name)}">${flagImg(t,"sm")}<span>${escapeHtml(t.name)}</span><span class="info">#${t.rank}</span></div>`
   ).join("");
   el.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>openTeam(c.dataset.name)));
 }
@@ -448,7 +466,7 @@ function setMode(m){
   $("peoplePanel").style.display = m==="sweep"?"block":"none";
   $("modeHint").textContent = m==="groups"
     ? "Draw the 48 teams into the 12 official groups (A–L)."
-    : "Deal all 48 teams out to a list of people — the classic office sweepstake.";
+    : "Each person draws one of the top-ranked teams — N people get the top N teams, then it ends.";
 }
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
