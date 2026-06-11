@@ -698,7 +698,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <label>Draw speed</label>
       <div class="speedrow">
         <span style="font-size:12px;color:var(--faint)">Slow</span>
-        <input type="range" id="speed" min="0" max="100" step="1" value="55">
+        <input type="range" id="speed" min="0" max="100" step="1" value="30">
         <span style="font-size:12px;color:var(--faint)">Fast</span>
       </div>
       <div class="btnrow" style="margin-top:18px">
@@ -1011,7 +1011,7 @@ async function runDraw(instant){
 
   const v=parseInt($("speed").value,10);          // 0 = slow … 100 = fast
   const t=Math.min(1,Math.max(0,v/100));
-  const MIN_D=140, MAX_D=1700;                     // ms per team: fast … slow
+  const MIN_D=220, MAX_D=3400;                     // ms per team: fast … slow
   const dwell=Math.round(MIN_D*Math.pow(MAX_D/MIN_D,1-t));
   for(const item of seq){
     await sleep(dwell*0.45);
