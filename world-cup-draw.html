@@ -543,6 +543,15 @@ button:disabled{opacity:.5;cursor:not-allowed}
   border-bottom:2px solid rgba(244,197,66,.3);
 }
 .bucket h3 .ct{color:rgba(244,197,66,.7);font-weight:600;font-size:11px}
+.bucket h3 .bk-name{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bucket h3 .bk-stats{display:flex;align-items:center;gap:9px;flex:none}
+.bucket h3 .medal{font-size:14px;line-height:1}
+.bucket h3 .medal:empty{display:none}
+.ranksum{font-size:11px;font-weight:800;color:#ffe066;background:rgba(244,197,66,.14);
+  border:1px solid rgba(244,197,66,.3);padding:2px 7px;border-radius:999px;white-space:nowrap}
+.ranksum:empty{display:none}
+.bucket.best{box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 10px 28px rgba(0,0,0,.3),0 0 0 1px rgba(244,197,66,.55)}
+.bucket.best h3{background:linear-gradient(90deg,rgba(244,197,66,.32),rgba(11,61,46,.4))}
 .bucket ul{list-style:none}
 .slot{
   display:flex;align-items:center;gap:11px;padding:11px 14px;
@@ -552,9 +561,10 @@ button:disabled{opacity:.5;cursor:not-allowed}
 }
 .slot:hover{background:rgba(15,88,63,.5)}
 .slot .flag{font-size:21px}
-.slot .pot{margin-left:auto;font-size:10px;color:var(--faint);font-weight:700}
-.slot .chev{margin-left:auto;color:var(--faint);font-size:12px}
-.slot .pot + .chev{margin-left:8px}
+.slot .tn{margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot .pot{font-size:10px;color:var(--faint);font-weight:700;flex:none}
+.slot .rk{font-size:10px;font-weight:800;color:var(--faint);background:rgba(255,255,255,.07);
+  padding:2px 6px;border-radius:6px;flex:none}
 @keyframes fadein{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
 .empty-msg{text-align:center;color:var(--faint);padding:30px;font-style:italic}
 
@@ -815,6 +825,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
     </div>
     <div class="panel">
       <h2><span class="dot"></span><span id="resultsTitle">Groups</span></h2>
+      <p class="hint" style="margin:-2px 0 14px">Each group shows its combined FIFA ranking (<b>Σ</b>) — the lower the total, the stronger the group. 🥇 marks the toughest.</p>
       <div id="buckets"><p class="empty-msg">Start the draw to fill the board.</p></div>
     </div>
   </section>
@@ -979,20 +990,41 @@ function dealOrder(seq,n){
 /* ---------------- rendering ---------------- */
 function renderBuckets(buckets){
   const el=$("buckets"); el.innerHTML="";
+  state.totals=buckets.map(()=>0);
   buckets.forEach((b,i)=>{
     const box=document.createElement("div"); box.className="bucket";
-    box.innerHTML=`<h3>${escapeHtml(b.label)} <span class="ct" id="ct-${i}"></span></h3><ul id="b-${i}"></ul>`;
+    box.innerHTML=`<h3><span class="bk-name"><span class="medal" id="md-${i}"></span>${escapeHtml(b.label)}</span>`+
+      `<span class="bk-stats"><span class="ranksum" id="rs-${i}" title="Combined FIFA ranking of this group — lower is stronger"></span><span class="ct" id="ct-${i}"></span></span></h3>`+
+      `<ul id="b-${i}"></ul>`;
     el.appendChild(box);
+  });
+}
+// running FIFA-ranking total per bucket: lower combined rank = stronger group
+function updateRankStats(){
+  const tots=state.totals||[];
+  const ranked=tots.map((t,i)=>({i,t,n:($("b-"+i)?$("b-"+i).children.length:0)}))
+                   .filter(o=>o.n>0)
+                   .sort((a,b)=>a.t-b.t || a.i-b.i);
+  const place={}; ranked.forEach((o,k)=>{ place[o.i]=k; });
+  tots.forEach((t,i)=>{
+    const ul=$("b-"+i); const n=ul?ul.children.length:0;
+    const rs=$("rs-"+i), md=$("md-"+i), box=ul?ul.closest(".bucket"):null;
+    if(rs) rs.textContent = n ? "Σ "+t : "";
+    if(md){ const p=place[i]; md.textContent = p===0?"🥇":p===1?"🥈":p===2?"🥉":""; }
+    if(box) box.classList.toggle("best", n>0 && place[i]===0);
   });
 }
 function addToBucket(item,animate=true){
   const ul=$("b-"+item.bi); if(!ul) return;
   const li=document.createElement("li"); li.className="slot"; if(!animate) li.style.animation="none";
-  li.innerHTML=`${flagImg(item.team,"sm")}<span>${escapeHtml(item.team.name)}</span>`+
-    (item.pot?`<span class="pot">Pot ${item.pot}</span>`:`<span class="chev">›</span>`);
+  li.innerHTML=`${flagImg(item.team,"sm")}<span class="tn">${escapeHtml(item.team.name)}</span>`+
+    (item.pot?`<span class="pot">Pot ${item.pot}</span>`:``)+
+    `<span class="rk" title="FIFA world ranking">#${item.team.rank}</span>`;
   li.addEventListener("click",()=>openTeam(item.team.name));
   ul.appendChild(li);
   const ct=$("ct-"+item.bi); if(ct) ct.textContent=ul.children.length+" "+(ul.children.length===1?"team":"teams");
+  state.totals[item.bi]=(state.totals[item.bi]||0)+(item.team.rank||0);
+  updateRankStats();
 }
 function showBall(item,bucketLabel){
   $("pulled").innerHTML=`<div class="ball-wrap"><div class="ball"><div class="ball-spec"></div><div class="glint"></div><div class="ball-inner"><div class="roundel">${flagImg(item.team,"md")}</div><span class="nm">${escapeHtml(item.team.name)}</span></div></div></div>`;
