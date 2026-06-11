@@ -151,6 +151,8 @@ header{text-align:center;padding:44px 0 24px}
 .trophy{line-height:1;filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));position:relative;z-index:1;display:block}
 .wc-trophy{display:block;height:64px;width:auto;margin:0 auto;filter:drop-shadow(0 4px 14px rgba(244,197,66,.5))}
 .wc-trophy-sm{height:34px;width:auto;display:block;margin:0 auto}
+.wc-trophy-img{display:block;height:78px;width:auto;max-width:96px;margin:0 auto;object-fit:contain;filter:drop-shadow(0 5px 16px rgba(244,197,66,.55))}
+.wc-trophy-img.sm{height:42px;max-width:48px;filter:none}
 .eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--faint);text-transform:uppercase;margin-top:14px;margin-bottom:4px}
 h1{font-weight:800;font-size:clamp(28px,5vw,46px);letter-spacing:-.03em;margin-top:0}
 h1 .year{
@@ -254,6 +256,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
   .wrap{padding:0 12px}
   header{padding:22px 0 14px}
   .wc-trophy{height:48px}
+  .wc-trophy-img{height:58px}
   h1{font-size:clamp(22px,5vw,32px)}
   button{padding:10px 16px;font-size:13px}
   .btn-primary{padding:10px 16px}
@@ -646,7 +649,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <canvas id="confetti"></canvas>
 <div class="wrap">
   <header>
-    <div class="trophy-wrap"><div class="trophy"><svg class="wc-trophy" viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><use href="#wcTrophy"/></svg></div></div>
+    <div class="trophy-wrap"><div class="trophy"><img class="wc-trophy-img" src="https://commons.wikimedia.org/wiki/Special:FilePath/World_Cup_Trophy.png?width=240" alt="World Cup Trophy" data-fallback-cls="wc-trophy" onerror="trophyFail(this)"></div></div>
     <p class="eyebrow">Official Draw &middot; 48 Teams</p>
     <h1>World Cup <span class="year">2026</span> Draw</h1>
     <p class="sub">Pull the 48 qualified teams out of the hat — into their groups, or as an office sweepstake. Tap any team for squad &amp; stats.</p>
@@ -698,7 +701,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <label>Draw speed</label>
       <div class="speedrow">
         <span style="font-size:12px;color:var(--faint)">Slow</span>
-        <input type="range" id="speed" min="0" max="100" step="1" value="30">
+        <input type="range" id="speed" min="0" max="100" step="1" value="40">
         <span style="font-size:12px;color:var(--faint)">Fast</span>
       </div>
       <div class="btnrow" style="margin-top:18px">
@@ -817,7 +820,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
   </section>
 
   <div class="footer-divider"></div>
-  <p class="footer">⚽ 2026 FIFA World Cup · 48 teams across Canada, Mexico &amp; the USA.<br>Runs entirely in your browser. Squad data is indicative (June 2026).</p>
+  <p class="footer">⚽ 2026 FIFA World Cup · 48 teams across Canada, Mexico &amp; the USA.<br>Runs entirely in your browser. Squad data is indicative (June 2026).<br><span style="opacity:.7">Trophy image: <a href="https://commons.wikimedia.org/wiki/File:World_Cup_Trophy.png" style="color:var(--faint)">Wikimedia Commons</a>, CC BY-SA 4.0</span></p>
 </div>
 
 <!-- team modal -->
@@ -902,6 +905,8 @@ function flagImg(t,cls){
   return `<img class="flag-img ${cls}" src="https://flagcdn.com/${iso}.svg" alt="${escapeHtml(t.name)}" data-emoji="${t.flag}" onerror="flagFail(this)">`;
 }
 window.flagFail=function(img){ const s=document.createElement("span"); s.className="flag"; s.textContent=img.dataset.emoji||"⚽"; img.replaceWith(s); };
+// if the hotlinked trophy image fails to load, fall back to the inline SVG trophy
+window.trophyFail=function(img){ const cls=img.dataset.fallbackCls||"wc-trophy"; img.outerHTML='<svg class="'+cls+'" viewBox="0 0 100 140" aria-hidden="true"><use href="#wcTrophy"/></svg>'; };
 // FIFA-seeded order: 3 hosts first, then by ranking — drives the pots
 function seededTeams(){
   const hosts=["Canada","Mexico","United States"];
@@ -1011,7 +1016,7 @@ async function runDraw(instant){
 
   const v=parseInt($("speed").value,10);          // 0 = slow … 100 = fast
   const t=Math.min(1,Math.max(0,v/100));
-  const MIN_D=220, MAX_D=3400;                     // ms per team: fast … slow
+  const MIN_D=1000, MAX_D=10000;                   // ms per team: fast (1s) … slow (10s)
   const dwell=Math.round(MIN_D*Math.pow(MAX_D/MIN_D,1-t));
   for(const item of seq){
     await sleep(dwell*0.45);
@@ -1024,7 +1029,7 @@ async function runDraw(instant){
 function finishDraw(mode){
   state.drawing=false; $("hat").classList.remove("shake");
   $("assignMsg").innerHTML=`<b>${mode==="sweep"?"Sweepstake drawn!":"Draw complete!"}</b> 🎉`;
-  $("pulled").innerHTML=`<div class="ball-wrap"><div class="ball ball-done"><div class="ball-spec"></div><div class="ball-inner"><div class="roundel"><svg class="wc-trophy wc-trophy-sm" viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><use href="#wcTrophy"/></svg></div><span class="nm">Done</span></div></div></div>`;
+  $("pulled").innerHTML=`<div class="ball-wrap"><div class="ball ball-done"><div class="ball-spec"></div><div class="ball-inner"><div class="roundel"><img class="wc-trophy-img sm" src="https://commons.wikimedia.org/wiki/Special:FilePath/World_Cup_Trophy.png?width=120" alt="World Cup Trophy" data-fallback-cls="wc-trophy wc-trophy-sm" onerror="trophyFail(this)"></div><span class="nm">Done</span></div></div></div>`;
   setButtons(false);
   launchConfetti();
 }
