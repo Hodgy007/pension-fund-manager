@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Cup Draw</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b3d2e'/%3E%3Ctext x='50' y='72' font-size='58' text-anchor='middle'%3E%E2%9A%BD%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0a2a1f; --bg2:#0b3d2e; --panel:#0f4a37; --panel2:#10583f; --line:#1c6b4f;
+  --ink:#f1f7f3; --mute:#a7c9b8; --faint:#7fae98;
+  --gold:#f4c542; --accent:#37d18f; --grass:#1e7a4f; --chalk:#eef6f0;
+  --font:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:
+    radial-gradient(circle at 50% -10%,rgba(55,209,143,.12),transparent 45%),
+    var(--bg);
+  color:var(--ink);font-family:var(--font);line-height:1.55;min-height:100vh;padding:0 0 70px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px;position:relative}
+header{text-align:center;padding:42px 0 26px}
+.trophy{font-size:54px;line-height:1;filter:drop-shadow(0 6px 14px rgba(0,0,0,.4))}
+h1{font-weight:800;font-size:clamp(30px,5vw,46px);letter-spacing:-.02em;margin-top:8px}
+h1 span{color:var(--gold)}
+.sub{color:var(--mute);margin-top:10px;font-size:15px;max-width:620px;margin-left:auto;margin-right:auto}
+
+.panel{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);
+  border-radius:16px;padding:22px;margin-bottom:22px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.panel h2{font-size:17px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:9px}
+.panel h2 .dot{width:9px;height:9px;border-radius:50%;background:var(--gold)}
+
+label{display:block;font-size:12.5px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+textarea,input,select{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);
+  border-radius:10px;padding:11px 13px;font-family:var(--font);font-size:14px;outline:none;transition:.15s}
+textarea:focus,input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(55,209,143,.15)}
+textarea{resize:vertical;min-height:120px;line-height:1.7}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin-bottom:18px}
+.hint{font-size:12px;color:var(--faint);margin-top:6px}
+
+.btnrow{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px}
+button{cursor:pointer;border:none;border-radius:10px;font-family:var(--font);font-weight:700;
+  font-size:14px;padding:12px 22px;transition:.15s;display:inline-flex;align-items:center;gap:8px}
+.btn-primary{background:linear-gradient(180deg,var(--gold),#e0ad27);color:#3a2c00;box-shadow:0 6px 16px rgba(244,197,66,.25)}
+.btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 9px 22px rgba(244,197,66,.35)}
+.btn-ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+.btn-ghost:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:not-allowed}
+
+/* Hat / draw stage */
+.stage{display:none;text-align:center;padding:18px 0 6px}
+.stage.show{display:block}
+.hat{font-size:84px;line-height:1;display:inline-block;filter:drop-shadow(0 8px 18px rgba(0,0,0,.45))}
+.hat.shake{animation:shake .5s ease-in-out infinite}
+@keyframes shake{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
+.pulled{margin-top:14px;min-height:64px;display:flex;align-items:center;justify-content:center}
+.ball{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,#fff,#dfe7e1);color:#0a2a1f;border-radius:50%;
+  width:108px;height:108px;font-weight:800;box-shadow:0 10px 24px rgba(0,0,0,.4);
+  animation:pop .45s cubic-bezier(.2,1.4,.5,1);padding:6px;text-align:center}
+.ball .flag{font-size:30px;line-height:1}
+.ball .nm{font-size:13px;margin-top:3px;line-height:1.15}
+@keyframes pop{0%{transform:scale(.2) translateY(30px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
+.assign{margin-top:12px;font-size:15px;color:var(--mute)}
+.assign b{color:var(--gold)}
+
+/* Groups */
+#groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.group{background:var(--bg2);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.group h3{background:linear-gradient(90deg,var(--grass),var(--bg2));font-size:14px;font-weight:800;
+  padding:10px 14px;letter-spacing:.06em;text-transform:uppercase;display:flex;justify-content:space-between}
+.group h3 .ct{color:var(--faint);font-weight:600}
+.group ul{list-style:none}
+.slot{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid rgba(255,255,255,.05);
+  font-size:14.5px;font-weight:600;animation:fadein .4s}
+.slot .flag{font-size:22px}
+.slot .pot{margin-left:auto;font-size:11px;color:var(--faint);font-weight:600}
+.slot.empty{color:var(--faint);font-style:italic;font-weight:400;justify-content:center}
+@keyframes fadein{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+
+.tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:8px 16px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);
+  font-size:13px;font-weight:700;cursor:pointer;color:var(--mute)}
+.tab.active{background:var(--gold);color:#3a2c00;border-color:var(--gold)}
+
+.pots{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:6px}
+.pot-box label{display:flex;justify-content:space-between}
+.pot-box .pc{color:var(--gold)}
+.toggle{display:flex;align-items:center;gap:10px;margin-top:4px}
+.toggle input{width:auto}
+.footer{text-align:center;color:var(--faint);font-size:12.5px;margin-top:30px}
+.speedrow{display:flex;align-items:center;gap:10px}
+.speedrow input[type=range]{flex:1}
+.empty-msg{text-align:center;color:var(--faint);padding:30px;font-style:italic}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="trophy">🏆</div>
+    <h1>World Cup <span>Draw</span></h1>
+    <p class="sub">Pull the teams out of the hat and watch them fall into their groups — fully editable, with optional seeding pots.</p>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="setup">⚙️ Setup</div>
+    <div class="tab" data-tab="draw">🎩 Draw</div>
+  </div>
+
+  <!-- SETUP -->
+  <section id="tab-setup">
+    <div class="panel">
+      <h2><span class="dot"></span>Teams</h2>
+      <label for="teams">One team per line (optionally add a flag emoji after a comma)</label>
+      <textarea id="teams" spellcheck="false"></textarea>
+      <p class="hint"><span id="teamCount">0</span> teams entered. Format: <code>Brazil, 🇧🇷</code> — the flag is optional.</p>
+      <div class="btnrow">
+        <button class="btn-ghost" id="loadWC">Load 2026 World Cup (48)</button>
+        <button class="btn-ghost" id="loadClassic">Load Classic (32)</button>
+        <button class="btn-ghost" id="clearTeams">Clear</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="dot"></span>Draw Settings</h2>
+      <div class="controls">
+        <div>
+          <label for="numGroups">Number of groups</label>
+          <input type="number" id="numGroups" min="1" max="26" value="12">
+        </div>
+        <div>
+          <label for="groupSize">Teams per group (target)</label>
+          <input type="number" id="groupSize" min="1" max="12" value="4">
+          <p class="hint">Used to balance the draw &amp; build pots.</p>
+        </div>
+      </div>
+      <div class="toggle">
+        <input type="checkbox" id="usePots">
+        <label for="usePots" style="margin:0;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink)">Use seeding pots (one team per pot in each group)</label>
+      </div>
+      <div id="potsWrap" style="display:none;margin-top:14px">
+        <p class="hint" style="margin-bottom:8px">Teams are split into pots in the order entered: top seeds first. With pots on, each group gets exactly one team from each pot.</p>
+        <div class="pots" id="potsPreview"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="dot"></span>Animation</h2>
+      <label>Draw speed</label>
+      <div class="speedrow">
+        <span style="font-size:12px;color:var(--faint)">Slow</span>
+        <input type="range" id="speed" min="150" max="1400" step="50" value="650">
+        <span style="font-size:12px;color:var(--faint)">Fast</span>
+      </div>
+      <div class="btnrow" style="margin-top:18px">
+        <button class="btn-primary" id="goDraw">🎩 Start the Draw</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DRAW -->
+  <section id="tab-draw" style="display:none">
+    <div class="panel">
+      <div class="stage" id="stage">
+        <div class="hat" id="hat">🎩</div>
+        <div class="pulled" id="pulled"></div>
+        <div class="assign" id="assignMsg"></div>
+      </div>
+      <div class="btnrow" style="justify-content:center">
+        <button class="btn-primary" id="drawBtn">🎩 Start the Draw</button>
+        <button class="btn-ghost" id="instantBtn">⚡ Instant Draw</button>
+        <button class="btn-ghost" id="resetBtn">↺ Reset</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="dot"></span>Groups</h2>
+      <div id="groups"><p class="empty-msg">Start the draw to fill the groups.</p></div>
+    </div>
+  </section>
+
+  <p class="footer">⚽ World Cup Draw — runs entirely in your browser. Refresh to start over.</p>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+const WC2026 = [
+  ["Canada","🇨🇦"],["Mexico","🇲🇽"],["United States","🇺🇸"],["Argentina","🇦🇷"],["Brazil","🇧🇷"],
+  ["France","🇫🇷"],["England","🏴󠁧󠁢󠁥󠁮󠁧󠁿"],["Spain","🇪🇸"],["Portugal","🇵🇹"],["Netherlands","🇳🇱"],
+  ["Belgium","🇧🇪"],["Germany","🇩🇪"],["Italy","🇮🇹"],["Croatia","🇭🇷"],["Uruguay","🇺🇾"],
+  ["Colombia","🇨🇴"],["Japan","🇯🇵"],["South Korea","🇰🇷"],["Morocco","🇲🇦"],["Senegal","🇸🇳"],
+  ["Switzerland","🇨🇭"],["Denmark","🇩🇰"],["Australia","🇦🇺"],["Iran","🇮🇷"],["Serbia","🇷🇸"],
+  ["Poland","🇵🇱"],["Ecuador","🇪🇨"],["Austria","🇦🇹"],["Ukraine","🇺🇦"],["Sweden","🇸🇪"],
+  ["Nigeria","🇳🇬"],["Ghana","🇬🇭"],["Egypt","🇪🇬"],["Ivory Coast","🇨🇮"],["Cameroon","🇨🇲"],
+  ["Tunisia","🇹🇳"],["Algeria","🇩🇿"],["Saudi Arabia","🇸🇦"],["Qatar","🇶🇦"],["Costa Rica","🇨🇷"],
+  ["Peru","🇵🇪"],["Chile","🇨🇱"],["Wales","🏴󠁧󠁢󠁷󠁬󠁳󠁿"],["Scotland","🏴󠁧󠁢󠁳󠁣󠁴󠁿"],["Turkey","🇹🇷"],
+  ["Norway","🇳🇴"],["New Zealand","🇳🇿"],["Greece","🇬🇷"]
+];
+const CLASSIC = WC2026.slice(0,32);
+
+const groupLabel = i => {
+  let s = "";
+  do { s = String.fromCharCode(65 + (i % 26)) + s; i = Math.floor(i / 26) - 1; } while (i >= 0);
+  return s;
+};
+
+let state = { groups: [], drawing:false };
+
+/* ---------- parsing ---------- */
+function parseTeams(){
+  return $("teams").value.split("\n").map(l=>l.trim()).filter(Boolean).map(line=>{
+    const ci = line.indexOf(",");
+    if(ci>=0){
+      const name = line.slice(0,ci).trim();
+      const flag = line.slice(ci+1).trim();
+      return {name, flag};
+    }
+    return {name:line, flag:"⚽"};
+  });
+}
+function setTeams(list){
+  $("teams").value = list.map(([n,f])=>`${n}, ${f}`).join("\n");
+  updateCount();
+}
+function updateCount(){
+  const t = parseTeams();
+  $("teamCount").textContent = t.length;
+  if($("usePots").checked) renderPotsPreview(t);
+}
+
+/* ---------- pots ---------- */
+function buildPots(teams, numGroups){
+  // split into `target` pots of `numGroups` teams, in entry order
+  const pots = [];
+  for(let i=0;i<teams.length;i+=numGroups) pots.push(teams.slice(i,i+numGroups));
+  return pots;
+}
+function renderPotsPreview(teams){
+  const ng = clampInt($("numGroups").value,1,26,12);
+  const pots = buildPots(teams, ng);
+  $("potsPreview").innerHTML = pots.map((p,i)=>`
+    <div class="pot-box">
+      <label>Pot ${i+1} <span class="pc">${p.length}</span></label>
+      <div style="font-size:13px;color:var(--mute);line-height:1.8">
+        ${p.map(t=>`${t.flag} ${escapeHtml(t.name)}`).join("<br>")||"<i>empty</i>"}
+      </div>
+    </div>`).join("");
+}
+
+/* ---------- draw logic ---------- */
+function clampInt(v,min,max,def){ v=parseInt(v,10); if(isNaN(v))return def; return Math.max(min,Math.min(max,v)); }
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+// Returns an ordered list of {team, groupIndex, pot} representing the draw sequence
+function computeDraw(){
+  const teams = parseTeams();
+  const ng = clampInt($("numGroups").value,1,26,12);
+  const usePots = $("usePots").checked;
+  const groups = Array.from({length:ng},()=>[]);
+  const sequence = [];
+
+  if(usePots){
+    const pots = buildPots(teams, ng);
+    pots.forEach((pot,pi)=>{
+      const order = shuffle(pot);
+      // assign each team in this pot to a distinct group that has room
+      let avail = groups.map((g,i)=>i).filter(i=>groups[i].length===pi);
+      avail = shuffle(avail);
+      order.forEach((team,k)=>{
+        const gi = avail[k % avail.length];
+        groups[gi].push(team);
+        sequence.push({team, groupIndex:gi, pot:pi+1});
+      });
+    });
+  } else {
+    const order = shuffle(teams);
+    const size = clampInt($("groupSize").value,1,12,4);
+    order.forEach((team)=>{
+      // pick the group with the fewest teams (under target), break ties randomly
+      let candidates = groups.map((g,i)=>i).filter(i=>groups[i].length < size);
+      if(candidates.length===0) candidates = groups.map((g,i)=>i);
+      const min = Math.min(...candidates.map(i=>groups[i].length));
+      candidates = shuffle(candidates.filter(i=>groups[i].length===min));
+      const gi = candidates[0];
+      groups[gi].push(team);
+      sequence.push({team, groupIndex:gi, pot:null});
+    });
+  }
+  return {sequence, ng};
+}
+
+/* ---------- rendering groups ---------- */
+function renderGroups(ng, filled){
+  const el = $("groups");
+  if(ng===0){ el.innerHTML='<p class="empty-msg">No teams to draw.</p>'; return; }
+  el.style.display="grid";
+  el.innerHTML = "";
+  for(let i=0;i<ng;i++){
+    const box=document.createElement("div");
+    box.className="group";
+    box.innerHTML=`<h3>Group ${groupLabel(i)} <span class="ct" id="ct-${i}"></span></h3><ul id="g-${i}"></ul>`;
+    el.appendChild(box);
+  }
+  filled.forEach(item=>addToGroup(item, false));
+}
+function addToGroup(item, animate=true){
+  const ul = $("g-"+item.groupIndex);
+  if(!ul) return;
+  const li=document.createElement("li");
+  li.className="slot";
+  if(!animate) li.style.animation="none";
+  li.innerHTML=`<span class="flag">${item.team.flag}</span><span>${escapeHtml(item.team.name)}</span>${item.pot?`<span class="pot">Pot ${item.pot}</span>`:""}`;
+  ul.appendChild(li);
+  const ct=$("ct-"+item.groupIndex);
+  if(ct) ct.textContent = ul.children.length + (ul.children.length===1?" team":" teams");
+}
+
+/* ---------- animation runner ---------- */
+async function runDraw(instant){
+  if(state.drawing) return;
+  const {sequence, ng} = computeDraw();
+  if(sequence.length===0){ alert("Add some teams first!"); return; }
+  state.drawing = true;
+  state.groups = sequence;
+  setButtons(true);
+  renderGroups(ng, []);
+  $("stage").classList.add("show");
+  $("hat").classList.add("shake");
+
+  if(instant){
+    sequence.forEach(it=>addToGroup(it,false));
+    finishDraw();
+    return;
+  }
+
+  const speed = parseInt($("speed").value,10);
+  const dwell = Math.max(140, 1550 - speed); // higher slider = faster
+  for(const item of sequence){
+    await sleep(dwell*0.45);
+    showBall(item);
+    await sleep(dwell*0.55);
+    addToGroup(item);
+  }
+  finishDraw();
+}
+function showBall(item){
+  $("pulled").innerHTML =
+    `<div class="ball"><span class="flag">${item.team.flag}</span><span class="nm">${escapeHtml(item.team.name)}</span></div>`;
+  $("assignMsg").innerHTML = `…into <b>Group ${groupLabel(item.groupIndex)}</b>${item.pot?` (Pot ${item.pot})`:""}`;
+}
+function finishDraw(){
+  state.drawing=false;
+  $("hat").classList.remove("shake");
+  $("assignMsg").innerHTML = `<b>Draw complete!</b> 🎉`;
+  $("pulled").innerHTML = `<div class="ball" style="background:linear-gradient(180deg,#f4c542,#e0ad27);color:#3a2c00"><span class="flag">🏆</span><span class="nm">Done</span></div>`;
+  setButtons(false);
+}
+function setButtons(drawing){
+  $("drawBtn").disabled = drawing;
+  $("instantBtn").disabled = drawing;
+  $("goDraw").disabled = drawing;
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ---------- util ---------- */
+function escapeHtml(s){ return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ---------- tabs ---------- */
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
+  $("tab-setup").style.display = name==="setup"?"block":"none";
+  $("tab-draw").style.display  = name==="draw"?"block":"none";
+}
+
+/* ---------- wire up ---------- */
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>switchTab(t.dataset.tab)));
+$("loadWC").addEventListener("click",()=>setTeams(WC2026));
+$("loadClassic").addEventListener("click",()=>{ setTeams(CLASSIC); $("numGroups").value=8; updateCount(); });
+$("clearTeams").addEventListener("click",()=>{ $("teams").value=""; updateCount(); });
+$("teams").addEventListener("input",updateCount);
+$("numGroups").addEventListener("input",updateCount);
+$("groupSize").addEventListener("input",updateCount);
+$("usePots").addEventListener("change",e=>{
+  $("potsWrap").style.display = e.target.checked?"block":"none";
+  $("groupSize").disabled = e.target.checked;
+  updateCount();
+});
+$("goDraw").addEventListener("click",()=>{ switchTab("draw"); setTimeout(()=>runDraw(false),250); });
+$("drawBtn").addEventListener("click",()=>runDraw(false));
+$("instantBtn").addEventListener("click",()=>runDraw(true));
+$("resetBtn").addEventListener("click",()=>{
+  state.drawing=false;
+  $("stage").classList.remove("show");
+  $("hat").classList.remove("shake");
+  $("pulled").innerHTML=""; $("assignMsg").innerHTML="";
+  $("groups").innerHTML='<p class="empty-msg">Start the draw to fill the groups.</p>';
+  setButtons(false);
+});
+
+/* init */
+setTeams(WC2026);
+</script>
+</body>
+</html>
