@@ -838,6 +838,12 @@ button:disabled{opacity:.5;cursor:not-allowed}
         <button class="btn-ghost" id="instantBtn">⚡ Instant Draw</button>
         <button class="btn-ghost" id="resetBtn">↺ Reset</button>
       </div>
+      <div class="speedrow" style="margin:16px auto 0;max-width:360px">
+        <span style="font-size:12px;color:var(--faint)">Slow</span>
+        <input type="range" id="speed2" min="0" max="100" step="1" value="40" aria-label="Draw speed">
+        <span style="font-size:12px;color:var(--faint)">Fast</span>
+      </div>
+      <p class="hint" style="text-align:center;margin:6px 0 0">Drag to change the draw speed — adjustable even mid-draw.</p>
     </div>
     <div class="panel">
       <h2><span class="dot"></span><span id="resultsTitle">Groups</span></h2>
@@ -1067,6 +1073,14 @@ function showBall(item,bucketLabel){
   $("assignMsg").innerHTML=`…to <b>${escapeHtml(bucketLabel)}</b>`+(item.pot?` <span style="color:var(--faint)">(Pot ${item.pot})</span>`:"");
 }
 
+/* current per-team dwell from the speed slider: 0 = slow (10s) … 100 = fast (1s) */
+function dwellMs(){
+  const v=parseInt($("speed").value,10);
+  const t=Math.min(1,Math.max(0,(isNaN(v)?40:v)/100));
+  const MIN_D=1000, MAX_D=10000;                   // ms per team: fast (1s) … slow (10s)
+  return Math.round(MIN_D*Math.pow(MAX_D/MIN_D,1-t));
+}
+
 /* ---------------- runner ---------------- */
 async function runDraw(instant){
   if(state.drawing) return;
@@ -1082,14 +1096,10 @@ async function runDraw(instant){
 
   if(instant){ seq.forEach(it=>addToBucket(it,false)); finishDraw(mode); return; }
 
-  const v=parseInt($("speed").value,10);          // 0 = slow … 100 = fast
-  const t=Math.min(1,Math.max(0,v/100));
-  const MIN_D=1000, MAX_D=10000;                   // ms per team: fast (1s) … slow (10s)
-  const dwell=Math.round(MIN_D*Math.pow(MAX_D/MIN_D,1-t));
   for(const item of seq){
-    await sleep(dwell*0.45);
+    await sleep(dwellMs()*0.45);                   // re-read each step so speed can be varied live
     showBall(item,buckets[item.bi].label);
-    await sleep(dwell*0.55);
+    await sleep(dwellMs()*0.55);
     addToBucket(item);
   }
   finishDraw(mode);
@@ -1234,6 +1244,9 @@ $("goDraw").addEventListener("click",()=>{
   }
   switchTab("draw"); setTimeout(()=>runDraw(false),250);
 });
+// keep the setup and on-stage speed sliders in sync (canonical value lives on #speed)
+$("speed").addEventListener("input",()=>{ $("speed2").value=$("speed").value; });
+$("speed2").addEventListener("input",()=>{ $("speed").value=$("speed2").value; });
 $("drawBtn").addEventListener("click",()=>runDraw(false));
 $("instantBtn").addEventListener("click",()=>runDraw(true));
 $("resetBtn").addEventListener("click",()=>{
