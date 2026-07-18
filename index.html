@@ -347,6 +347,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     </div>
   </div>
 
+  <div id="historicSection" class="hidden">
   <h2>Historic holdings &amp; actual return<span class="n">/ TIME-WEIGHTED</span></h2>
   <div id="historicSummary"></div>
   <div class="val-contrib-grid" style="margin-top:14px">
@@ -374,6 +375,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
       <button class="btn gold" id="histAdd">+ Add holding period (from current holdings, starting today)</button>
     </div>
   </div>
+  </div><!-- /historicSection -->
 
   <h2>Set your holdings<span class="n">/ YOUR PORTFOLIO ALLOCATION</span></h2>
   <div class="card">
@@ -1957,7 +1959,7 @@ window.addEventListener('drop',e=>{
   e.preventDefault();
   if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);
 });
-$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];['fund_data','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_projection','fund_compare','fund_factsheets'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];['fund_data','fund_holdings','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_projection','fund_compare','fund_factsheets'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 function upMsg(text,isErr){const u=$('upStatus');if(u){u.style.display=text?'block':'none';u.textContent=text||'';u.style.color=isErr?'var(--neg)':'var(--mute)';}const e=$('errbox');if(e&&isErr)e.textContent=text;const l=$('loadbar');if(l&&!isErr)l.textContent=text;}
 // parse a batch of {name, buf} items into FUNDS/FACTSHEETS; returns a summary string
 async function processItems(items){
