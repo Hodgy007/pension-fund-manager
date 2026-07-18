@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>World Cup 2026 Draw &amp; Sweepstake</title>
+<title>World Cup 2026 Draw</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b3d2e'/%3E%3Cdefs%3E%3ClinearGradient id='fg' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23ffe066'/%3E%3Cstop offset='.5' stop-color='%23f4c542'/%3E%3Cstop offset='1' stop-color='%23b9831c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='32' y='88' width='36' height='8' rx='3' fill='url(%23fg)'/%3E%3Crect x='27' y='94' width='46' height='8' rx='3' fill='url(%23fg)'/%3E%3Cpath d='M38 46 C 30 63 30 80 38 88 L 62 88 C 70 80 70 63 62 46 C 58 57 54 52 50 52 C 46 52 42 57 38 46 Z' fill='url(%23fg)'/%3E%3Ccircle cx='50' cy='32' r='16' fill='url(%23fg)'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap">
@@ -233,18 +233,6 @@ button:disabled{opacity:.5;cursor:not-allowed}
   box-shadow:0 4px 14px rgba(244,197,66,.3);
 }
 
-/* ---- mode segmented control ---- */
-.seg{display:inline-flex;background:rgba(7,30,22,.6);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:5px;gap:5px}
-.seg button{
-  background:transparent;color:var(--mute);padding:10px 20px;border-radius:10px;
-  transition:all .22s ease;font-weight:600;
-}
-.seg button.on{
-  background:linear-gradient(180deg,var(--gold),var(--gold2));
-  color:#3a2c00;
-  box-shadow:0 4px 12px rgba(244,197,66,.3);
-}
-
 /* ---- roster grid ---- */
 .roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:6px}
 
@@ -301,7 +289,6 @@ button:disabled{opacity:.5;cursor:not-allowed}
   .chip{padding:7px 9px;font-size:12.5px}
   .chip .flag{font-size:18px}
   .chip .info{font-size:9px}
-  .seg button{padding:8px 14px;font-size:12px}
   .tabs{gap:6px;margin-bottom:14px}
   .tab{padding:7px 14px;font-size:12px}
   .hint{font-size:11px;margin-top:5px}
@@ -678,7 +665,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
     <div class="trophy-wrap"><div class="trophy"><img class="wc-trophy-img" src="assets/world-cup-trophy.png" alt="World Cup Trophy" data-fallback-cls="wc-trophy" onerror="trophyFail(this)"></div></div>
     <p class="eyebrow">Official Draw &middot; 48 Teams</p>
     <h1>World Cup <span class="year">2026</span> Draw</h1>
-    <p class="sub">Pull the 48 qualified teams out of the hat — into their groups, or as an office sweepstake. Tap any team for squad &amp; stats.</p>
+    <p class="sub">Pull the 48 qualified teams out of the hat into their official groups. Tap any team for squad &amp; stats.</p>
     <div class="host-chips">
       <span class="host-chip"><img class="flag-img sm" src="https://flagcdn.com/ca.svg" alt="Canada"> Canada</span>
       <span class="host-chip"><img class="flag-img sm" src="https://flagcdn.com/mx.svg" alt="Mexico"> Mexico</span>
@@ -693,33 +680,14 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
   <!-- SETUP -->
   <section id="tab-setup">
-    <div class="panel">
-      <h2><span class="dot"></span>Draw Type</h2>
-      <div class="seg" id="modeSeg">
-        <button data-mode="groups" class="on">🗂️ Group Draw</button>
-        <button data-mode="sweep">🎟️ Sweepstake</button>
-      </div>
-      <p class="hint" id="modeHint">Draw the 48 teams into the 12 official groups (A–L).</p>
-    </div>
-
     <div class="panel" id="potsPanel">
       <h2><span class="dot"></span>Group Options</h2>
+      <p class="hint" style="margin-top:0">Draw the 48 teams into the 12 official groups (A–L).</p>
       <label style="display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:600;cursor:pointer">
         <input type="checkbox" id="usePots" checked style="width:auto">
         Use seeding pots (one team per pot in each group, FIFA-style)
       </label>
       <p class="hint">Pots are built from FIFA ranking, with the three hosts seeded into Pot&nbsp;1.</p>
-    </div>
-
-    <div class="panel" id="peoplePanel" style="display:none">
-      <h2><span class="dot"></span>People</h2>
-      <label for="people">One person per line</label>
-      <textarea id="people" spellcheck="false" placeholder="Alice&#10;Ben&#10;Chloe&#10;Dev&#10;Erin&#10;Femi"></textarea>
-      <label style="display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:600;cursor:pointer;margin-top:12px">
-        <input type="checkbox" id="sweepAll" style="width:auto">
-        Use all 48 teams (divide them evenly among everyone)
-      </label>
-      <p class="hint" id="sweepHint">Add people above.</p>
     </div>
 
     <div class="panel">
@@ -950,14 +918,9 @@ function seededTeams(){
 }
 function buildPots(order,perPot){ const p=[]; for(let i=0;i<order.length;i+=perPot) p.push(order.slice(i,i+perPot)); return p; }
 
-let MODE="groups";
 let state={drawing:false, buckets:[]};
 
 /* ---------------- compute draw ---------------- */
-function computeDraw(){
-  if(MODE==="sweep") return computeSweep();
-  return computeGroups();
-}
 function computeGroups(){
   const NG=12, SIZE=4, usePots=$("usePots").checked;
   const groups=Array.from({length:NG},()=>[]);
@@ -978,36 +941,7 @@ function computeGroups(){
     });
   }
   const buckets=groups.map((g,i)=>({label:"Group "+groupLabel(i), unit:"team"}));
-  return {seq,buckets,mode:"groups"};
-}
-function computeSweep(){
-  const people=$("people").value.split("\n").map(s=>s.trim()).filter(Boolean);
-  if(people.length===0) return {error:"Add at least one person for the sweepstake."};
-  const n=people.length;
-  const order=shuffle(people);                          // random person order (always)
-  const buckets=order.map(p=>({label:p,unit:"team"}));
-  let seq;
-  if($("sweepAll").checked){
-    // all 48 teams dealt out round-robin so everyone gets a roughly equal share
-    seq=shuffle(TEAMS).map((team,i)=>({team,bi:i%n,pot:null}));
-  } else {
-    // only the N best-ranked teams, exactly one per person, then it ends
-    if(n>TEAMS.length) return {error:`Only ${TEAMS.length} teams available — please use ${TEAMS.length} names or fewer.`};
-    const topTeams=[...TEAMS].sort((a,b)=>a.rank-b.rank).slice(0,n);
-    seq=shuffle(topTeams).map((team,i)=>({team,bi:i,pot:null}));
-  }
-  return {seq,buckets,mode:"sweep"};
-}
-
-/* assign round order for sweep dealing (one team per person, in person order) */
-function dealOrder(seq,n){
-  const byBucket={}; seq.forEach(s=>{(byBucket[s.bi]=byBucket[s.bi]||[]).push(s);});
-  const out=[]; let more=true,r=0;
-  while(more){ more=false;
-    for(let b=0;b<n;b++){ const arr=byBucket[b]; if(arr&&arr[r]){ out.push(arr[r]); more=true; } }
-    r++;
-  }
-  return out;
+  return {seq,buckets};
 }
 
 /* ---------------- rendering ---------------- */
@@ -1038,8 +972,8 @@ function updateRankStats(){
     if(box) box.classList.toggle("best", n>0 && place[i]===0);
   });
 }
-// final standings: every group/person sorted toughest (lowest Σ) → easiest
-function renderLeaderboard(mode){
+// final standings: every group sorted toughest (lowest Σ) → easiest
+function renderLeaderboard(){
   const lb=$("leaderboard"); if(!lb) return;
   const tots=state.totals||[];
   const rows=tots.map((t,i)=>({i,t,n:($("b-"+i)?$("b-"+i).children.length:0),label:state.buckets[i].label}))
@@ -1047,7 +981,7 @@ function renderLeaderboard(mode){
                  .sort((a,b)=>a.t-b.t || a.i-b.i);
   if(!rows.length){ lb.innerHTML=""; return; }
   const medal=p=>p===0?"🥇":p===1?"🥈":p===2?"🥉":(p+1)+".";
-  const title=mode==="sweep"?"Final standings — strongest squad first":"Group strength — toughest first";
+  const title="Group strength — toughest first";
   lb.innerHTML=`<div class="lb-title">${title}</div>`+rows.map((o,p)=>
     `<div class="lb-row${p===0?" lb-top":""}" style="animation-delay:${p*40}ms">`+
       `<span class="lb-pos">${medal(p)}</span>`+
@@ -1084,17 +1018,13 @@ function dwellMs(){
 /* ---------------- runner ---------------- */
 async function runDraw(instant){
   if(state.drawing) return;
-  const res=computeDraw();
-  if(res.error){ alert(res.error); switchTab("setup"); return; }
-  let {seq,buckets,mode}=res;
-  if(mode==="sweep") seq=dealOrder(seq,buckets.length);
+  const {seq,buckets}=computeGroups();
   state.drawing=true; state.buckets=buckets;
   setButtons(true);
-  $("resultsTitle").textContent = mode==="sweep"?"Sweepstake":"Groups";
   renderBuckets(buckets);
   $("stage").classList.add("show"); $("hat").classList.add("shake");
 
-  if(instant){ seq.forEach(it=>addToBucket(it,false)); finishDraw(mode); return; }
+  if(instant){ seq.forEach(it=>addToBucket(it,false)); finishDraw(); return; }
 
   for(const item of seq){
     await sleep(dwellMs()*0.45);                   // re-read each step so speed can be varied live
@@ -1102,14 +1032,14 @@ async function runDraw(instant){
     await sleep(dwellMs()*0.55);
     addToBucket(item);
   }
-  finishDraw(mode);
+  finishDraw();
 }
-function finishDraw(mode){
+function finishDraw(){
   state.drawing=false; $("hat").classList.remove("shake");
-  $("assignMsg").innerHTML=`<b>${mode==="sweep"?"Sweepstake drawn!":"Draw complete!"}</b> 🎉`;
+  $("assignMsg").innerHTML=`<b>Draw complete!</b> 🎉`;
   $("pulled").innerHTML=`<div class="ball-wrap"><div class="ball ball-done"><div class="ball-spec"></div><div class="ball-inner"><div class="roundel"><img class="wc-trophy-img sm" src="assets/world-cup-trophy.png" alt="World Cup Trophy" data-fallback-cls="wc-trophy wc-trophy-sm" onerror="trophyFail(this)"></div><span class="nm">Done</span></div></div></div>`;
   setButtons(false);
-  renderLeaderboard(mode);
+  renderLeaderboard();
   launchConfetti();
 }
 function setButtons(d){ $("drawBtn").disabled=d; $("instantBtn").disabled=d; $("goDraw").disabled=d; }
@@ -1211,16 +1141,7 @@ function renderRoster(){
   el.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>openTeam(c.dataset.name)));
 }
 
-/* ---------------- mode + tabs ---------------- */
-function setMode(m){
-  MODE=m;
-  document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.mode===m));
-  $("potsPanel").style.display = m==="groups"?"block":"none";
-  $("peoplePanel").style.display = m==="sweep"?"block":"none";
-  $("modeHint").textContent = m==="groups"
-    ? "Draw the 48 teams into the 12 official groups (A–L)."
-    : "Each person draws one of the top-ranked teams — N people get the top N teams, then it ends.";
-}
+/* ---------------- tabs ---------------- */
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
   $("tab-setup").style.display=name==="setup"?"block":"none";
@@ -1229,19 +1150,7 @@ function switchTab(name){
 
 /* ---------------- wire up ---------------- */
 document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>switchTab(t.dataset.tab)));
-document.querySelectorAll("#modeSeg button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
-function updateSweepHint(){
-  const n=$("people").value.split("\n").map(s=>s.trim()).filter(Boolean).length;
-  $("sweepHint").innerHTML = $("sweepAll").checked
-    ? `<b>${n}</b> people · all 48 teams dealt out round-robin so everyone gets a roughly equal share.`
-    : `<b>${n}</b> people · each draws one of the <b>top-${n||"N"}</b> ranked teams, then the draw ends.`;
-}
-$("people").addEventListener("input",updateSweepHint);
-$("sweepAll").addEventListener("change",updateSweepHint);
 $("goDraw").addEventListener("click",()=>{
-  if(MODE==="sweep" && $("people").value.split("\n").map(s=>s.trim()).filter(Boolean).length===0){
-    alert("Add at least one person for the sweepstake."); return;
-  }
   switchTab("draw"); setTimeout(()=>runDraw(false),250);
 });
 // keep the setup and on-stage speed sliders in sync (canonical value lives on #speed)
@@ -1260,8 +1169,6 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 
 /* init */
 renderRoster();
-setMode("sweep");
-updateSweepHint();
 </script>
 </body>
 </html>
