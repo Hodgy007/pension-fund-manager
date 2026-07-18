@@ -1,5 +1,11 @@
 import { put } from '@vercel/blob';
 
+// note: Vercel serverless functions also enforce their own platform-level request body
+// ceiling (a few MB) that this config cannot exceed — very large zip bundles may still be rejected.
+export const config = {
+  api: { bodyParser: { sizeLimit: '10mb' } },
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });

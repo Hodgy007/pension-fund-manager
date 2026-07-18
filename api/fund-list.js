@@ -8,9 +8,9 @@ export default async function handler(req, res) {
   try {
     const blobs = await list({ limit: 100 });
 
-    // Filter for CSV and PDF files, sort by date descending (latest first)
+    // Filter for CSV, PDF, Excel and zip files, sort by date descending (latest first)
     const fundFiles = blobs.blobs
-      .filter(b => /\.(csv|pdf|xlsx?)$/i.test(b.pathname))
+      .filter(b => /\.(csv|pdf|xlsx?|zip)$/i.test(b.pathname))
       .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
       .map(b => ({
         name: b.pathname.split('/').pop(),

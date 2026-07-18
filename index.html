@@ -103,7 +103,16 @@ h2 .n{font-family:var(--mono);font-size:10px;color:var(--faint);margin-left:12px
 .btn:hover{border-color:var(--primary);color:var(--primary);background:var(--panel)}
 .btn.gold{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
 .btn.gold:hover{opacity:.9}
+.btn:disabled{opacity:.55;cursor:default;pointer-events:none}
 .hidden{display:none!important}
+/* shared reports panel */
+.reports-list{display:flex;flex-direction:column;gap:8px}
+.reports-empty{color:var(--faint);font-size:13px;padding:10px 2px;font-style:italic}
+.report-row{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;flex-wrap:wrap}
+.report-row .report-icon{font-size:18px;flex:none}
+.report-row .report-name{font-weight:600;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 180px}
+.report-row .report-meta{font-family:var(--mono);font-size:11px;color:var(--faint);white-space:nowrap;flex:none}
+.report-row .btn{flex:none;margin-left:auto}
 /* recorded values + contributions side by side */
 .val-contrib-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
 @media(max-width:760px){.val-contrib-grid{grid-template-columns:1fr}}
@@ -236,9 +245,21 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 <header>
   <div class="eyebrow" id="eyebrow">Fund Dashboard · upload your monthly downloads</div>
   <h1>Your funds, <em>re-measured</em> whenever you refresh the data.</h1>
-  <p class="sub">Drop in the price-history spreadsheets you download each month. Everything is parsed in your browser — no upload to any server — then scored on return, risk and drawdown, with your holdings highlighted.</p>
+  <p class="sub">Drop in the price-history spreadsheets you download each month. Fund files are parsed in your browser and shared so anyone here can load the latest data — but your holdings and £ amounts stay on this device only, never uploaded anywhere.</p>
   <p class="disclaim">Information tool, not financial advice. Figures are historical; past performance does not predict future returns. Ignores fees, charges, tax and how funds move together, and says nothing about your goals or timeframe. For a recommendation, speak to a regulated financial adviser.</p>
 </header>
+
+<!-- SHARED REPORTS -->
+<div id="reportsPanel" class="card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+    <h2 style="margin:0">Latest shared reports<span class="n">/ UPLOADED BY ANYONE</span></h2>
+    <button class="btn" id="refreshReports">↻ Refresh</button>
+  </div>
+  <p class="note" style="margin:0 0 14px;color:var(--faint);font-size:12.5px">Fund files uploaded here are shared with everyone — load the latest below, or drop new ones further down. Your holdings and £ amounts stay on this device only.</p>
+  <div id="reportsList" class="reports-list">
+    <div class="reports-empty">Checking for shared reports…</div>
+  </div>
+</div>
 
 <!-- UPLOAD -->
 <div id="uploadSection">
@@ -442,6 +463,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 
 <script>
 const $=id=>document.getElementById(id);
+const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // ---------- light / dark theme ----------
 (function(){
   const btn=$('themeToggle'); if(!btn)return;
@@ -602,7 +624,7 @@ async function expandZip(file){
     const entry=zip.files[path];
     if(entry.dir) continue;
     if(path.startsWith('__MACOSX/')||path.split('/').pop().startsWith('.')) continue;
-    if(!/\.(x(lsx|ls)|pdf)$/i.test(path)) continue;
+    if(!/\.(x(lsx|ls)|pdf|csv)$/i.test(path)) continue;
     const name=path.split('/').pop();
     const buf=await entry.async('arraybuffer');
     out.push({name,buf});
@@ -1937,20 +1959,8 @@ window.addEventListener('drop',e=>{
 });
 $('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];['fund_data','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_projection','fund_compare','fund_factsheets'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 function upMsg(text,isErr){const u=$('upStatus');if(u){u.style.display=text?'block':'none';u.textContent=text||'';u.style.color=isErr?'var(--neg)':'var(--mute)';}const e=$('errbox');if(e&&isErr)e.textContent=text;const l=$('loadbar');if(l&&!isErr)l.textContent=text;}
-async function handleFiles(fileList){
-  const all=[...fileList];
-  const zips=all.filter(f=>/\.zip$/i.test(f.name));
-  const direct=all.filter(f=>/\.(x(lsx|ls)|pdf)$/i.test(f.name));
-  if(!zips.length&&!direct.length){upMsg('No .xlsx, .pdf or .zip files found in that selection.',true);return;}
-  $('errbox').textContent='';upMsg('Reading files…');
-  const items=[]; // {name, buf}
-  for(const f of direct)items.push({name:f.name,buf:await f.arrayBuffer()});
-  for(const z of zips){
-    try{const extracted=await expandZip(z);items.push(...extracted);}
-    catch(err){upMsg(`Could not read ${z.name}: ${err.message||err}`,true);}
-  }
-  if(!items.length){upMsg('No .xlsx or .pdf files found inside the zip(s).',true);return;}
-  upMsg(`Reading ${items.length} file(s)${zips.length?` (incl. ${zips.length} zip)`:''}…`);
+// parse a batch of {name, buf} items into FUNDS/FACTSHEETS; returns a summary string
+async function processItems(items){
   let added=0,skipped=0,sheets=0; const pdfErrs=[];
   for(const item of items){
     try{
@@ -1976,8 +1986,11 @@ async function handleFiles(fileList){
   const us=$('upStatus');
   if(us){us.style.display='block';us.textContent=summary+(pdfErrs.length?'  '+pdfErrs.slice(0,2).join('  ·  '):'');us.style.color=pdfErrs.length?'var(--neg)':'var(--mute)';}
   if(pdfErrs.length)$('errbox').textContent=pdfErrs.slice(0,3).join('  ·  ');
+  return {added,skipped,sheets,pdfErrs};
+}
+// initialise holdings/state from localStorage and reveal the dashboard, once FUNDS/FACTSHEETS are populated
+function activateDashboard(){
   if(!FUNDS.length&&!FACTSHEETS.length)return;
-  // initialise holdings on first load
   if(!HOLDINGS.length){
     const saved=loadHoldings();
     const src=saved&&saved.length?saved:DEFAULT_HOLDINGS;
@@ -1996,11 +2009,35 @@ async function handleFiles(fileList){
   $('dash').classList.remove('hidden');
   recompute();
 }
+async function handleFiles(fileList){
+  const all=[...fileList];
+  const zips=all.filter(f=>/\.zip$/i.test(f.name));
+  const direct=all.filter(f=>/\.(x(lsx|ls)|pdf|csv)$/i.test(f.name));
+  if(!zips.length&&!direct.length){upMsg('No .xlsx, .csv, .pdf or .zip files found in that selection.',true);return;}
+  $('errbox').textContent='';upMsg('Reading files…');
+  const items=[]; // {name, buf}
+  for(const f of direct)items.push({name:f.name,buf:await f.arrayBuffer()});
+  for(const z of zips){
+    try{const extracted=await expandZip(z);items.push(...extracted);}
+    catch(err){upMsg(`Could not read ${z.name}: ${err.message||err}`,true);}
+  }
+  if(!items.length){upMsg('No .xlsx, .csv or .pdf files found inside the zip(s).',true);return;}
+  upMsg(`Reading ${items.length} file(s)${zips.length?` (incl. ${zips.length} zip)`:''}…`);
+  await processItems(items);
+  activateDashboard();
+}
+// base64-encode in chunks to avoid a stack overflow on larger files (String.fromCharCode.apply
+// blows the call stack once the byte array gets into the tens of thousands of elements)
+function bufToBase64(buf){
+  const bytes=new Uint8Array(buf); let binary=''; const chunk=0x8000;
+  for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));
+  return btoa(binary);
+}
 // upload file to vercel blob storage for sharing
 async function uploadToBlob(file){
   try{
     const buf=await file.arrayBuffer();
-    const content=btoa(String.fromCharCode.apply(null,new Uint8Array(buf)));
+    const content=bufToBase64(buf);
     const res=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:file.name,content})});
     if(!res.ok)throw new Error('Upload failed');
     const result=await res.json();
@@ -2012,15 +2049,87 @@ async function uploadToBlob(file){
 const originalHandleFiles=handleFiles;
 async function handleFilesWithBlob(fileList){
   const all=[...fileList];
-  const uploadFiles=all.filter(f=>/\.(x(lsx|ls)|pdf|csv)$/i.test(f.name));
+  const uploadFiles=all.filter(f=>/\.(x(lsx|ls)|pdf|csv|zip)$/i.test(f.name));
   await originalHandleFiles(fileList);
   for(const f of uploadFiles){
     upMsg(`Uploading ${f.name} to shared storage…`);
     await uploadToBlob(f);
   }
   upMsg('');
+  loadReportsList(); // reflect the new upload(s) immediately
 }
 window.handleFiles=handleFilesWithBlob;
+
+// ---------- shared reports panel (Vercel Blob) ----------
+// uploaded blobs are named "funds/<timestamp>-<originalname>"; strip that prefix for display/parsing
+const stripBlobPrefix=name=>name.replace(/^\d+-/,'');
+function fmtBytes(n){
+  if(n<1024)return n+' B';
+  if(n<1024*1024)return (n/1024).toFixed(1)+' KB';
+  return (n/1024/1024).toFixed(1)+' MB';
+}
+function fmtWhen(iso){
+  const d=new Date(iso), mins=Math.floor((Date.now()-d.getTime())/60000);
+  if(mins<1)return 'just now';
+  if(mins<60)return mins+'m ago';
+  const hrs=Math.floor(mins/60); if(hrs<24)return hrs+'h ago';
+  const days=Math.floor(hrs/24); if(days<30)return days+'d ago';
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+async function loadReportsList(){
+  const el=$('reportsList'); if(!el)return;
+  try{
+    const res=await fetch('/api/fund-list');
+    if(!res.ok)throw new Error('fetch failed: '+res.status);
+    const data=await res.json();
+    const files=data.files||[];
+    if(!files.length){el.innerHTML='<div class="reports-empty">No reports shared yet — drop your files below to be the first.</div>';return;}
+    el.innerHTML=files.map(f=>{
+      const label=stripBlobPrefix(f.name);
+      const icon=/\.pdf$/i.test(label)?'📕':'📊';
+      return `<div class="report-row">
+        <span class="report-icon">${icon}</span>
+        <span class="report-name" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+        <span class="report-meta">${fmtWhen(f.uploaded)} · ${fmtBytes(f.size)}</span>
+        <button class="btn" data-url="${escapeHtml(f.url)}" data-name="${escapeHtml(f.name)}" onclick="loadSharedReport(this)">+ Load</button>
+      </div>`;
+    }).join('');
+  }catch(err){
+    console.error('Reports list error:',err);
+    el.innerHTML='<div class="reports-empty">Couldn’t reach shared storage right now — you can still upload your own files below.</div>';
+  }
+}
+async function loadSharedReport(btn){
+  const url=btn.dataset.url, blobName=btn.dataset.name, label=stripBlobPrefix(blobName);
+  btn.disabled=true; btn.textContent='Loading…';
+  try{
+    const res=await fetch(url);
+    if(!res.ok)throw new Error('download failed: '+res.status);
+    const buf=await res.arrayBuffer();
+    const items=[];
+    if(/\.zip$/i.test(label)){
+      const zip=await JSZip.loadAsync(buf);
+      for(const path in zip.files){
+        const entry=zip.files[path];
+        if(entry.dir||path.startsWith('__MACOSX/')||path.split('/').pop().startsWith('.'))continue;
+        if(!/\.(x(lsx|ls)|pdf|csv)$/i.test(path))continue;
+        items.push({name:path.split('/').pop(),buf:await entry.async('arraybuffer')});
+      }
+    }else{
+      items.push({name:label,buf});
+    }
+    if(!items.length){btn.textContent='No files found';return;}
+    $('errbox').textContent=''; upMsg(`Reading ${label}…`);
+    await processItems(items);
+    activateDashboard();
+    btn.textContent='✓ Loaded';
+  }catch(err){
+    console.error('Load shared report error:',err);
+    btn.textContent='Failed — retry'; btn.disabled=false;
+  }
+}
+$('refreshReports').onclick=loadReportsList;
+loadReportsList();
 
 // restore cached reports on page load
 (function restoreCache(){
