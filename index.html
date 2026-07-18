@@ -291,9 +291,11 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <div class="fundval-row">
     <label for="fundValue">Total fund value</label>
     <div class="fundval-input"><span class="cur">£</span><input id="fundValue" type="number" min="0" step="100" placeholder="e.g. 50000"></div>
-    <label for="monthlyContrib" style="margin-left:8px">Monthly contribution</label>
-    <div class="fundval-input"><span class="cur">£</span><input id="monthlyContrib" type="number" min="0" step="10" placeholder="e.g. 250"></div>
-    <span class="note" id="fundValueNote">Today's pot value plus your regular monthly payment. The monthly figure feeds the growth chart so you can separate real investment growth from the money you pay in.</span>
+    <label for="workContrib" style="margin-left:8px">Work contribution</label>
+    <div class="fundval-input"><span class="cur">£</span><input id="workContrib" type="number" min="0" step="10" placeholder="e.g. 150"></div>
+    <label for="personalContrib" style="margin-left:8px">Personal contribution</label>
+    <div class="fundval-input"><span class="cur">£</span><input id="personalContrib" type="number" min="0" step="10" placeholder="e.g. 100"></div>
+    <span class="note" id="fundValueNote">Today's pot value plus your regular monthly payments. Work + personal contributions are combined to feed the growth chart, so you can separate real investment growth from the money you pay in.</span>
   </div>
   <div id="upStatus" class="note" style="display:none;margin-top:10px;font-family:var(--mono);font-size:12.5px"></div>
 </div>
@@ -331,6 +333,18 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
       </div>
       <p class="note" style="margin-top:12px;font-size:12px">Ongoing Charge Figure (OCF) is the annual cost as % of your fund value. Upload factsheets to see charges.</p>
       <p class="note" id="chargeCoverNote" style="margin-top:6px;font-size:11px;color:var(--gold)"></p>
+    </div>
+  </div>
+
+  <h2>Set your holdings<span class="n">/ YOUR PORTFOLIO ALLOCATION</span></h2>
+  <div class="card">
+    <div class="cardlbl">Pick the funds you own and their weight (%)</div>
+    <div id="heRows"></div>
+    <div class="he-foot">
+      <button class="btn" id="heAdd">+ Add holding</button>
+      <button class="btn" id="heNorm" title="Scale your weights so they add up to 100%">Normalise to 100%</button>
+      <span class="he-total" id="heTotal">Total: 0%</span>
+      <button class="btn gold" id="heApply">Apply</button>
     </div>
   </div>
 
@@ -376,18 +390,6 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     </div>
   </div>
   </div><!-- /historicSection -->
-
-  <h2>Set your holdings<span class="n">/ YOUR PORTFOLIO ALLOCATION</span></h2>
-  <div class="card">
-    <div class="cardlbl">Pick the funds you own and their weight (%)</div>
-    <div id="heRows"></div>
-    <div class="he-foot">
-      <button class="btn" id="heAdd">+ Add holding</button>
-      <button class="btn" id="heNorm" title="Scale your weights so they add up to 100%">Normalise to 100%</button>
-      <span class="he-total" id="heTotal">Total: 0%</span>
-      <button class="btn gold" id="heApply">Apply</button>
-    </div>
-  </div>
 
   <h2>Holdings, fund by fund<span class="n">/ HIGHLIGHTED</span></h2>
   <div class="grid hold-grid" id="holdCards"></div>
@@ -511,7 +513,8 @@ let HISTORY=[];      // [{start:'YYYY-MM-DD',end:'YYYY-MM-DD',holdings:[[name,we
 let PORT=null;
 let VALUATIONS=[];   // manual: [{date:'YYYY-MM-DD',value:£},...] real recorded pot values
 let CONTRIBUTIONS=[];// manual: [{date,amount}] money paid in (+) or taken out (−)
-let MONTHLY=0;       // regular monthly contribution (£), feeds the growth chart
+let WORK_CONTRIB=0, PERSONAL_CONTRIB=0; // regular monthly contributions (£), split by source
+let MONTHLY=0;       // = WORK_CONTRIB + PERSONAL_CONTRIB, feeds the growth chart
 let EXCLUDE_CONTRIB=false; // chart toggle: show investment growth only (net of contributions)
 let PROJ={};         // retirement projection inputs
 let FACTSHEETS=[];   // parsed PDF factsheets: [{name,asOf,ocf,unitPrice,launch,objective,cum,ann,assetSplit,geoSplit,holdings}]
@@ -1857,11 +1860,35 @@ $('fundValue').oninput=e=>{
   upsertValuation(today, parseFloat(e.target.value));
   saveValuations(); renderHistory();
 };
-function syncMonthlyInput(){const el=$('monthlyContrib');if(!el)return;el.type=PRIVACY?'password':'number';if(document.activeElement!==el)el.value=MONTHLY>0?MONTHLY:'';}
-function saveMonthly(){try{localStorage.setItem('fund_monthly',String(MONTHLY||0));}catch(e){}}
-function loadMonthly(){try{const s=localStorage.getItem('fund_monthly');const v=parseFloat(s);return v>0?v:0;}catch(e){return 0;}}
-$('monthlyContrib').oninput=e=>{
-  MONTHLY=parseFloat(e.target.value)||0;
+function syncMonthlyInput(){
+  const w=$('workContrib'),p=$('personalContrib'); if(!w||!p)return;
+  w.type=PRIVACY?'password':'number'; p.type=PRIVACY?'password':'number';
+  if(document.activeElement!==w)w.value=WORK_CONTRIB>0?WORK_CONTRIB:'';
+  if(document.activeElement!==p)p.value=PERSONAL_CONTRIB>0?PERSONAL_CONTRIB:'';
+}
+function saveMonthly(){
+  try{
+    localStorage.setItem('fund_work_contrib',String(WORK_CONTRIB||0));
+    localStorage.setItem('fund_personal_contrib',String(PERSONAL_CONTRIB||0));
+  }catch(e){}
+}
+function loadMonthly(){
+  try{
+    const w=parseFloat(localStorage.getItem('fund_work_contrib'));
+    const p=parseFloat(localStorage.getItem('fund_personal_contrib'));
+    if(w>0||p>0){WORK_CONTRIB=w>0?w:0;PERSONAL_CONTRIB=p>0?p:0;return WORK_CONTRIB+PERSONAL_CONTRIB;}
+    // migrate a pre-split combined figure: attribute it all to personal (the split itself isn't recoverable)
+    const old=parseFloat(localStorage.getItem('fund_monthly'));
+    if(old>0){PERSONAL_CONTRIB=old;return old;}
+  }catch(e){}
+  return 0;
+}
+$('workContrib').oninput=e=>{
+  WORK_CONTRIB=parseFloat(e.target.value)||0; MONTHLY=WORK_CONTRIB+PERSONAL_CONTRIB;
+  saveMonthly(); renderHistory();
+};
+$('personalContrib').oninput=e=>{
+  PERSONAL_CONTRIB=parseFloat(e.target.value)||0; MONTHLY=WORK_CONTRIB+PERSONAL_CONTRIB;
   saveMonthly(); renderHistory();
 };
 $('valAdd').onclick=()=>{
@@ -1879,7 +1906,8 @@ function exportData(){
     app:'fund-dashboard', version:1, exported:new Date().toISOString(),
     funds:FUNDS.map(f=>({n:f.name,r:f.rows.map(x=>[+x.d,x.p])})),
     holdings:HOLDINGS, history:HISTORY, valuations:VALUATIONS,
-    contributions:CONTRIBUTIONS, monthly:MONTHLY, projection:PROJ, factsheets:FACTSHEETS
+    contributions:CONTRIBUTIONS, monthly:MONTHLY, workContrib:WORK_CONTRIB, personalContrib:PERSONAL_CONTRIB,
+    projection:PROJ, factsheets:FACTSHEETS
   };
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');
@@ -1916,7 +1944,13 @@ async function importData(file){
     if(Array.isArray(data.history))HISTORY=data.history.map(h=>({start:h.start||h.date||'',end:h.end||'',holdings:h.holdings||[]}));
     if(Array.isArray(data.valuations))VALUATIONS=data.valuations.filter(v=>v&&v.date);
     if(Array.isArray(data.contributions))CONTRIBUTIONS=data.contributions.filter(c=>c&&c.date);
-    if(isFinite(+data.monthly))MONTHLY=+data.monthly||0;
+    if(isFinite(+data.workContrib)||isFinite(+data.personalContrib)){
+      WORK_CONTRIB=+data.workContrib||0; PERSONAL_CONTRIB=+data.personalContrib||0;
+    }else if(isFinite(+data.monthly)){
+      // older export, pre-dating the work/personal split — attribute the whole figure to personal
+      WORK_CONTRIB=0; PERSONAL_CONTRIB=+data.monthly||0;
+    }
+    MONTHLY=WORK_CONTRIB+PERSONAL_CONTRIB;
     if(data.projection&&typeof data.projection==='object')PROJ=data.projection;
     if(Array.isArray(data.factsheets))FACTSHEETS=data.factsheets.filter(f=>f&&f.name);
     saveHistory(); saveValuations(); saveContributions(); saveMonthly(); saveProjection(); saveFactsheets(); saveState(); saveFunds(); syncFundValueInput(); syncMonthlyInput();
@@ -1936,8 +1970,8 @@ $('privacyToggle').onchange=e=>{PRIVACY=e.target.checked;try{localStorage.setIte
 // ---------- clear only personal values (keep loaded fund prices) ----------
 $('clearValues').onclick=()=>{
   if(!confirm('Clear your holdings, historic snapshots, recorded £ values, contributions and projection? Loaded fund prices are kept.'))return;
-  HOLDINGS=[];HISTORY=[];VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;PROJ={};EXCLUDE_CONTRIB=false;CMP_RANGE=0;
-  ['fund_holdings','fund_history','fund_valuations','fund_value','fund_contributions','fund_monthly','fund_projection'].forEach(k=>localStorage.removeItem(k));
+  HOLDINGS=[];HISTORY=[];VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;WORK_CONTRIB=0;PERSONAL_CONTRIB=0;PROJ={};EXCLUDE_CONTRIB=false;CMP_RANGE=0;
+  ['fund_holdings','fund_history','fund_valuations','fund_value','fund_contributions','fund_monthly','fund_work_contrib','fund_personal_contrib','fund_projection'].forEach(k=>localStorage.removeItem(k));
   syncFundValueInput(); syncMonthlyInput(); recompute();
 };
 const drop=$('drop'),input=$('fileInput');
@@ -1959,7 +1993,7 @@ window.addEventListener('drop',e=>{
   e.preventDefault();
   if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);
 });
-$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];['fund_data','fund_holdings','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_projection','fund_compare','fund_factsheets'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;WORK_CONTRIB=0;PERSONAL_CONTRIB=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];['fund_data','fund_holdings','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_work_contrib','fund_personal_contrib','fund_projection','fund_compare','fund_factsheets'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 function upMsg(text,isErr){const u=$('upStatus');if(u){u.style.display=text?'block':'none';u.textContent=text||'';u.style.color=isErr?'var(--neg)':'var(--mute)';}const e=$('errbox');if(e&&isErr)e.textContent=text;const l=$('loadbar');if(l&&!isErr)l.textContent=text;}
 // parse a batch of {name, buf} items into FUNDS/FACTSHEETS; returns a summary string
 async function processItems(items){
