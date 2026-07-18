@@ -1996,6 +1996,32 @@ async function handleFiles(fileList){
   $('dash').classList.remove('hidden');
   recompute();
 }
+// upload file to vercel blob storage for sharing
+async function uploadToBlob(file){
+  try{
+    const buf=await file.arrayBuffer();
+    const content=btoa(String.fromCharCode.apply(null,new Uint8Array(buf)));
+    const res=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:file.name,content})});
+    if(!res.ok)throw new Error('Upload failed');
+    const result=await res.json();
+    if(result.success)console.log('Uploaded to Vercel Blob:',result.url);
+    return result;
+  }catch(err){console.error('Blob upload error:',err);}
+}
+// wrap handleFiles to also upload to blob storage
+const originalHandleFiles=handleFiles;
+async function handleFilesWithBlob(fileList){
+  const all=[...fileList];
+  const uploadFiles=all.filter(f=>/\.(x(lsx|ls)|pdf|csv)$/i.test(f.name));
+  await originalHandleFiles(fileList);
+  for(const f of uploadFiles){
+    upMsg(`Uploading ${f.name} to shared storage…`);
+    await uploadToBlob(f);
+  }
+  upMsg('');
+}
+window.handleFiles=handleFilesWithBlob;
+
 // restore cached reports on page load
 (function restoreCache(){
   const cached=loadFunds();

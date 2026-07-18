@@ -9,5 +9,8 @@
     "test": "node --test tests/app.test.mjs",
     "ci": "npm run check && npm test"
   },
+  "dependencies": {
+    "@vercel/blob": "^0.20.0"
+  },
   "license": "MIT"
 }
