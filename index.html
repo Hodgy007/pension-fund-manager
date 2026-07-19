@@ -732,11 +732,13 @@ function lookThrough(){
 }
 // ---------- metrics ----------
 function cat(n){n=n.toLowerCase();
-  if(n.includes('cash'))return'Cash';
-  if(n.includes('property'))return'Property';
-  if(/(bond|gilt|credit|debt|securit|annuity)/.test(n))return'Bonds/Credit';
-  if(/(equity|small cap)/.test(n))return'Equity';
-  if(/(diversified|multiasset|multi-asset|absolute|risk premia|return)/.test(n))return'Multi-Asset/Alt';
+  if(/cash|money market|deposit/.test(n))return'Cash';
+  if(n.includes('property')||/real estate|\breit\b/.test(n))return'Property';
+  if(/(bond|gilt|credit|debt|securit|annuity|fixed income)/.test(n))return'Bonds/Credit';
+  // multi-asset/lifestyle names checked before equity, since some (e.g. "Mixed Investment ...
+  // Shares Fund") also contain equity-ish words like "shares" that would otherwise misfire
+  if(/(diversified|multi-?asset|absolute return|risk premia|mixed investment|\bportfolio\b|lifestyle|target (date|retirement)|consensus|blended|balanced)/.test(n))return'Multi-Asset/Alt';
+  if(/(equit(y|ies)|small cap|index|tracker|ftse|s&p|msci|nasdaq|russell|dow jones|\bworld\b|developed|emerging|technology|shares?)/.test(n))return'Equity';
   return'Other';
 }
 function priceBefore(rows,t){let best=null;for(const r of rows){if(r.d<=t)best=r.p;else break;}return best;}
