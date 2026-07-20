@@ -497,6 +497,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
       <label>Current age<input type="number" id="pjAge" min="16" max="100" step="1"></label>
       <label>Retirement age<input type="number" id="pjRet" min="40" max="100" step="1"></label>
       <label>Pot value now (£)<input type="number" id="pjPot" min="0" step="500"></label>
+      <label>Other pension pots (£)<input type="number" id="pjOtherPots" min="0" step="500" placeholder="old workplace pots etc."></label>
       <label>Contribution (£/month)<input type="number" id="pjMon" min="0" step="50"></label>
       <label>Contribution is<select id="pjBasis"><option value="takehome">From my take-home (relief added)</option><option value="gross">Before-tax / salary sacrifice</option></select></label>
       <label>My income tax rate<select id="pjRate"><option value="0">Non-taxpayer (0%)</option><option value="20">Basic (20%)</option><option value="40">Higher (40%)</option><option value="45">Additional (45%)</option></select></label>
@@ -512,8 +513,9 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <div style="margin-top:14px"><svg viewBox="0 0 760 320" id="projChart" style="width:100%;height:auto"></svg></div>
     <div class="proj-grid" style="margin-top:16px;grid-template-columns:repeat(2,1fr);max-width:540px">
       <label>Annual withdrawal rate (%)<input type="number" id="pjWr" min="0" step="0.5"></label>
-      <label>Other taxable income (£/yr)<input type="number" id="pjOther" min="0" step="500"></label>
+      <label>Other taxable income (£/yr)<input type="number" id="pjOther" min="0" step="500" placeholder="e.g. final-salary pension"></label>
     </div>
+    <label class="toggle" style="margin-top:12px" title="Adds the full new State Pension to your retirement income (assumes a full NI record)"><input type="checkbox" id="pjSP"><span class="track"><span class="knob"></span></span><span class="tlbl">Include State Pension (<span id="pjSPamt">£11,973</span>/yr)</span></label>
     <div id="projRetire" style="margin-top:14px"></div>
     <p class="note" style="margin-top:8px;font-size:12px;color:var(--faint)">Defaults come from your blended holdings (return &amp; volatility) and latest recorded pot. <span style="color:var(--accent)">Shaded band</span> = middle 80% of outcomes (10th–90th percentile); <span style="color:var(--gold)">gold line</span> = median. Tax relief is added to contributions and the retirement breakdown uses current income-tax bands, the 25% tax-free lump sum (capped at £268,275) and the £60,000 annual allowance. Estimates only — they ignore fund charges, the State Pension unless you add it, allowance taper/MPAA and your wider circumstances, and HMRC figures change each Budget. Not a forecast or financial advice.</p>
   </div>
@@ -1551,7 +1553,11 @@ $('cmpRanges').querySelectorAll('.filt').forEach(b=>b.onclick=()=>{CMP_RANGE=+b.
 function projDefaults(){
   return {
     age:PROJ.age??40, ret:PROJ.ret??67,
-    pot:PROJ.pot??(latestValue()||0),
+    // a saved pot of 0/blank falls back to the latest recorded value, so the chart
+    // always starts from your current pension pot rather than a stale zero
+    pot:(PROJ.pot>0?PROJ.pot:(latestValue()||0)),
+    otherPots:PROJ.otherPots??0,
+    sp:PROJ.sp===true,
     mon:PROJ.mon??200,
     basis:PROJ.basis||'takehome',
     rate:PROJ.rate??20,
@@ -1582,9 +1588,10 @@ function projectMC(p){
   const cc=contribCalc(p);
   const N=1500, mu=p.retn/100, sig=Math.max(0,p.vol/100), g=Math.max(0,p.esc/100), cpi=Math.max(0,p.cpi/100);
   const realF=y=>p.real?1/Math.pow(1+cpi,y):1;
+  const startPot=p.pot+(p.otherPots||0); // this pot plus any pensions held elsewhere
   const yearVals=Array.from({length:years+1},()=>new Float64Array(N));
   for(let s=0;s<N;s++){
-    let v=p.pot, annual=cc.grossMon*12;
+    let v=startPot, annual=cc.grossMon*12;
     yearVals[0][s]=v;
     for(let y=1;y<=years;y++){let r=mu+sig*gaussian(); if(r<-0.95)r=-0.95; v=v*(1+r)+annual; annual*=(1+g); yearVals[y][s]=v;}
   }
@@ -1594,7 +1601,7 @@ function projectMC(p){
   // always-real median for the (today's-bands) retirement breakdown
   const medianReal=pctile(yearVals[years],.5)/Math.pow(1+cpi,years);
   // total contributions: gross into pot, net out of take-home (escalated)
-  let totalGross=p.pot, totalNet=p.pot, a=cc.grossMon*12, an=cc.netMon*12;
+  let totalGross=startPot, totalNet=startPot, a=cc.grossMon*12, an=cc.netMon*12;
   for(let y=1;y<=years;y++){totalGross+=a;totalNet+=an;a*=(1+g);an*=(1+g);}
   const probTgt=p.tgt>0?finals.filter(v=>v>=p.tgt).length/N:null;
   return {years,startAge:p.age,p10,p50,p90,real:p.real,cpi:p.cpi,
@@ -1609,11 +1616,13 @@ function renderProjection(){
   const set=(id,v)=>{const el=$(id);if(el&&document.activeElement!==el)el.value=(v||v===0)?v:'';};
   set('pjAge',d.age);set('pjRet',d.ret);set('pjPot',d.pot);set('pjMon',d.mon);
   set('pjRetn',d.retn);set('pjVol',d.vol);set('pjEsc',d.esc);set('pjCpi',d.cpi);
-  set('pjAA',d.aa);set('pjTgt',d.tgt);set('pjWr',d.wr);set('pjOther',d.other);
+  set('pjAA',d.aa);set('pjTgt',d.tgt);set('pjWr',d.wr);set('pjOther',d.other);set('pjOtherPots',d.otherPots);
   const sv=(id,v)=>{const el=$(id);if(el&&document.activeElement!==el)el.value=v;};
   sv('pjBasis',d.basis); sv('pjRate',d.rate);
   const rl=$('pjReal'); if(rl)rl.checked=d.real;
-  ['pjPot','pjTgt','pjOther'].forEach(id=>{const el=$(id);if(el)el.type=PRIVACY?'password':'number';});
+  const spEl=$('pjSP'); if(spEl)spEl.checked=d.sp;
+  const spAmt=$('pjSPamt'); if(spAmt)spAmt.textContent='£'+TAX.fullStatePension.toLocaleString('en-GB');
+  ['pjPot','pjTgt','pjOther','pjOtherPots'].forEach(id=>{const el=$(id);if(el)el.type=PRIVACY?'password':'number';});
   const s=projectMC(d);
   if(!s){$('projOut').innerHTML='<p class="note" style="color:var(--faint);margin:0">Set a current age below your retirement age to see a projection.</p>';$('projChart').innerHTML='';$('projRetire').innerHTML='';return;}
   const retYear=new Date().getFullYear()+s.years;
@@ -1637,9 +1646,11 @@ function renderProjection(){
   const tfc=Math.min(0.25*pot,TAX.lumpSumAllowance);
   const drawPot=pot-tfc;
   const pensionGross=drawPot*(d.wr/100);
-  const totalGrossInc=pensionGross+(d.other||0);
+  const spInc=d.sp?TAX.fullStatePension:0;
+  const totalGrossInc=pensionGross+(d.other||0)+spInc;
   const tax=incomeTax(totalGrossInc);
   const netInc=totalGrossInc-tax;
+  const incExtras=[spInc>0?'State Pension':null,d.other>0?'other income':null].filter(Boolean).join(' + ');
   $('projRetire').innerHTML=`<div class="card" style="background:var(--panel2);padding:16px">
     <div class="cardlbl" style="color:var(--gold)">At retirement · median pot ${fmtMoney(pot)} · today's money, ${TAX.year} bands</div>
     <div class="stat-row">
@@ -1648,11 +1659,11 @@ function renderProjection(){
       <div class="stat"><div class="lbl">Drawn at ${d.wr||0}%/yr</div><div class="val sm">${fmtMoney(pensionGross)}</div></div>
     </div>
     <div class="stat-row" style="margin-top:10px">
-      <div class="stat"><div class="lbl">Gross income/yr${d.other>0?' (incl. other)':''}</div><div class="val sm">${fmtMoney(totalGrossInc)}</div></div>
+      <div class="stat"><div class="lbl">Gross income/yr${incExtras?` (incl. ${incExtras})`:''}</div><div class="val sm">${fmtMoney(totalGrossInc)}</div></div>
       <div class="stat"><div class="lbl">Income tax/yr</div><div class="val sm neg">${fmtMoney(tax)}</div></div>
       <div class="stat"><div class="lbl">Net income/yr</div><div class="val">${fmtMoney(netInc)}</div></div>
     </div>
-    <p class="note" style="margin:12px 0 0;color:var(--faint)">Assumes you take the 25% tax-free lump sum, then draw ${d.wr||0}% of the remaining pot a year as taxable income${d.other>0?`, on top of ${fmtMoney(d.other)} of other taxable income (e.g. State Pension)`:' (add the State Pension or other income above)'}. A flat-rate, single-year view — real drawdown, the State Pension and your tax position will vary.</p>
+    <p class="note" style="margin:12px 0 0;color:var(--faint)">Assumes you take the 25% tax-free lump sum, then draw ${d.wr||0}% of the remaining pot a year as taxable income${spInc>0?`, plus the full State Pension of ${fmtMoney(spInc)} (payable from State Pension age, and only with a full NI record)`:''}${d.other>0?`, plus ${fmtMoney(d.other)} of other taxable income`:''}${!spInc&&!d.other?' (tick the State Pension box or add other income above)':''}. A flat-rate, single-year view — real drawdown, uprating and your tax position will vary.</p>
   </div>`;
 }
 function drawProjChart(s){
@@ -1680,15 +1691,16 @@ function drawProjChart(s){
 function readProjInputs(){
   const num=id=>{const el=$(id);if(!el)return null;const v=parseFloat(el.value);return isNaN(v)?null:v;};
   const val=id=>$(id)?$(id).value:undefined;
-  PROJ={age:num('pjAge'),ret:num('pjRet'),pot:num('pjPot'),mon:num('pjMon'),
+  PROJ={age:num('pjAge'),ret:num('pjRet'),pot:num('pjPot'),otherPots:num('pjOtherPots'),mon:num('pjMon'),
     basis:val('pjBasis'),rate:num('pjRate'),retn:num('pjRetn'),vol:num('pjVol'),
     esc:num('pjEsc'),cpi:num('pjCpi'),aa:num('pjAA'),tgt:num('pjTgt'),
-    real:$('pjReal')?$('pjReal').checked:true,wr:num('pjWr'),other:num('pjOther')};
+    real:$('pjReal')?$('pjReal').checked:true,wr:num('pjWr'),other:num('pjOther'),
+    sp:$('pjSP')?$('pjSP').checked:false};
   Object.keys(PROJ).forEach(k=>{if(PROJ[k]==null)delete PROJ[k];});
   saveProjection(); renderProjection();
 }
-['pjAge','pjRet','pjPot','pjMon','pjRetn','pjVol','pjEsc','pjCpi','pjAA','pjTgt','pjWr','pjOther'].forEach(id=>{const el=$(id);if(el)el.oninput=readProjInputs;});
-['pjBasis','pjRate','pjReal'].forEach(id=>{const el=$(id);if(el)el.onchange=readProjInputs;});
+['pjAge','pjRet','pjPot','pjOtherPots','pjMon','pjRetn','pjVol','pjEsc','pjCpi','pjAA','pjTgt','pjWr','pjOther'].forEach(id=>{const el=$(id);if(el)el.oninput=readProjInputs;});
+['pjBasis','pjRate','pjReal','pjSP'].forEach(id=>{const el=$(id);if(el)el.onchange=readProjInputs;});
 /* ---------- fund performance chart (recorded values) ---------- */
 const abbrMoney=v=>v>=1e6?(v/1e6).toFixed(1)+'m':v>=1e3?Math.round(v/1e3)+'k':String(Math.round(v));
 function renderFundPerf(){
