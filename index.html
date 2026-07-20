@@ -797,28 +797,62 @@ function parseStatement(pages){
   if(!pages.length)return null;
   const ptexts=pages.map(p=>rowText(p.items));
   const full=ptexts.join(' ');
-  if(!/Pension Plan statement/i.test(full)||!/Pension Savings Account/i.test(full))return null;
+  // two known templates: the pre-2021 12-page booklet ("Pension Savings Accounts")
+  // and the 2023+ condensed 2-pager ("your pension account")
+  if(!/Pension Plan statement/i.test(full)||!(/Pension Savings Account/i.test(full)||/pension account/i.test(full)))return null;
   const g=(re,f=1)=>{const x=full.match(re);return x?x[f]:null;};
   const amt=re=>{const x=full.match(re);return x?gbp(x[1]):null;};
   const S={source:'statement'};
   S.year=+(g(/your (\d{4})\s+Pension Plan statement/i)||0)||null;
-  // headline: "The total value of your Pension Savings Accounts at 1 July 2020 was: £3,510.99"
+  // statement date + total pot value
+  // old: "The total value of your Pension Savings Accounts at 1 July 2020 was: £3,510.99"
   const tv=full.match(/Pension Savings Accounts?\s+at\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})\s+was:?\s*£\s*([\d,]+(?:\.\d+)?)/i);
   if(tv){S.date=ukDate(tv[1]);S.totalValue=gbp(tv[2]);}
+  // new: two "Total amount of money in the Main and Top-Up Plan on <date> £X" lines — start and end of year
+  {
+    const re=/Total amount of money in the Main and Top-?Up Plan on (\d{1,2}\s+[A-Za-z]+\s+\d{4})\*?\s*£\s*([\d,]+(?:\.\d+)?)/gi;
+    const hits=[]; let m;
+    while((m=re.exec(full)))hits.push({date:ukDate(m[1]),value:gbp(m[2])});
+    if(hits.length){
+      hits.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+      const last=hits[hits.length-1];
+      if(S.totalValue==null){S.date=last.date;S.totalValue=last.value;}
+      if(hits.length>1){S.prevDate=hits[0].date;S.prevTotal=hits[0].value;}
+    }
+  }
+  if(!S.date)S.date=ukDate(g(/calculated as (?:of|at)\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i));
   if(!S.date)S.date=ukDate(g(/Statement date\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i));
-  const per=full.match(/Developed Between\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})\s+and\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i);
+  const per=full.match(/Between\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})\s+and\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i);
   if(per){S.periodStart=ukDate(per[1]);S.periodEnd=ukDate(per[2]);}
-  // the year's money in, from the "How Your Pension Savings Accounts Developed" table
-  S.employer=amt(/contributions the Firm paid[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
-  S.employee=amt(/contributions you paid to[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
-  S.avc=amt(/Additional Voluntary Contributions[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
-  S.bonusWaived=amt(/bonus you waived[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
-  S.transferIn=amt(/transferred into[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
+  // the year's money in — each alternation covers old wording | new wording
+  S.employer=amt(/(?:contributions the Firm paid|The Firm has added)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
+  S.employee=amt(/(?:contributions you paid to|You have saved into your(?: Main Plan)? account)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
+  S.avc=amt(/(?:Additional Voluntary Contributions|Additional savings you have made)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
+  S.bonusWaived=amt(/bonus you (?:have )?waived[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
+  S.transferIn=amt(/(?:transferred into the Top-?Up Plan|transferred in from other pension)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
+  // new template states the year's investment growth outright (can be negative)
+  {
+    const gm=full.match(/Investment growth[^£\d]*?(?:has (?:contributed|reduced)[^£\-−]*)?(-|−)?\s*£\s*([\d,]+(?:\.\d+)?)/i);
+    if(gm&&/Investment growth \(minus charges\)/i.test(full))S.growthStated=(gm[1]?-1:1)*gbp(gm[2]);
+  }
+  // cumulative since-joined split (new template): "Main Plan £a + £b + £c = £d"
+  S.accumulated={};
+  [['Main','Main Plan'],['Top-Up','Top-?Up Plan'],['Total','Total']].forEach(([key,lbl])=>{
+    const m=full.match(new RegExp(lbl+'\\s*£\\s*([\\d,]+(?:\\.\\d+)?)\\s*\\+\\s*£\\s*([\\d,]+(?:\\.\\d+)?)\\s*\\+\\s*(-|−)?\\s*£\\s*([\\d,]+(?:\\.\\d+)?)\\s*=\\s*£\\s*([\\d,]+(?:\\.\\d+)?)','i'));
+    if(m)S.accumulated[key]={saved:gbp(m[1]),firm:gbp(m[2]),growth:(m[3]?-1:1)*gbp(m[4]),total:gbp(m[5])};
+  });
+  if(!Object.keys(S.accumulated).length)delete S.accumulated;
   S.baseSalary=amt(/Base Salary\s*£\s*([\d,]+(?:\.\d+)?)/i);
   S.benefitSalary=amt(/Benefit Salary\s*£\s*([\d,]+(?:\.\d+)?)/i);
-  S.npd=ukDate(g(/Normal Pension Date\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i));
+  S.npd=ukDate(g(/Normal Pension Date\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i))
+      ||ukDate(g(/AT\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4}),\s*YOUR (?:NORMAL PENSION|TARGET RETIREMENT) DATE/i));
   S.joined=ukDate(g(/Date joined Plan\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i));
-  S.estAtNPD=amt(/estimated total value[^£]*£\s*([\d,]+(?:\.\d+)?)/i); // "…at your Normal Pension Date is £401,000" (column interleave may split the sentence)
+  S.estAtNPD=amt(/estimated total value[^£]*£\s*([\d,]+(?:\.\d+)?)/i); // old: "…at your Normal Pension Date is £401,000" (column interleave may split the sentence)
+  if(S.estAtNPD==null){
+    // new: "Your pension account could be worth £501,000 £36,000 £537,000" — Main / Top-Up / Total, take the last
+    const cw=full.match(/could be worth((?:\s*£\s*[\d,]+(?:\.\d+)?)+)/i);
+    if(cw){const ns=cw[1].match(/[\d,]+(?:\.\d+)?/g);if(ns&&ns.length)S.estAtNPD=gbp(ns[ns.length-1]);}
+  }
   // per-plan fund tables on the "How Your Investments Performed" pages:
   // <fund name> <TER>% £<start value> £<your contribs> £<firm contribs> <units> £<unit price> £<end value>
   S.funds=[];S.plans={};
@@ -847,14 +881,17 @@ function parseStatement(pages){
   });
   return S.date&&S.totalValue!=null&&S.totalValue>=0?S:null;
 }
-// what the year's investments earned beyond the cash paid in (from the per-plan tables when present)
+// what the year's investments earned beyond the cash paid in: the stated figure when the
+// statement gives one (2023+ template), else derived from the per-plan tables / year totals
 function stmtGrowth(S){
+  if(Number.isFinite(S.growthStated))return S.growthStated;
   const plans=Object.values(S.plans||{});
   if(plans.length){
     let start=0,inFlow=0,end=0;
     plans.forEach(p=>{start+=p.startValue||0;inFlow+=(p.employee||0)+(p.employer||0);end+=p.endValue||0;});
     return end-start-inFlow;
   }
+  if(S.prevTotal!=null&&S.totalValue!=null)return S.totalValue-S.prevTotal-stmtPaidIn(S);
   return null;
 }
 const stmtPaidIn=S=>(S.employer||0)+(S.employee||0)+(S.avc||0)+(S.bonusWaived||0)+(S.transferIn||0);
@@ -2342,6 +2379,7 @@ async function processItems(items){
           if(ix>=0)STATEMENTS[ix]=St; else STATEMENTS.push(St);
           STATEMENTS.sort((a,b)=>a.date.localeCompare(b.date));
           upsertValuation(St.date,St.totalValue); // each statement year becomes a point on the performance chart
+          if(St.prevDate&&St.prevTotal!=null)upsertValuation(St.prevDate,St.prevTotal); // 2023+ statements also state the prior year's total
           stmts++;continue;
         }
         const F=parseFactsheet(pages);
