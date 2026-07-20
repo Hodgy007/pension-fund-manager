@@ -588,14 +588,16 @@ const CMP_COLORS=['#4a9eff','#d4a64a','#3fb950','#c77dff','#f0556d','#36cfc9','#
 // helpers over the recorded valuations
 function cleanValuations(){
   const map=new Map();
-  VALUATIONS.forEach(v=>{if(v&&v.date&&+v.value>0)map.set(v.date,+v.value);});
+  // zero is a legitimate recorded value (a fund's £0 starting point); only NaN/negative are dropped
+  VALUATIONS.forEach(v=>{if(v&&v.date&&Number.isFinite(+v.value)&&+v.value>=0)map.set(v.date,+v.value);});
   return [...map.entries()].map(([date,value])=>({date,value})).sort((a,b)=>a.date.localeCompare(b.date));
 }
 function latestValuation(){const a=cleanValuations();return a.length?a[a.length-1]:null;}
 function latestValue(){const l=latestValuation();return l?l.value:null;}
 function upsertValuation(date,value){
   const i=VALUATIONS.findIndex(v=>v.date===date);
-  if(!(+value>0)){if(i>=0)VALUATIONS.splice(i,1);return;}
+  // zero is storable (fund starting from nothing); blank/NaN/negative removes the entry
+  if(!Number.isFinite(+value)||+value<0||value===''||value==null){if(i>=0)VALUATIONS.splice(i,1);return;}
   if(i>=0)VALUATIONS[i].value=+value; else VALUATIONS.push({date,value:+value});
 }
 function cleanContributions(){
@@ -1708,7 +1710,7 @@ function renderFundPerf(){
   const W=760,H=300,L=78,R=24,T=18,B=42;
   const pts=vals.map(v=>({t:+new Date(v.date),v:v.value}));
   const t0=pts[0].t, t1=Math.max(pts[pts.length-1].t,t0+864e5);
-  const vmax=Math.max(...pts.map(p=>p.v))*1.08;
+  const vmax=(Math.max(...pts.map(p=>p.v))||1000)*1.08; // all-zero points still need a scale
   const X=t=>L+(t-t0)/(t1-t0)*(W-L-R);
   const Y=v=>T+(1-v/vmax)*(H-T-B);
   let s='';
@@ -1732,8 +1734,9 @@ function renderFundPerf(){
     c.onmousemove=e=>{
       tip.innerHTML=`<b>${new Date(p.t).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</b>
         <div class="r"><span>Value</span><span>${fmtMoney(p.v)}</span></div>`+
-        (prev?`<div class="r"><span>Since previous</span><span class="${p.v>=prev.v?'pos':'neg'}">${f0((p.v/prev.v-1)*100)}</span></div>`:'')+
-        (i>0?`<div class="r"><span>Since start</span><span class="${p.v>=first.v?'pos':'neg'}">${f0((p.v/first.v-1)*100)}</span></div>`:'');
+        (prev&&prev.v>0?`<div class="r"><span>Since previous</span><span class="${p.v>=prev.v?'pos':'neg'}">${f0((p.v/prev.v-1)*100)}</span></div>`:'')+
+        (i>0&&first.v>0?`<div class="r"><span>Since start</span><span class="${p.v>=first.v?'pos':'neg'}">${f0((p.v/first.v-1)*100)}</span></div>`:'')+
+        (i>0&&first.v===0?`<div class="r"><span>Growth from £0 start</span><span class="pos">${fmtMoney(p.v)}</span></div>`:'');
       tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';
     };
     c.onmouseleave=()=>tip.style.opacity=0;
@@ -1987,7 +1990,7 @@ $('plotTodayBtn').onclick=()=>{
 $('setStartBtn').onclick=()=>{
   const d=$('fundStartDate').value, v=parseFloat($('fundStartValue').value);
   if(!d){alert('Pick the date your fund started.');return;}
-  if(!(v>0)){alert("Enter the fund's value on that date.");return;}
+  if(!(v>=0)){alert("Enter the fund's value on that date — 0 is fine if it started from nothing.");return;}
   upsertValuation(d,v);
   saveValuations(); syncFundValueInput(); renderHistory(); renderFundPerf();
 };
