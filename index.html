@@ -11,17 +11,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="lib/pdf.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inconsolata:wght@400;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inconsolata:wght@400;700&display=swap');
 :root{
   --bg:#0f1117; --panel:#161b22; --panel2:#1c2330; --line:#2d333b;
   --ink:#e8edf4; --mute:#7d8590; --faint:#6e7681;
-  --pos:#2ea043; --neg:#da3633; --primary:#1f6feb; --accent:#58a6ff;
-  --font:'Inter',sans-serif; --disp:'Fraunces',serif; --mono:'Inconsolata',monospace;
+  --pos:#2ea043; --neg:#da3633; --primary:#1f6feb; --accent:#58a6ff; --gold:#d4a64a;
+  --font:'Inter',sans-serif; --mono:'Inconsolata',monospace;
 }
 html.light{
   --bg:#ffffff; --panel:#f6f8fa; --panel2:#eaeef2; --line:#d0d7de;
   --ink:#24292f; --mute:#57606a; --faint:#6e7681;
-  --pos:#1a7f37; --neg:#da3633; --primary:#0969da; --accent:#54aeff;
+  --pos:#1a7f37; --neg:#da3633; --primary:#0969da; --accent:#54aeff; --gold:#9a6700;
 }
 /* held highlighting */
 html.light tr.held:hover td{background:rgba(9,105,218,.04)}
@@ -40,7 +40,6 @@ h1{font-family:var(--font);font-weight:600;font-size:clamp(32px,5vw,48px);letter
 h1 em{font-style:italic;color:var(--primary)}
 .sub{color:var(--mute);margin-top:14px;max-width:700px;font-size:15px;line-height:1.6}
 .disclaim{margin-top:16px;font-size:12.5px;color:var(--faint);border-left:2px solid var(--line);padding-left:12px;max-width:700px}
-h2{font-family:var(--disp);font-weight:500;font-size:23px;margin:42px 0 16px;letter-spacing:-.01em}
 h2{font-family:var(--font);font-weight:600;font-size:20px;margin:40px 0 18px;letter-spacing:-.01em;line-height:1.3}
 h2 .n{font-family:var(--mono);font-size:10px;color:var(--faint);margin-left:12px;letter-spacing:.08em;font-weight:400}
 .grid{display:grid;gap:16px}
@@ -59,7 +58,7 @@ h2 .n{font-family:var(--mono);font-size:10px;color:var(--faint);margin-left:12px
 .fundval-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
 .fundval-row label{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600}
 .fundval-input{display:flex;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:0 12px}
-.fundval-input .cur{font-family:var(--disp);font-size:16px;color:var(--mute);font-weight:600}
+.fundval-input .cur{font-family:var(--font);font-size:16px;color:var(--mute);font-weight:600}
 .fundval-input input{font-family:var(--mono);font-size:15px;background:none;border:none;color:var(--ink);padding:10px 8px;width:140px;text-align:right}
 .fundval-input input:focus{outline:none;color:var(--primary)}
 .fundval-input input::-webkit-outer-spin-button,.fundval-input input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
