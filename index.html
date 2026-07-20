@@ -223,6 +223,18 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 .modal-overlay.open{display:flex}
 .modal-content{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:600px;max-height:85vh;overflow-y:auto;padding:32px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--mute);font-size:24px;cursor:pointer;padding:4px 8px;transition:.15s}
+/* account bar + auth modal */
+.acct-bar{position:absolute;top:20px;right:76px;z-index:50;display:flex;align-items:center;gap:12px}
+.acct-bar .acct-email{font-family:var(--mono);font-size:12px;color:var(--mute);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-bar .acct-sync{font-size:11px;color:var(--faint)}
+.auth-form{display:flex;flex-direction:column;gap:14px;min-width:300px}
+.auth-form label{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;display:flex;flex-direction:column;gap:6px}
+.auth-form input{font-size:15px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:11px 12px;font-family:var(--font)}
+.auth-form input:focus{outline:none;border-color:var(--primary)}
+.auth-err{color:var(--neg);font-size:13px;min-height:18px}
+.auth-switch{font-size:13px;color:var(--mute)}
+.auth-switch a{color:var(--primary);cursor:pointer;font-weight:600}
+@media(max-width:700px){.acct-bar{position:static;margin:14px 0 0;justify-content:flex-start}}
 .modal-close:hover{color:var(--primary)}
 .fund-detail-header{margin-bottom:24px;border-bottom:1px solid var(--line);padding-bottom:24px}
 .fund-detail-name{font-family:var(--font);font-weight:600;font-size:22px;margin-bottom:10px}
@@ -249,6 +261,20 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 </style>
 </head>
 <body>
+<div id="authModal" class="modal-overlay" onclick="if(event.target===this)closeAuthModal()">
+  <div class="modal-content" style="max-width:400px" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeAuthModal()">×</button>
+    <h2 style="margin:0 0 6px" id="authTitle">Sign in</h2>
+    <p class="note" style="margin:0 0 18px;color:var(--mute)">Your fund data is shared with other users; your holdings and £ amounts are private to your account.</p>
+    <form class="auth-form" id="authForm">
+      <label>Email<input type="email" id="authEmail" autocomplete="email" required></label>
+      <label>Password<input type="password" id="authPass" autocomplete="current-password" minlength="8" required></label>
+      <div class="auth-err" id="authErr"></div>
+      <button class="btn gold" type="submit" id="authSubmit" style="padding:12px">Sign in</button>
+      <div class="auth-switch" id="authSwitch">No account yet? <a id="authToggle">Create one</a></div>
+    </form>
+  </div>
+</div>
 <div id="fundModal" class="modal-overlay" onclick="if(event.target===this)closeFundModal()">
   <div class="modal-content" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeFundModal()">×</button>
@@ -257,6 +283,11 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 </div>
 <button id="themeToggle" class="theme-toggle" title="Switch light / dark mode" aria-label="Toggle theme">🌙</button>
 <div class="wrap">
+<div class="acct-bar" id="acctBar" style="display:none">
+  <span class="acct-sync" id="acctSync"></span>
+  <span class="acct-email" id="acctEmail"></span>
+  <button class="btn" id="acctBtn">Sign in</button>
+</div>
 <header>
   <div class="eyebrow" id="eyebrow">Fund Dashboard · upload your monthly downloads</div>
   <h1>Your funds, <em>re-measured</em> whenever you refresh the data.</h1>
@@ -2288,6 +2319,146 @@ if(SHARED_REPORTS){
   $('dash').classList.remove('hidden');
   $('loadbar').textContent=`Restored ${FUNDS.length} fund(s) from local cache. Drop newer files to update.`;
   recompute();
+})();
+
+/* ---------- user accounts + Neon cloud sync ----------
+   Shared: fund price series + factsheets (readable by any signed-in user).
+   Private: holdings, valuations, contributions, projection — one jsonb blob per user.
+   If the database isn't configured (503 / network error) the whole feature stays
+   hidden and the app behaves exactly as the local-only version. */
+let USER=null, SYNC_MUTE=false, syncTimer=null;
+async function api(path,opts){
+  try{
+    const r=await fetch(path,{headers:{'Content-Type':'application/json'},credentials:'same-origin',...opts});
+    const j=await r.json().catch(()=>({}));
+    return {ok:r.ok,status:r.status,...j};
+  }catch(e){ return {ok:false,status:0,error:'network'}; }
+}
+function setAcctSync(t){ const el=$('acctSync'); if(el)el.textContent=t||''; }
+function renderAcct(){
+  $('acctEmail').textContent=USER?USER.email:'';
+  $('acctBtn').textContent=USER?'Sign out':'Sign in';
+  if(!USER)setAcctSync('');
+}
+function personalPayload(){
+  return {holdings:HOLDINGS,history:HISTORY,valuations:VALUATIONS,contributions:CONTRIBUTIONS,
+          workContrib:WORK_CONTRIB,personalContrib:PERSONAL_CONTRIB,projection:PROJ,compare:[...COMPARE]};
+}
+function scheduleCloudSync(){
+  if(!USER||SYNC_MUTE)return;
+  clearTimeout(syncTimer);
+  setAcctSync('Saving…');
+  syncTimer=setTimeout(pushUserData,1200);
+}
+async function pushUserData(){
+  if(!USER)return;
+  const r=await api('/api/userdata',{method:'POST',body:JSON.stringify({data:personalPayload()})});
+  setAcctSync(r.ok?'✓ Saved to your account':'⚠ Cloud save failed');
+}
+async function pushFundsCloud(){
+  if(!USER)return;
+  if(!FUNDS.length&&!FACTSHEETS.length)return;
+  const payload={funds:FUNDS.map(f=>({name:f.name,rows:f.rows.map(r=>[+r.d,r.p])})),factsheets:FACTSHEETS};
+  const r=await api('/api/funds',{method:'POST',body:JSON.stringify(payload)});
+  if(r.ok)setAcctSync('✓ Fund data shared');
+}
+async function pullCloud(){
+  if(!USER)return;
+  setAcctSync('Loading your data…');
+  SYNC_MUTE=true;
+  try{
+    const f=await api('/api/funds');
+    if(f.ok&&Array.isArray(f.funds)){
+      f.funds.forEach(row=>{
+        if(!Array.isArray(row.rows))return;
+        const rows=row.rows.map(([d,p])=>({d:new Date(d),p})).sort((a,b)=>a.d-b.d);
+        if(!rows.length)return;
+        const rec={name:row.name,rows};
+        const ix=FUNDS.findIndex(x=>x.name===row.name);
+        if(ix>=0)FUNDS[ix]=rec; else FUNDS.push(rec);
+      });
+      (f.factsheets||[]).forEach(row=>{
+        if(!row.data||!row.data.name)return;
+        const ix=FACTSHEETS.findIndex(x=>normName(x.name)===normName(row.data.name));
+        if(ix>=0)FACTSHEETS[ix]=row.data; else FACTSHEETS.push(row.data);
+      });
+    }
+    const u=await api('/api/userdata');
+    if(u.ok&&u.data){
+      const d=u.data;
+      if(Array.isArray(d.holdings))HOLDINGS=d.holdings.filter(h=>Array.isArray(h)).map(h=>[h[0],+h[1]||0]);
+      if(Array.isArray(d.history))HISTORY=d.history;
+      if(Array.isArray(d.valuations))VALUATIONS=d.valuations.filter(v=>v&&v.date);
+      if(Array.isArray(d.contributions))CONTRIBUTIONS=d.contributions.filter(c=>c&&c.date);
+      WORK_CONTRIB=+d.workContrib||0; PERSONAL_CONTRIB=+d.personalContrib||0; MONTHLY=WORK_CONTRIB+PERSONAL_CONTRIB;
+      if(d.projection&&typeof d.projection==='object')PROJ=d.projection;
+      if(Array.isArray(d.compare))COMPARE=new Set(d.compare);
+      saveState();saveHistory();saveValuations();saveContributions();saveMonthly();saveProjection();saveCompare();saveFactsheets();
+    }else if(u.ok&&!u.data){
+      // first sign-in on this account: seed the cloud from whatever is on this device
+      await pushUserData();
+    }
+    if(FUNDS.length||FACTSHEETS.length){
+      $('uploadSection').classList.add('hidden');
+      $('loadedBar').classList.remove('hidden');
+      $('dash').classList.remove('hidden');
+      recompute();
+    }
+    syncFundValueInput();syncMonthlyInput();
+    setAcctSync('✓ Synced');
+  }finally{ SYNC_MUTE=false; }
+}
+// any personal-data save also schedules a cloud push (no-op when signed out)
+['saveState','saveHistory','saveValuations','saveContributions','saveMonthly','saveProjection','saveCompare'].forEach(n=>{
+  const orig=window[n];
+  if(typeof orig==='function')window[n]=function(...a){orig.apply(this,a);scheduleCloudSync();};
+});
+// share newly parsed fund data after an upload
+{
+  const _hf=window.handleFiles;
+  window.handleFiles=async function(fl){ await _hf(fl); pushFundsCloud(); };
+}
+/* auth modal */
+let AUTH_MODE='login';
+function openAuthModal(){ $('authErr').textContent=''; $('authModal').classList.add('open'); $('authEmail').focus(); }
+function closeAuthModal(){ $('authModal').classList.remove('open'); }
+function setAuthMode(m){
+  AUTH_MODE=m;
+  $('authTitle').textContent=m==='login'?'Sign in':'Create account';
+  $('authSubmit').textContent=m==='login'?'Sign in':'Create account';
+  $('authSwitch').innerHTML=m==='login'
+    ?'No account yet? <a id="authToggle">Create one</a>'
+    :'Already have an account? <a id="authToggle">Sign in</a>';
+  $('authPass').autocomplete=m==='login'?'current-password':'new-password';
+  $('authToggle').onclick=()=>setAuthMode(AUTH_MODE==='login'?'signup':'login');
+}
+$('authToggle').onclick=()=>setAuthMode('signup');
+$('authForm').onsubmit=async e=>{
+  e.preventDefault();
+  $('authErr').textContent='';
+  $('authSubmit').disabled=true;
+  const r=await api('/api/auth',{method:'POST',body:JSON.stringify({action:AUTH_MODE,email:$('authEmail').value,password:$('authPass').value})});
+  $('authSubmit').disabled=false;
+  if(r.ok&&r.user){
+    USER=r.user; renderAcct(); closeAuthModal(); $('authPass').value='';
+    await pullCloud();
+  }else{
+    $('authErr').textContent=r.error||'Something went wrong — try again.';
+  }
+};
+$('acctBtn').onclick=async()=>{
+  if(USER){
+    await api('/api/auth',{method:'POST',body:JSON.stringify({action:'logout'})});
+    USER=null; renderAcct();
+  }else openAuthModal();
+};
+(async function initAccount(){
+  const r=await api('/api/auth');
+  if(r.status!==200)return; // no database / no API (static preview) — stay local-only
+  $('acctBar').style.display='flex';
+  USER=r.user||null;
+  renderAcct();
+  if(USER)await pullCloud();
 })();
 </script>
 </body>
