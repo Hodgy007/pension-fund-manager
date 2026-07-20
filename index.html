@@ -244,7 +244,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 <header>
   <div class="eyebrow" id="eyebrow">Fund Dashboard · upload your monthly downloads</div>
   <h1>Your funds, <em>re-measured</em> whenever you refresh the data.</h1>
-  <p class="sub">Drop in the price-history spreadsheets you download each month. Fund files are parsed in your browser and shared so anyone here can load the latest data — but your holdings and £ amounts stay on this device only, never uploaded anywhere.</p>
+  <p class="sub" id="headerSub">Drop in the price-history spreadsheets you download each month. Everything is parsed in your browser — no upload to any server — then scored on return, risk and drawdown, with your holdings highlighted.</p>
   <p class="disclaim">Information tool, not financial advice. Figures are historical; past performance does not predict future returns. Ignores fees, charges, tax and how funds move together, and says nothing about your goals or timeframe. For a recommendation, speak to a regulated financial adviser.</p>
 </header>
 
@@ -467,6 +467,9 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 <script>
 const $=id=>document.getElementById(id);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Shared fund-file storage (Vercel Blob). Requires a Blob store connected to the
+// Vercel project (provides BLOB_READ_WRITE_TOKEN) — flip to true once provisioned.
+const SHARED_REPORTS=false;
 // ---------- light / dark theme ----------
 (function(){
   const btn=$('themeToggle'); if(!btn)return;
@@ -2095,7 +2098,7 @@ async function handleFilesWithBlob(fileList){
   upMsg('');
   loadReportsList(); // reflect the new upload(s) immediately
 }
-window.handleFiles=handleFilesWithBlob;
+window.handleFiles=SHARED_REPORTS?handleFilesWithBlob:originalHandleFiles;
 
 // ---------- shared reports panel (Vercel Blob) ----------
 // uploaded blobs are named "funds/<timestamp>-<originalname>"; strip that prefix for display/parsing
@@ -2165,8 +2168,13 @@ async function loadSharedReport(btn){
     btn.textContent='Failed — retry'; btn.disabled=false;
   }
 }
-$('refreshReports').onclick=loadReportsList;
-loadReportsList();
+if(SHARED_REPORTS){
+  $('refreshReports').onclick=loadReportsList;
+  loadReportsList();
+  $('headerSub').textContent='Drop in the price-history spreadsheets you download each month. Fund files are parsed in your browser and shared so anyone here can load the latest data — but your holdings and £ amounts stay on this device only, never uploaded anywhere.';
+}else{
+  $('reportsPanel').style.display='none';
+}
 
 // restore cached reports on page load
 (function restoreCache(){
