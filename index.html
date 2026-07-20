@@ -567,7 +567,8 @@ const SHARED_REPORTS=false;
     sync();
   };
 })();
-const C={'Equity':'#4a9eff','Bonds/Credit':'#3fb950','Multi-Asset/Alt':'#d4a64a','Cash':'#9aa7b8','Property':'#c77dff','Other':'#8b97a8'};
+// category palette validated for colour-vision deficiency (protan/deutan/tritan) on dark and light surfaces
+const C={'Equity':'#3987e5','Bonds/Credit':'#199e70','Multi-Asset/Alt':'#c98500','Cash':'#9aa7b8','Property':'#d55181','Other':'#8b97a8'};
 const f0=(v,d=1)=>v==null||isNaN(v)?'—':(v>0?'+':'')+v.toFixed(d)+'%';
 const f1=(v,d=1)=>v==null||isNaN(v)?'—':v.toFixed(d)+'%';
 const cls=v=>v==null||isNaN(v)?'':v>=0?'pos':'neg';
@@ -609,7 +610,7 @@ let FACTSHEETS=[];   // parsed PDF factsheets: [{name,asOf,ocf,unitPrice,launch,
 let STATEMENTS=[];   // parsed annual pension statements: [{date,year,totalValue,employer,employee,avc,...,funds,plans}] — private, one per statement year
 let COMPARE=new Set();// fund names selected in the comparison chart
 let CMP_RANGE=0;     // compare-chart window in years (0 = max available)
-const CMP_COLORS=['#4a9eff','#d4a64a','#3fb950','#c77dff','#f0556d','#36cfc9','#ff9f43','#9aa7b8','#a0d911','#eb2f96'];
+const CMP_COLORS=['#3987e5','#c98500','#199e70','#d55181','#8b97a8','#36cfc9','#ff9f43','#a0d911','#eb2f96','#f0556d'];
 // helpers over the recorded valuations
 function cleanValuations(){
   const map=new Map();
@@ -1028,7 +1029,7 @@ function renderPortfolio(){
   $('pocf').textContent=b!=null?b.ocf.toFixed(3)+'%':'—';
   $('pannCost').textContent=annCost!=null?fmtMoney(annCost):'—';
   const cn=$('chargeCoverNote'); if(cn)cn.textContent=b!=null&&b.coverage<99.5?`Covers ${b.coverage.toFixed(0)}% of your pot — funds without a factsheet are excluded.`:'';
-  const cols={'Multi-Asset':'#d4a64a','Bonds':'#3fb950','Equity':'#4a9eff','Cash':'#9aa7b8','Property':'#c77dff'};
+  const cols={'Multi-Asset':'#c98500','Bonds':'#199e70','Equity':'#3987e5','Cash':'#9aa7b8','Property':'#d55181'};
   const entries=Object.entries(PORT.alloc).sort((a,b)=>b[1]-a[1]);
   let a0=-90,d='';
   entries.forEach(([n,p])=>{const a1=a0+p*3.6,r=54,cx=60,cy=60;
@@ -1113,7 +1114,7 @@ function renderChargesAnalysis(){
 function ltColor(name){const n=(name||'').toLowerCase();
   if(/equit|share|stock/.test(n))return C['Equity'];
   if(/bond|fixed interest|credit|gilt|debt/.test(n))return C['Bonds/Credit'];
-  if(/propert|reit/.test(n))return '#c77dff';
+  if(/propert|reit/.test(n))return '#d55181';
   if(/cash|money market|liquid/.test(n))return C['Cash'];
   return C['Multi-Asset/Alt'];}
 // renders allocation rows. fundColors maps each held fund to a colour, so each
