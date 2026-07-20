@@ -828,7 +828,10 @@ function parseStatement(pages){
   S.employer=amt(/(?:contributions the Firm paid|The Firm has added)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
   S.employee=amt(/(?:contributions you paid to|You have saved into your(?: Main Plan)? account)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
   S.avc=amt(/(?:Additional Voluntary Contributions|Additional savings you have made)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
-  S.bonusWaived=amt(/bonus you (?:have )?waived[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
+  // bounded gap: the 2022 booklet garbles this row's label (custom font encoding), and an
+  // unbounded gap would jump to "bonus you waived … is shown as a Firm contribution" on the
+  // fund-table page and swallow the first fund value there
+  S.bonusWaived=amt(/bonus you (?:have )?waived[^£]{0,80}£\s*([\d,]+(?:\.\d+)?)/i);
   S.transferIn=amt(/(?:transferred into the Top-?Up Plan|transferred in from other pension)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
   // new template states the year's investment growth outright (can be negative)
   {
@@ -857,7 +860,8 @@ function parseStatement(pages){
   // <fund name> <TER>% £<start value> £<your contribs> £<firm contribs> <units> £<unit price> £<end value>
   S.funds=[];S.plans={};
   ptexts.forEach(t=>{
-    if(!/How Your Investments Performed/i.test(t))return;
+    // some years garble the page heading (embedded font encoding) — the intro sentence stays clean
+    if(!/How Your Investments Performed/i.test(t)&&!/value of your Pension Savings Account in the (?:Main|Top-?Up)\s+Plan/i.test(t))return;
     const plan=/Account in the Top-?Up\s+Plan/i.test(t)?'Top-Up':'Main';
     const rowRe=/([A-Za-z][A-Za-z0-9&()'\/\- ]{2,70}?)\s+(\d+(?:\.\d+)?)\s*%\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)/g;
     const found=[]; let m;
