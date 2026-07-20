@@ -98,6 +98,22 @@ h2 .n{font-family:var(--mono);font-size:10px;color:var(--faint);margin-left:12px
 .ov-row .ov-tot{font-family:var(--mono);margin-left:auto;font-size:13px;font-weight:600;color:var(--ink)}
 .ov-row .ov-via{font-size:11px;color:var(--mute);margin-top:4px}
 .ov-flag{font-family:var(--mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;background:rgba(31,111,235,.12);color:var(--primary);padding:2px 6px;border-radius:4px;font-weight:600}
+/* look-through lists: cap at ~10 rows then scroll */
+.lt-scroll{max-height:540px;overflow-y:auto;overscroll-behavior:contain;padding-right:8px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.lt-scroll-ov{max-height:580px}
+.lt-scroll::-webkit-scrollbar{width:8px}
+.lt-scroll::-webkit-scrollbar-track{background:transparent}
+.lt-scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+.lt-scroll::-webkit-scrollbar-thumb:hover{background:var(--faint)}
+/* fund performance chart */
+#perfChart{width:100%;height:auto;display:block}
+.perf-date{font-family:var(--mono);font-size:13px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:9px 10px;color-scheme:dark}
+html.light .perf-date{color-scheme:light}
+.perf-date:focus{outline:none;border-color:var(--primary)}
+.perf-chip{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 10px;margin:0 8px 8px 0;color:var(--mute)}
+.perf-chip b{color:var(--ink);font-weight:600}
+.perf-chip button{background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px;padding:0 2px;line-height:1}
+.perf-chip button:hover{color:var(--neg)}
 .btn{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:6px;cursor:pointer;transition:.15s;font-weight:600}
 .btn:hover{border-color:var(--primary);color:var(--primary);background:var(--panel)}
 .btn.gold{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
@@ -345,6 +361,21 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
       <span class="he-total" id="heTotal">Total: 0%</span>
       <button class="btn gold" id="heApply">Apply</button>
     </div>
+  </div>
+
+  <h2>Fund performance<span class="n">/ YOUR RECORDED VALUES</span></h2>
+  <div class="card">
+    <div class="cardlbl">Your pot's actual value over time — every point is a value you've recorded</div>
+    <svg id="perfChart" viewBox="0 0 760 300"></svg>
+    <div class="fundval-row">
+      <label for="fundStartDate">Fund start</label>
+      <input type="date" id="fundStartDate" class="perf-date">
+      <div class="fundval-input"><span class="cur">£</span><input id="fundStartValue" type="number" min="0" step="100" placeholder="value then"></div>
+      <button class="btn" id="setStartBtn">Set start point</button>
+      <button class="btn gold" id="plotTodayBtn">＋ Plot today's value</button>
+      <span class="note">“Plot today's value” records the Total fund value from the box at the top as today's point.</span>
+    </div>
+    <div id="perfPoints" style="margin-top:12px"></div>
   </div>
 
   <h2>Charges analysis<span class="n">/ ONGOING COST OF YOUR HOLDINGS</span></h2>
@@ -849,7 +880,7 @@ function renderAll(){
   $('fscount').textContent=FACTSHEETS.length; $('fsChip').classList.toggle('hidden',!FACTSHEETS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -972,7 +1003,7 @@ function ltBars(list,fundColors){
       <span class="lt-track"><span class="lt-fill" style="display:flex;width:${Math.max(3,x.pct/peak*100)}%;background:none">${segs}</span></span>
       <span class="lt-pct">${x.pct.toFixed(1)}%</span></div>`;
   }).join('');
-  return bars;
+  return `<div class="lt-scroll">${bars}</div>`;
 }
 function renderLookThrough(){
   const el=$('lookThrough'); if(!el)return;
@@ -997,10 +1028,10 @@ function renderLookThrough(){
   </div>
   <div class="card" style="margin-top:14px">
     <div class="cardlbl">Underlying funds — effective exposure across your holdings${overlaps.length?` · <span style="color:var(--primary)">${overlaps.length} reached via more than one of your funds</span>`:''}</div>
-    ${lt.underlying.map(u=>`<div class="ov-row">
+    <div class="lt-scroll lt-scroll-ov">${lt.underlying.map(u=>`<div class="ov-row">
       <div style="flex:1"><div style="display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:linear-gradient(135deg,${u.via.map(v=>fundColors[v.fund]).join(',')})"></span><div>${u.name}${u.overlap?' <span class="ov-flag">overlap</span>':''}</div></div>
         <div class="ov-via">via ${u.via.map(v=>`<span style="color:${fundColors[v.fund]};font-weight:600">${v.fund}</span> (${v.weight}%)`).join(', ')}</div></div>
-      <span class="ov-tot">${u.total.toFixed(1)}%</span></div>`).join('')}
+      <span class="ov-tot">${u.total.toFixed(1)}%</span></div>`).join('')}</div>
     <p class="note" style="margin-top:10px;font-size:12px;color:var(--faint)">"Effective exposure" weights each fund's underlying holdings by how much of your portfolio sits in that fund. An <span style="color:var(--primary)">overlap</span> flags an underlying fund reached through two or more of your holdings — hidden concentration. Colored bars and text match your holding funds. Source: your uploaded factsheets.</p>
   </div>`;
 }
@@ -1625,6 +1656,58 @@ function readProjInputs(){
 }
 ['pjAge','pjRet','pjPot','pjMon','pjRetn','pjVol','pjEsc','pjCpi','pjAA','pjTgt','pjWr','pjOther'].forEach(id=>{const el=$(id);if(el)el.oninput=readProjInputs;});
 ['pjBasis','pjRate','pjReal'].forEach(id=>{const el=$(id);if(el)el.onchange=readProjInputs;});
+/* ---------- fund performance chart (recorded values) ---------- */
+const abbrMoney=v=>v>=1e6?(v/1e6).toFixed(1)+'m':v>=1e3?Math.round(v/1e3)+'k':String(Math.round(v));
+function renderFundPerf(){
+  const svg=$('perfChart'); if(!svg)return;
+  const vals=cleanValuations();
+  const pp=$('perfPoints');
+  if(pp){
+    pp.innerHTML=vals.map(v=>`<span class="perf-chip">${new Date(v.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})} · <b>${fmtMoney(v.value)}</b><button data-d="${v.date}" title="Remove this point">×</button></span>`).join('');
+    pp.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      const ix=VALUATIONS.findIndex(x=>x.date===b.dataset.d);
+      if(ix>=0)VALUATIONS.splice(ix,1);
+      saveValuations(); syncFundValueInput(); renderFundPerf();
+    });
+  }
+  if(!vals.length){
+    svg.innerHTML='<text x="380" y="150" text-anchor="middle" fill="var(--faint)" font-size="14">No recorded values yet — set your fund’s start point below, then plot today’s value.</text>';
+    return;
+  }
+  const W=760,H=300,L=78,R=24,T=18,B=42;
+  const pts=vals.map(v=>({t:+new Date(v.date),v:v.value}));
+  const t0=pts[0].t, t1=Math.max(pts[pts.length-1].t,t0+864e5);
+  const vmax=Math.max(...pts.map(p=>p.v))*1.08;
+  const X=t=>L+(t-t0)/(t1-t0)*(W-L-R);
+  const Y=v=>T+(1-v/vmax)*(H-T-B);
+  let s='';
+  for(let i=0;i<=4;i++){
+    const v=vmax/4*i, y=Y(v);
+    s+=`<line x1="${L}" y1="${y}" x2="${W-R}" y2="${y}" stroke="var(--line)" stroke-width="1" opacity=".6"/>`;
+    s+=`<text x="${L-8}" y="${y+4}" text-anchor="end" fill="var(--faint)" font-size="11">${PRIVACY?'£•••':'£'+abbrMoney(v)}</text>`;
+  }
+  const fmtD=t=>new Date(t).toLocaleDateString('en-GB',{month:'short',year:'2-digit'});
+  const xt=[t0]; if(t1-t0>200*864e5)xt.push((t0+t1)/2); if(t1>t0)xt.push(t1);
+  xt.forEach(t=>{s+=`<text x="${X(t)}" y="${H-14}" text-anchor="middle" fill="var(--faint)" font-size="11">${fmtD(t)}</text>`;});
+  if(pts.length>1){
+    const line=pts.map(p=>`${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
+    s+=`<polygon points="${X(pts[0].t).toFixed(1)},${Y(0).toFixed(1)} ${line} ${X(pts[pts.length-1].t).toFixed(1)},${Y(0).toFixed(1)}" fill="var(--primary)" opacity=".08"/>`;
+    s+=`<polyline points="${line}" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round"/>`;
+  }
+  pts.forEach((p,i)=>{s+=`<circle class="pf-pt" cx="${X(p.t).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="5.5" fill="var(--primary)" stroke="var(--bg)" stroke-width="2" data-i="${i}" style="cursor:pointer"/>`;});
+  svg.innerHTML=s;
+  svg.querySelectorAll('.pf-pt').forEach(c=>{
+    const i=+c.dataset.i, p=pts[i], prev=pts[i-1], first=pts[0];
+    c.onmousemove=e=>{
+      tip.innerHTML=`<b>${new Date(p.t).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</b>
+        <div class="r"><span>Value</span><span>${fmtMoney(p.v)}</span></div>`+
+        (prev?`<div class="r"><span>Since previous</span><span class="${p.v>=prev.v?'pos':'neg'}">${f0((p.v/prev.v-1)*100)}</span></div>`:'')+
+        (i>0?`<div class="r"><span>Since start</span><span class="${p.v>=first.v?'pos':'neg'}">${f0((p.v/first.v-1)*100)}</span></div>`:'');
+      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';
+    };
+    c.onmouseleave=()=>tip.style.opacity=0;
+  });
+}
 function renderObs(){
   const o=[];
   const named=(arr)=>arr.map(f=>`${f.name} (${f0(f.r3y)})`).join(', ');
@@ -1862,7 +1945,20 @@ function syncFundValueInput(){const el=$('fundValue');if(!el)return;el.type=PRIV
 $('fundValue').oninput=e=>{
   const today=new Date().toISOString().slice(0,10);
   upsertValuation(today, parseFloat(e.target.value));
-  saveValuations(); renderHistory();
+  saveValuations(); renderHistory(); renderFundPerf();
+};
+$('plotTodayBtn').onclick=()=>{
+  const v=parseFloat($('fundValue').value);
+  if(!(v>0)){alert('Enter your Total fund value in the box at the top first — that is the value that gets plotted.');return;}
+  upsertValuation(new Date().toISOString().slice(0,10),v);
+  saveValuations(); renderHistory(); renderFundPerf();
+};
+$('setStartBtn').onclick=()=>{
+  const d=$('fundStartDate').value, v=parseFloat($('fundStartValue').value);
+  if(!d){alert('Pick the date your fund started.');return;}
+  if(!(v>0)){alert("Enter the fund's value on that date.");return;}
+  upsertValuation(d,v);
+  saveValuations(); syncFundValueInput(); renderHistory(); renderFundPerf();
 };
 function syncMonthlyInput(){
   const w=$('workContrib'),p=$('personalContrib'); if(!w||!p)return;
@@ -1969,7 +2065,7 @@ $('importBtn').onclick=()=>$('importInput').click();
 $('importInput').onchange=e=>{if(e.target.files[0])importData(e.target.files[0]);e.target.value='';};
 // ---------- privacy (hide £ values) ----------
 function loadPrivacy(){try{return localStorage.getItem('fund_privacy')==='1';}catch(e){return false;}}
-function applyPrivacy(){$('privacyToggle').checked=PRIVACY;syncFundValueInput();syncMonthlyInput();renderProjection();renderHistory();}
+function applyPrivacy(){$('privacyToggle').checked=PRIVACY;syncFundValueInput();syncMonthlyInput();renderProjection();renderHistory();renderFundPerf();}
 $('privacyToggle').onchange=e=>{PRIVACY=e.target.checked;try{localStorage.setItem('fund_privacy',PRIVACY?'1':'');}catch(_){}applyPrivacy();};
 // ---------- clear only personal values (keep loaded fund prices) ----------
 $('clearValues').onclick=()=>{
