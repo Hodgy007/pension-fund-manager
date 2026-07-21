@@ -2507,10 +2507,11 @@ function saveStatements(){try{localStorage.setItem('fund_statements',JSON.string
 function loadStatements(){try{const s=localStorage.getItem('fund_statements');if(s)return JSON.parse(s).filter(x=>x&&x.date);}catch(e){}return [];}
 function saveSources(){try{localStorage.setItem('fund_sources',JSON.stringify(SOURCES));}catch(e){}}
 function loadSources(){try{const s=localStorage.getItem('fund_sources');if(s)return JSON.parse(s).filter(x=>x&&x.name);}catch(e){}return [];}
-function recordSource(name,kind,detail){
+function recordSource(name,kind,detail,pot){
   const when=new Date().toISOString();
   const i=SOURCES.findIndex(x=>x.name===name);
   const rec={name,when,kind,detail:detail||''};
+  if(pot!=null)rec.pot=pot;
   if(i>=0)SOURCES[i]=rec; else SOURCES.push(rec);
 }
 const UF_ICON={statement:'📄',fund:'📊',factsheet:'📕',skipped:'⚠️'};
@@ -2524,9 +2525,12 @@ function renderSources(){
     .sort((a,b)=>b.when.localeCompare(a.when));
   const rows=shown.map(x=>{
     const when=new Date(x.when).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    // older records baked £ figures into the detail text — mask them at render time when private
+    const det=PRIVACY?String(x.detail||'').replace(/£[\d,.]+/g,'£•••••'):(x.detail||'');
+    const pot=x.pot!=null?` · pot ${fmtMoney(x.pot)}`:'';
     return `<div class="uf-row"><span class="uf-ico">${UF_ICON[x.kind]||'📄'}</span>
       <span class="uf-name" title="${escapeHtml(x.name)}">${escapeHtml(x.name)}</span>
-      <span class="uf-kind">${UF_KIND[x.kind]||x.kind}${x.detail?` · ${escapeHtml(x.detail)}`:''}</span>
+      <span class="uf-kind">${UF_KIND[x.kind]||x.kind}${det?` · ${escapeHtml(det)}`:''}${pot}</span>
       <span class="uf-when">${when}</span>
       <button data-n="${escapeHtml(x.name)}" title="Remove from this list (your extracted data is kept)">×</button></div>`;
   }).join('');
@@ -2682,7 +2686,14 @@ $('importBtn').onclick=()=>$('importInput').click();
 $('importInput').onchange=e=>{if(e.target.files[0])importData(e.target.files[0]);e.target.value='';};
 // ---------- privacy (hide £ values) ----------
 function loadPrivacy(){try{return localStorage.getItem('fund_privacy')==='1';}catch(e){return false;}}
-function applyPrivacy(){$('privacyToggle').checked=PRIVACY;syncFundValueInput();syncMonthlyInput();renderProjection();renderHistory();renderFundPerf();renderTimeline();}
+function applyPrivacy(){
+  $('privacyToggle').checked=PRIVACY;
+  syncFundValueInput();syncMonthlyInput();
+  const n=$('tlApplyNote'); if(n)n.textContent=''; // regenerate — its £ figures were baked in at render time
+  // re-render EVERYTHING: piecemeal re-rendering left sections (annual cost,
+  // benchmark verdict, uploaded-files pot values, summary) with stale masking
+  renderAll();
+}
 $('privacyToggle').onchange=e=>{PRIVACY=e.target.checked;try{localStorage.setItem('fund_privacy',PRIVACY?'1':'');}catch(_){}applyPrivacy();};
 // ---------- clear only personal values (keep loaded fund prices) ----------
 $('clearValues').onclick=()=>{
@@ -2729,7 +2740,7 @@ async function processItems(items){
           STATEMENTS.sort((a,b)=>a.date.localeCompare(b.date));
           upsertValuation(St.date,St.totalValue); // each statement year becomes a point on the performance chart
           if(St.prevDate&&St.prevTotal!=null)upsertValuation(St.prevDate,St.prevTotal); // 2023+ statements also state the prior year's total
-          recordSource(item.name,'statement',`${St.year||St.date.slice(0,4)} · pot ${fmtMoney(St.totalValue||0)}`);
+          recordSource(item.name,'statement',String(St.year||St.date.slice(0,4)),St.totalValue); // pot kept numeric so display can respect the privacy toggle
           stmts++;continue;
         }
         const F=parseFactsheet(pages);
