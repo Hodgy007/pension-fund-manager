@@ -428,6 +428,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
       <button class="btn gold" id="tlApplyContrib">Use latest statement as my monthly contributions</button>
       <span class="note" id="tlApplyNote" style="font-size:12px;color:var(--faint)"></span>
     </div>
+    <div id="tlObs" style="margin-top:22px"></div>
   </div>
   </div><!-- /tlWrap -->
 
@@ -1978,6 +1979,49 @@ function renderTimeline(){
   };
   if(!$('tlApplyNote').textContent)
     $('tlApplyNote').textContent=`Latest statement (${latest.year||latest.date.slice(0,4)}): ${fmtMoney(stmtPaidIn(latest))} went in over the year ≈ ${fmtMoney(stmtPaidIn(latest)/12)}/month.`;
+  // ---- narrative summary — plain arithmetic on the parsed statements, computed in the browser ----
+  const yr=x=>x.year||x.date.slice(0,4);
+  const first=S[0], obs=[];
+  const span=n>1?`${yr(first)}–${yr(latest)}`:String(yr(latest));
+  // cumulative figures: prefer the latest statement's own since-joined table, else sum our years
+  const acc=latest.accumulated&&latest.accumulated.Total;
+  const youAll=acc?acc.saved:tot.you;
+  const firmAll=acc?acc.firm:tot.firm;
+  const growAll=acc&&Number.isFinite(acc.growth)?acc.growth:(tot.gAny?tot.g:null);
+  const signed=v=>`${v<0?'−':''}${fmtMoney(Math.abs(v))}`;
+  obs.push(['Where the money came from',
+    `${n>1?`Across your ${n} statements (${span}), your pot went from ${fmtMoney(first.totalValue||0)} to ${fmtMoney(latest.totalValue||0)}`:`Your ${span} statement puts your pot at ${fmtMoney(latest.totalValue||0)}`}. `+
+    `${fmtMoney(youAll+firmAll)} was paid in — ${fmtMoney(youAll)} by you, ${fmtMoney(firmAll)} by the Firm`+
+    `${growAll!=null?` — and investment ${growAll<0?'losses took':'growth added'} ${signed(growAll)} ${growAll<0?'off':'on top'}`:''}.`]);
+  if(youAll>0&&firmAll>0)obs.push(['The employer money is doing heavy lifting',
+    `For every £1 you have put in, the Firm has added £${(firmAll/youAll).toFixed(2)}. An employer match is the highest-returning part of any workplace pension — worth checking you contribute enough to capture all of it.`]);
+  if(n>1){
+    const lastG=stmtGrowth(latest), lastIn=stmtPaidIn(latest);
+    const prevPot=latest.prevTotal!=null?latest.prevTotal:S[n-2].totalValue;
+    if(lastG!=null&&prevPot>0){
+      const rate=lastG/((prevPot+(latest.totalValue||0))/2)*100;
+      obs.push(['Compounding is starting to show',
+        `In your latest statement year the pot rose ${fmtMoney((latest.totalValue||0)-prevPot)}: ${fmtMoney(lastIn)} paid in plus ${signed(lastG)} of investment ${lastG<0?'loss':'growth'} (≈${Math.abs(rate).toFixed(1)}% on the average pot). As the pot grows, each year's return matters more relative to what you pay in.`]);
+    }
+  }
+  const down=S.filter(x=>{const g=stmtGrowth(x);return g!=null&&g<0;});
+  if(down.length)obs.push([`${down.length===1?'One':down.length} losing year${down.length>1?'s':''} so far`,
+    `${down.map(x=>`${yr(x)} (${signed(stmtGrowth(x))})`).join(', ')} — the only statement year${down.length>1?'s':''} where markets took more than they gave.${n>down.length?' Contributions kept the pot moving forward regardless — over a multi-decade pension, down years like this are normal.':''}`]);
+  else if(n>1)obs.push(['No losing years yet',
+    `Every statement year so far shows positive investment growth. Expect that streak to break sometimes — a pension this long rides through several downturns.`]);
+  // exclude the year the plan was joined mid-period — a partial year understates the AVC baseline
+  const avcs=S.filter(x=>x.avc>0&&!(x.joined&&x.periodStart&&x.joined>x.periodStart));
+  if(avcs.length>=2){
+    const a0=avcs[0],a1=avcs[avcs.length-1];
+    if(Math.abs(a1.avc-a0.avc)/a0.avc>0.15)obs.push([`Your Top-Up savings have ${a1.avc<a0.avc?'drifted down':'stepped up'}`,
+      `Additional (Top-Up) savings went from ${fmtMoney(a0.avc)} in ${yr(a0)} to ${fmtMoney(a1.avc)} in ${yr(a1)}. ${a1.avc<a0.avc?'If that was not deliberate, it is the easiest lever to nudge back up.':'Keeping that up accelerates everything above.'}`]);
+  }
+  if(latest.estAtNPD!=null)obs.push(['What your provider projects',
+    `Your latest statement estimates ${fmtMoney(latest.estAtNPD)} at your Normal Pension Date${latest.npd?` (${new Date(latest.npd).toLocaleDateString('en-GB',{month:'long',year:'numeric'})})`:''}, in today's money.${S.filter(x=>x.estAtNPD!=null).length>1?' That estimate has moved around from statement to statement as assumptions change — treat it as a rough bearing, not a promise.':''}`]);
+  obs.push(['This is information, not advice',
+    `Everything above is arithmetic on the statements you uploaded, computed in your browser — nothing is sent to any server or AI service. It ignores tax, charges and your wider finances. For a personal recommendation, speak to a regulated financial adviser.`]);
+  $('tlObs').innerHTML=`<div class="cardlbl">What your statements say<span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--faint);margin-left:10px">/ NOT ADVICE</span></div>
+    <div class="obs" style="margin-top:12px">${obs.map(([h,p])=>`<div class="o"><h4>${h}</h4><p>${p}</p></div>`).join('')}</div>`;
 }
 function renderObs(){
   const o=[];
