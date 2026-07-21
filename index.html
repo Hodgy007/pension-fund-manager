@@ -122,6 +122,7 @@ html.light .perf-date{color-scheme:light}
 .tl-table td button:hover{color:var(--neg)}
 .tl-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--mute)}
 .tl-legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.recovery-code{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:.06em;text-align:center;background:var(--panel2);border:1px dashed var(--gold);border-radius:8px;padding:16px;color:var(--ink);word-break:break-all}
 .backup-reminder{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between;background:rgba(212,166,74,.12);border:1px solid var(--gold);border-radius:10px;padding:12px 16px;margin:0 0 20px;font-size:14px;line-height:1.5}
 .backup-reminder .br-actions{display:flex;gap:8px;flex-shrink:0}
 .datanote{font-size:13.5px;line-height:1.55;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:12px 14px;margin:14px 0 0;max-width:760px}
@@ -287,14 +288,25 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <div class="modal-content" style="max-width:400px" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeAuthModal()">×</button>
     <h2 style="margin:0 0 6px" id="authTitle">Sign in</h2>
-    <p class="note" style="margin:0 0 18px;color:var(--mute)">Signing in shares fund prices with other users and loads the latest. Your holdings, £ amounts, statements and all personal data stay on this device only — never uploaded.</p>
+    <p class="note" style="margin:0 0 18px;color:var(--mute)" id="authIntro">Signing in shares fund prices with other users and loads the latest. Your holdings, £ amounts, statements and all personal data stay on this device only — never uploaded.</p>
     <form class="auth-form" id="authForm">
       <label>Email<input type="email" id="authEmail" autocomplete="email" required></label>
-      <label>Password<input type="password" id="authPass" autocomplete="current-password" minlength="8" required></label>
+      <label id="authCodeLabel" class="hidden">Recovery code<input type="text" id="authCode" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label>
+      <label id="authPassLabel">Password<input type="password" id="authPass" autocomplete="current-password" minlength="8" required></label>
       <div class="auth-err" id="authErr"></div>
       <button class="btn gold" type="submit" id="authSubmit" style="padding:12px">Sign in</button>
       <div class="auth-switch" id="authSwitch">No account yet? <a id="authToggle">Create one</a></div>
+      <div class="auth-switch" id="authForgotWrap"><a id="authForgot">Forgot password?</a></div>
     </form>
+    <div id="recoveryBox" class="hidden">
+      <h2 style="margin:0 0 6px">Save your recovery code</h2>
+      <p class="note" style="margin:0 0 14px;color:var(--mute)">This is the <b>only</b> way to reset your password — we can't recover it for you. Store it somewhere safe. It won't be shown again.</p>
+      <div class="recovery-code" id="recoveryCode">—</div>
+      <div class="auth-form" style="margin-top:16px">
+        <button class="btn" id="recoveryCopy" type="button">Copy code</button>
+        <button class="btn gold" id="recoveryDone" type="button" style="padding:12px">I've saved it</button>
+      </div>
+    </div>
   </div>
 </div>
 <div id="fundModal" class="modal-overlay" onclick="if(event.target===this)closeFundModal()">
@@ -308,6 +320,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 <div class="acct-bar" id="acctBar" style="display:none">
   <span class="acct-sync" id="acctSync"></span>
   <span class="acct-email" id="acctEmail"></span>
+  <button class="btn" id="acctRecovery" style="display:none" title="Show a new recovery code for resetting your password">Recovery code</button>
   <button class="btn" id="acctBtn">Sign in</button>
 </div>
 <header>
@@ -2729,6 +2742,7 @@ function setAcctSync(t){ const el=$('acctSync'); if(el)el.textContent=t||''; }
 function renderAcct(){
   $('acctEmail').textContent=USER?USER.email:'';
   $('acctBtn').textContent=USER?'Sign out':'Sign in';
+  const rec=$('acctRecovery'); if(rec)rec.style.display=USER?'':'none';
   if(!USER)setAcctSync('');
 }
 // NOTE: personal data (holdings, valuations, contributions, projection, statements,
@@ -2778,39 +2792,72 @@ async function pullCloud(){
   const _hf=window.handleFiles;
   window.handleFiles=async function(fl){ await _hf(fl); pushFundsCloud(); };
 }
-/* auth modal */
-let AUTH_MODE='login';
-function openAuthModal(){ $('authErr').textContent=''; $('authModal').classList.add('open'); $('authEmail').focus(); }
+/* auth modal — supports login / signup / reset (recovery-code) */
+let AUTH_MODE='login', recoveryDoneAction=null;
+function openAuthModal(mode){
+  mode=mode||'login';
+  $('authErr').textContent='';
+  $('authForm').classList.remove('hidden');
+  $('recoveryBox').classList.add('hidden');
+  setAuthMode(mode);
+  $('authModal').classList.add('open');
+  $('authEmail').focus();
+}
 function closeAuthModal(){ $('authModal').classList.remove('open'); }
 function setAuthMode(m){
   AUTH_MODE=m;
-  $('authTitle').textContent=m==='login'?'Sign in':'Create account';
-  $('authSubmit').textContent=m==='login'?'Sign in':'Create account';
-  $('authSwitch').innerHTML=m==='login'
-    ?'No account yet? <a id="authToggle">Create one</a>'
-    :'Already have an account? <a id="authToggle">Sign in</a>';
+  const title={login:'Sign in',signup:'Create account',reset:'Reset password'}[m];
+  $('authTitle').textContent=title; $('authSubmit').textContent=title;
+  $('authCodeLabel').classList.toggle('hidden',m!=='reset');
+  $('authCode').required=(m==='reset');
+  $('authPassLabel').firstChild.textContent=m==='reset'?'New password':'Password';
   $('authPass').autocomplete=m==='login'?'current-password':'new-password';
-  $('authToggle').onclick=()=>setAuthMode(AUTH_MODE==='login'?'signup':'login');
+  $('authForgotWrap').style.display=m==='login'?'block':'none';
+  $('authIntro').style.display=m==='reset'?'none':'block';
+  $('authSwitch').innerHTML=m==='signup'?'Already have an account? <a id="authToggle">Sign in</a>'
+    :m==='reset'?'Remembered it? <a id="authToggle">Sign in</a>'
+    :'No account yet? <a id="authToggle">Create one</a>';
+  $('authToggle').onclick=()=>setAuthMode(m==='login'?'signup':'login');
 }
-$('authToggle').onclick=()=>setAuthMode('signup');
+function showRecoveryCode(code,onDone){
+  $('recoveryCode').textContent=code;
+  recoveryDoneAction=onDone||(()=>closeAuthModal());
+  $('authForm').classList.add('hidden');
+  $('recoveryBox').classList.remove('hidden');
+  $('authModal').classList.add('open');
+}
+$('authForgot').onclick=()=>setAuthMode('reset');
+$('recoveryCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('recoveryCode').textContent);$('recoveryCopy').textContent='Copied ✓';setTimeout(()=>$('recoveryCopy').textContent='Copy code',1500);}catch(e){}};
+$('recoveryDone').onclick=()=>{const a=recoveryDoneAction;recoveryDoneAction=null;if(a)a();else closeAuthModal();};
 $('authForm').onsubmit=async e=>{
   e.preventDefault();
   $('authErr').textContent='';
   $('authSubmit').disabled=true;
-  const r=await api('/api/auth',{method:'POST',body:JSON.stringify({action:AUTH_MODE,email:$('authEmail').value,password:$('authPass').value})});
+  const body={action:AUTH_MODE,email:$('authEmail').value,password:$('authPass').value};
+  if(AUTH_MODE==='reset')body.code=$('authCode').value;
+  const r=await api('/api/auth',{method:'POST',body:JSON.stringify(body)});
   $('authSubmit').disabled=false;
   if(r.ok&&r.user){
-    USER=r.user; renderAcct(); closeAuthModal(); $('authPass').value='';
-    await pullCloud();
+    USER=r.user; renderAcct(); $('authPass').value=''; $('authCode').value='';
+    if(r.recoveryCode){ // signup or reset — show the code, then sync once they've saved it
+      showRecoveryCode(r.recoveryCode,async()=>{ closeAuthModal(); await pullCloud(); });
+    }else{ closeAuthModal(); await pullCloud(); }
   }else{
     $('authErr').textContent=r.error||'Something went wrong — try again.';
   }
+};
+$('acctRecovery').onclick=async()=>{
+  if(!USER)return;
+  if(!confirm('Show a new recovery code? This replaces any previous one — the old code stops working.'))return;
+  const r=await api('/api/auth',{method:'POST',body:JSON.stringify({action:'recovery'})});
+  if(r.ok&&r.recoveryCode)showRecoveryCode(r.recoveryCode,()=>closeAuthModal());
+  else alert(r.error||'Could not generate a code.');
 };
 $('acctBtn').onclick=async()=>{
   if(USER){
     await api('/api/auth',{method:'POST',body:JSON.stringify({action:'logout'})});
     USER=null; renderAcct();
-  }else openAuthModal();
+  }else openAuthModal('login');
 };
 (async function initAccount(){
   const r=await api('/api/auth');

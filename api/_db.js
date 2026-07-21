@@ -25,6 +25,8 @@ export async function ensureSchema() {
       email text UNIQUE NOT NULL,
       pass_hash text NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now())`;
+    // recovery code (hashed) lets a user reset their password without email
+    await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery_hash text`;
     await s`CREATE TABLE IF NOT EXISTS sessions(
       token text PRIMARY KEY,
       user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -62,6 +64,16 @@ export function verifyPassword(pw, stored) {
   const orig = Buffer.from(hash, 'hex');
   return calc.length === orig.length && crypto.timingSafeEqual(calc, orig);
 }
+// human-friendly one-time recovery code, e.g. "K3F9-2QXM-7T4P-WB6R" (Crockford base32, no confusables)
+export function genRecoveryCode() {
+  const A = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  const bytes = crypto.randomBytes(16);
+  let out = '';
+  for (let i = 0; i < 16; i++) out += A[bytes[i] % 32] + ((i % 4 === 3 && i < 15) ? '-' : '');
+  return out;
+}
+// normalise before hashing/verifying so spacing/case/dashes don't matter to the user
+export const normRecovery = (c) => String(c || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
 
 // ---- sessions (opaque random token in httpOnly cookie, row in sessions table) ----
 export function parseCookies(req) {
