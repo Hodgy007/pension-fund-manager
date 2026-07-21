@@ -491,6 +491,9 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <h2>Look-through &amp; overlap<span class="n">/ WHAT YOU ACTUALLY HOLD</span></h2>
   <div id="lookThrough"></div>
 
+  <h2>Your mix vs the default fund<span class="n">/ HAVE YOUR CHOICES ADDED VALUE?</span></h2>
+  <div id="benchWrap"></div>
+
   <h2>Compare funds over time<span class="n">/ REBASED TO 100</span></h2>
   <div class="card">
     <div class="cardlbl">Click funds to plot them together. Each line is rebased to 100 at the first date they all share, so funds with very different unit prices are directly comparable.</div>
@@ -1073,6 +1076,44 @@ function buildPortfolio(){
   const alloc={};held.forEach(([n,w])=>{const b=broad(n);alloc[b]=(alloc[b]||0)+w/tw*100;});
   return {r1y:rr(365),r3y:rr(365*3),ann,vol,mdd:mdd*100,sharpe:ann/vol,alloc,held:held.map(([n,w])=>[n,w/tw*100])};
 }
+// ---------- benchmark: your blended mix vs your plan's default fund ----------
+let BENCHMARK_NAME=(()=>{try{return localStorage.getItem('fund_benchmark')||null;}catch(e){return null;}})();
+function getBenchmarkFund(){
+  if(BENCHMARK_NAME){const f=FUNDS.find(x=>x.name===BENCHMARK_NAME);if(f)return f;}
+  // auto: a loaded fund matching a fund named in your statements (your default/held option)
+  const names=[...new Set(STATEMENTS.flatMap(s=>(s.funds||[]).map(f=>f.name)).filter(Boolean))];
+  for(const nm of names){const f=FUNDS.find(x=>{const a=normName(x.name),b=normName(nm);return a===b||a.includes(b)||b.includes(a);});if(f)return f;}
+  return null;
+}
+function seriesMetrics(dates,idx){
+  const dr=[];for(let i=1;i<idx.length;i++)dr.push(idx[i]/idx[i-1]-1);
+  const m=dr.reduce((a,b)=>a+b,0)/dr.length,v=dr.reduce((a,b)=>a+(b-m)**2,0)/dr.length;
+  const vol=Math.sqrt(v)*Math.sqrt(periodsPerYear(dates.map(d=>+d)))*100;
+  let peak=idx[0],mdd=0;for(const x of idx){peak=Math.max(peak,x);mdd=Math.min(mdd,x/peak-1);}
+  const yrs=(dates[dates.length-1]-dates[0])/(365.25*864e5);
+  const ann=yrs>0.1?((idx[idx.length-1]/idx[0])**(1/yrs)-1)*100:null;
+  return {ann,total:(idx[idx.length-1]/idx[0]-1)*100,vol,mdd:mdd*100,yrs};
+}
+function benchmarkVsDefault(){
+  const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n));
+  const bench=getBenchmarkFund();
+  if(!held.length||!bench)return null;
+  const maps={},sets=[];
+  for(const [n] of held){const f=FUNDS.find(f=>f.name===n);const mp={};f.rows.forEach(r=>mp[+r.d]=r.p);maps[n]=mp;sets.push(new Set(Object.keys(mp)));}
+  const bm={};bench.rows.forEach(r=>bm[+r.d]=r.p);sets.push(new Set(Object.keys(bm)));
+  let common=[...sets[0]];for(let i=1;i<sets.length;i++)common=common.filter(d=>sets[i].has(d));
+  common=common.map(Number).sort((a,b)=>a-b);
+  if(common.length<20)return null; // need a meaningful overlapping window
+  const tw=held.reduce((a,[,w])=>a+w,0);
+  const pIdx=[100],bIdx=[100],dates=[new Date(common[0])];
+  for(let i=1;i<common.length;i++){
+    let r=0;for(const [n,w] of held)r+=(w/tw)*(maps[n][common[i]]/maps[n][common[i-1]]-1);
+    pIdx.push(pIdx[pIdx.length-1]*(1+r));
+    bIdx.push(100*bm[common[i]]/bm[common[0]]);
+    dates.push(new Date(common[i]));
+  }
+  return {bench:bench.name,dates,you:{...seriesMetrics(dates,pIdx),idx:pIdx},def:{...seriesMetrics(dates,bIdx),idx:bIdx}};
+}
 // ---------- render ----------
 function recompute(){
   FUNDS.forEach(metrics);
@@ -1087,7 +1128,7 @@ function renderAll(){
   $('fscount').textContent=FACTSHEETS.length; $('fsChip').classList.toggle('hidden',!FACTSHEETS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderBackupReminder(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderBenchmark(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderBackupReminder(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -1114,6 +1155,52 @@ function renderPortfolio(){
   d+='<circle cx="60" cy="60" r="30" fill="var(--panel)"/>';
   $('donut').innerHTML=d;
   $('donutLegend').innerHTML=entries.map(([n,p])=>`<div><span class="dot" style="background:${cols[n]||'#888'}"></span>${n}<span class="pc">${p.toFixed(0)}%</span></div>`).join('');
+}
+function renderBenchmark(){
+  const el=$('benchWrap'); if(!el)return;
+  if(!FUNDS.length){el.innerHTML='<div class="card"><p class="note" style="margin:0;color:var(--faint)">Load fund price sheets and set your holdings to compare your mix against your plan’s default fund.</p></div>';return;}
+  const bench=getBenchmarkFund();
+  const opts=FUNDS.map(f=>`<option value="${escapeHtml(f.name)}" ${bench&&bench.name===f.name?'selected':''}>${escapeHtml(f.name)}</option>`).join('');
+  const picker=`<div class="fundval-row" style="margin-top:0;border-top:none;padding-top:0"><label for="benchSel">Benchmark / default fund</label><select id="benchSel" class="he-name" style="min-width:220px">${opts}</select><span class="note">Defaults to a fund named in your statements. Pick any loaded fund to compare against.</span></div>`;
+  const held=HOLDINGS.filter(([n,w])=>w>0&&FUNDS.find(f=>f.name===n));
+  const b=benchmarkVsDefault();
+  let body;
+  if(!held.length) body=`<p class="note" style="margin:0;color:var(--faint)">Set your holdings above to compare your blended mix against the default fund.</p>`;
+  else if(!b) body=`<p class="note" style="margin:0;color:var(--faint)">Not enough overlapping price history between your holdings and the chosen benchmark yet. Upload the default fund’s price sheet (your plan’s Diversified/Default option) covering the same dates as your holdings.</p>`;
+  else if(b.you.ann==null||b.def.ann==null) body=`<p class="note" style="margin:0;color:var(--faint)">Not enough shared history to annualise — need at least a few months where both have prices.</p>`;
+  else{
+    const diffAnn=b.you.ann-b.def.ann, diffTot=b.you.total-b.def.total, better=diffAnn>=0;
+    const pot=latestValue(), gbp=pot?pot*diffTot/100:null;
+    body=`<div class="stat-row">
+      <div class="stat"><div class="lbl">Your mix · annualised</div><div class="val sm ${cls(b.you.ann)}">${f1(b.you.ann)}</div></div>
+      <div class="stat"><div class="lbl">Default · annualised</div><div class="val sm ${cls(b.def.ann)}">${f1(b.def.ann)}</div></div>
+      <div class="stat"><div class="lbl">Difference / yr</div><div class="val sm ${cls(diffAnn)}">${(diffAnn>=0?'+':'')+f1(diffAnn)}</div></div>
+    </div>
+    <div class="stat-row" style="margin-top:10px">
+      <div class="stat"><div class="lbl">Your volatility</div><div class="val sm">${f1(b.you.vol)}</div></div>
+      <div class="stat"><div class="lbl">Default volatility</div><div class="val sm">${f1(b.def.vol)}</div></div>
+      <div class="stat"><div class="lbl">Worst fall · you / default</div><div class="val sm">${f0(b.you.mdd)} / ${f0(b.def.mdd)}</div></div>
+    </div>
+    <svg id="benchChart" viewBox="0 0 760 260" style="width:100%;height:auto;margin-top:14px"></svg>
+    <p class="note" style="margin:10px 0 0">Over the <b>${b.you.yrs.toFixed(1)} years</b> you both have prices for, your fund choices returned <b>${f1(b.you.ann)}/yr</b> vs the default <b>${escapeHtml(b.bench)}</b> at <b>${f1(b.def.ann)}/yr</b> — ${better?'ahead by':'behind by'} <b>${Math.abs(diffAnn).toFixed(1)}%/yr</b> (${(diffTot>=0?'+':'')+diffTot.toFixed(0)}% total)${gbp!=null?`. On your current pot of ${fmtMoney(pot)}, that gap is worth roughly <b>${fmtMoney(Math.abs(gbp))}</b> ${better?'in your favour':'against you'} over the period`:''}. Price/capital return only, excludes charges; past performance isn’t a guide to the future.</p>`;
+  }
+  el.innerHTML=`<div class="card">${picker}<div style="margin-top:14px">${body}</div></div>`;
+  const sel=$('benchSel'); if(sel)sel.onchange=e=>{BENCHMARK_NAME=e.target.value;try{localStorage.setItem('fund_benchmark',BENCHMARK_NAME);}catch(_){}renderBenchmark();};
+  if(b&&b.you.ann!=null)drawBenchChart(b);
+}
+function drawBenchChart(b){
+  const svg=$('benchChart'); if(!svg)return;
+  const W=760,H=260,L=54,R=16,T=20,B=26;
+  const all=b.you.idx.concat(b.def.idx), vmin=Math.min(...all), vmax=Math.max(...all);
+  const t0=+b.dates[0], t1=+b.dates[b.dates.length-1];
+  const X=t=>L+(t-t0)/((t1-t0)||1)*(W-L-R);
+  const Y=v=>T+(1-(v-vmin)/((vmax-vmin)||1))*(H-T-B);
+  let s='';
+  for(let i=0;i<=4;i++){const v=vmin+(vmax-vmin)*i/4,y=Y(v);s+=`<line x1="${L}" y1="${y}" x2="${W-R}" y2="${y}" stroke="var(--line)" opacity=".6"/><text x="${L-6}" y="${y+4}" text-anchor="end" fill="var(--faint)" font-size="10">${Math.round(v)}</text>`;}
+  const line=(idx,color,w)=>`<polyline points="${idx.map((v,i)=>`${X(+b.dates[i]).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linejoin="round"/>`;
+  s+=line(b.def.idx,'var(--mute)',1.8)+line(b.you.idx,TL_COL.value,2.4);
+  s+=`<g font-size="11"><rect x="${L}" y="8" width="12" height="3" fill="${TL_COL.value}"/><text x="${L+16}" y="12" fill="var(--mute)">Your mix</text><rect x="${L+92}" y="8" width="12" height="3" fill="var(--mute)"/><text x="${L+108}" y="12" fill="var(--mute)">${escapeHtml(b.bench.length>34?b.bench.slice(0,33)+'…':b.bench)}</text></g>`;
+  svg.innerHTML=s;
 }
 function renderChargesAnalysis(){
   const el=$('chargesAnalysis');
