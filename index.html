@@ -122,6 +122,8 @@ html.light .perf-date{color-scheme:light}
 .tl-table td button:hover{color:var(--neg)}
 .tl-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--mute)}
 .tl-legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.datanote{font-size:13.5px;line-height:1.55;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:12px 14px;margin:14px 0 0;max-width:760px}
+.datanote b{color:var(--ink)}
 .uploaded-files{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
 .uploaded-files .uf-h{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px}
 .uf-row{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
@@ -309,7 +311,8 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 <header>
   <div class="eyebrow" id="eyebrow">Fund Dashboard · upload your monthly downloads</div>
   <h1>Your funds, <em>re-measured</em> whenever you refresh the data.</h1>
-  <p class="sub" id="headerSub">Drop in the price-history spreadsheets you download each month. Everything is parsed in your browser — no upload to any server — then scored on return, risk and drawdown, with your holdings highlighted.</p>
+  <p class="sub" id="headerSub">Drop in the fund price spreadsheets and annual pension statements you download — they're scored on return, risk and drawdown, with your holdings and a retirement projection built from your own numbers.</p>
+  <p class="datanote">🔒 <b>Where your data lives:</b> your holdings, £ amounts, pension statements, salary and date of birth stay <b>on this device only</b> — they are never uploaded. Signing in shares just the <b>fund price sheets</b> to a shared library, so the latest prices sync across your devices (nothing personal). Use <b>Export</b> to back up your personal data, or <b>Clear all</b> to wipe everything (and, when signed in, the shared fund library too).</p>
   <p class="disclaim">Information tool, not financial advice. Figures are historical; past performance does not predict future returns. Ignores fees, charges, tax and how funds move together, and says nothing about your goals or timeframe. For a recommendation, speak to a regulated financial adviser.</p>
 </header>
 
@@ -2461,7 +2464,13 @@ window.addEventListener('drop',e=>{
   e.preventDefault();
   if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);
 });
-$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;WORK_CONTRIB=0;PERSONAL_CONTRIB=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];STATEMENTS=[];SOURCES=[];['fund_data','fund_holdings','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_work_contrib','fund_personal_contrib','fund_projection','fund_compare','fund_factsheets','fund_statements','fund_sources'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();renderSources();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+$('clearAll').onclick=async()=>{
+  const msg=USER
+    ?'Clear everything on this device AND remove the shared fund price library from the server? Your personal data lives only on this device, so this cannot be undone.'
+    :'Clear everything on this device? Your data is stored only here, so this cannot be undone.';
+  if(!confirm(msg))return;
+  if(USER){setAcctSync('Clearing shared fund library…');try{await api('/api/funds',{method:'DELETE'});}catch(e){}setAcctSync('');}
+  FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;WORK_CONTRIB=0;PERSONAL_CONTRIB=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];STATEMENTS=[];SOURCES=[];['fund_data','fund_holdings','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_work_contrib','fund_personal_contrib','fund_projection','fund_compare','fund_factsheets','fund_statements','fund_sources'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();renderSources();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 function upMsg(text,isErr){const u=$('upStatus');if(u){u.style.display=text?'block':'none';u.textContent=text||'';u.style.color=isErr?'var(--neg)':'var(--mute)';}const e=$('errbox');if(e&&isErr)e.textContent=text;const l=$('loadbar');if(l&&!isErr)l.textContent=text;}
 // parse a batch of {name, buf} items into FUNDS/FACTSHEETS; returns a summary string
 async function processItems(items){
