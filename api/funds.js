@@ -1,17 +1,15 @@
-import { dbConfigured, db, ensureSchema, getSessionUser, notConfigured } from './_db.js';
+import { dbConfigured, db, ensureSchema, notConfigured } from './_db.js';
 
 // price series for a full fund set can be sizeable
 export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
 
+// Open, no login: the fund price library is shared, non-personal market data.
 export default async function handler(req, res) {
   if (!dbConfigured()) return notConfigured(res);
   await ensureSchema();
   const s = db();
 
   try {
-    const user = await getSessionUser(req);
-    if (!user) return res.status(401).json({ error: 'Sign in first.' });
-
     if (req.method === 'GET') {
       const funds = await s`SELECT name, rows, updated_at FROM funds ORDER BY name`;
       const factsheets = await s`SELECT name, data, updated_at FROM factsheets ORDER BY name`;
@@ -25,16 +23,16 @@ export default async function handler(req, res) {
       for (const f of funds) {
         // rows arrive as [[epochMs, price], ...]
         if (!f || typeof f.name !== 'string' || !f.name.trim() || !Array.isArray(f.rows) || !f.rows.length) continue;
-        await s`INSERT INTO funds(name, rows, updated_by, updated_at)
-                VALUES(${f.name.slice(0, 300)}, ${JSON.stringify(f.rows)}::jsonb, ${user.id}, now())
-                ON CONFLICT(name) DO UPDATE SET rows = EXCLUDED.rows, updated_by = EXCLUDED.updated_by, updated_at = now()`;
+        await s`INSERT INTO funds(name, rows, updated_at)
+                VALUES(${f.name.slice(0, 300)}, ${JSON.stringify(f.rows)}::jsonb, now())
+                ON CONFLICT(name) DO UPDATE SET rows = EXCLUDED.rows, updated_at = now()`;
         nf++;
       }
       for (const fs of factsheets) {
         if (!fs || typeof fs.name !== 'string' || !fs.name.trim()) continue;
-        await s`INSERT INTO factsheets(name, data, updated_by, updated_at)
-                VALUES(${fs.name.slice(0, 300)}, ${JSON.stringify(fs)}::jsonb, ${user.id}, now())
-                ON CONFLICT(name) DO UPDATE SET data = EXCLUDED.data, updated_by = EXCLUDED.updated_by, updated_at = now()`;
+        await s`INSERT INTO factsheets(name, data, updated_at)
+                VALUES(${fs.name.slice(0, 300)}, ${JSON.stringify(fs)}::jsonb, now())
+                ON CONFLICT(name) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`;
         ns++;
       }
       return res.status(200).json({ ok: true, funds: nf, factsheets: ns });

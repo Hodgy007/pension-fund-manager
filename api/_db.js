@@ -1,5 +1,4 @@
 import { neon } from '@neondatabase/serverless';
-import crypto from 'node:crypto';
 
 // The Neon Vercel integration injects DATABASE_URL (older setups may use POSTGRES_URL)
 const URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.NEON_DATABASE_URL;
@@ -13,24 +12,13 @@ export function db() {
   return sql;
 }
 
-// Lazily create the schema once per cold start. CREATE TABLE IF NOT EXISTS keeps
-// this idempotent so no separate migration runner is needed for a schema this small.
+// The app stores NO personal data and has NO accounts. The database holds only the
+// shared, non-personal fund price library (funds + factsheets), open to anyone.
 let schemaReady = null;
 export async function ensureSchema() {
   const s = db();
   if (!s) return false;
   if (!schemaReady) schemaReady = (async () => {
-    await s`CREATE TABLE IF NOT EXISTS users(
-      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-      email text UNIQUE NOT NULL,
-      pass_hash text NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now())`;
-    // recovery code (hashed) lets a user reset their password without email
-    await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery_hash text`;
-    await s`CREATE TABLE IF NOT EXISTS sessions(
-      token text PRIMARY KEY,
-      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires_at timestamptz NOT NULL)`;
     await s`CREATE TABLE IF NOT EXISTS funds(
       name text PRIMARY KEY,
       rows jsonb NOT NULL,
@@ -41,73 +29,14 @@ export async function ensureSchema() {
       data jsonb NOT NULL,
       updated_at timestamptz NOT NULL DEFAULT now(),
       updated_by bigint)`;
-    // Personal data (holdings, valuations, statements, salary, DOB, ...) is kept
-    // client-side only and never sent to the server. Drop the old per-user table so
-    // any data previously synced into it is removed from the database entirely.
+    // accounts removed — drop the old user/session/personal tables so no emails,
+    // password hashes or personal data remain in the database
     await s`DROP TABLE IF EXISTS user_data`;
+    await s`DROP TABLE IF EXISTS sessions`;
+    await s`DROP TABLE IF EXISTS users`;
   })();
   await schemaReady;
   return true;
-}
-
-// ---- passwords (scrypt, per-user random salt, constant-time compare) ----
-const KEYLEN = 64;
-export function hashPassword(pw) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(pw, salt, KEYLEN).toString('hex');
-  return `s1:${salt}:${hash}`;
-}
-export function verifyPassword(pw, stored) {
-  const [v, salt, hash] = String(stored || '').split(':');
-  if (v !== 's1' || !salt || !hash) return false;
-  const calc = crypto.scryptSync(pw, salt, KEYLEN);
-  const orig = Buffer.from(hash, 'hex');
-  return calc.length === orig.length && crypto.timingSafeEqual(calc, orig);
-}
-// human-friendly one-time recovery code, e.g. "K3F9-2QXM-7T4P-WB6R" (Crockford base32, no confusables)
-export function genRecoveryCode() {
-  const A = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-  const bytes = crypto.randomBytes(16);
-  let out = '';
-  for (let i = 0; i < 16; i++) out += A[bytes[i] % 32] + ((i % 4 === 3 && i < 15) ? '-' : '');
-  return out;
-}
-// normalise before hashing/verifying so spacing/case/dashes don't matter to the user
-export const normRecovery = (c) => String(c || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
-
-// ---- sessions (opaque random token in httpOnly cookie, row in sessions table) ----
-export function parseCookies(req) {
-  const out = {};
-  (req.headers.cookie || '').split(';').forEach(p => {
-    const i = p.indexOf('=');
-    if (i > 0) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
-  });
-  return out;
-}
-export function sessionCookie(token, maxAgeSec) {
-  return `pfm_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSec}`;
-}
-export async function createSession(userId) {
-  const s = db();
-  const token = crypto.randomBytes(32).toString('hex');
-  await s`DELETE FROM sessions WHERE expires_at < now()`;
-  await s`INSERT INTO sessions(token, user_id, expires_at) VALUES(${token}, ${userId}, now() + interval '30 days')`;
-  return token;
-}
-export async function getSessionUser(req) {
-  const s = db();
-  if (!s) return null;
-  const token = parseCookies(req).pfm_session;
-  if (!token) return null;
-  const rows = await s`SELECT u.id, u.email FROM sessions se JOIN users u ON u.id = se.user_id
-                       WHERE se.token = ${token} AND se.expires_at > now()`;
-  return rows[0] || null;
-}
-export async function destroySession(req) {
-  const s = db();
-  if (!s) return;
-  const token = parseCookies(req).pfm_session;
-  if (token) await s`DELETE FROM sessions WHERE token = ${token}`;
 }
 
 export function notConfigured(res) {

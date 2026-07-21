@@ -284,31 +284,6 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 </style>
 </head>
 <body>
-<div id="authModal" class="modal-overlay" onclick="if(event.target===this)closeAuthModal()">
-  <div class="modal-content" style="max-width:400px" onclick="event.stopPropagation()">
-    <button class="modal-close" onclick="closeAuthModal()">×</button>
-    <h2 style="margin:0 0 6px" id="authTitle">Sign in</h2>
-    <p class="note" style="margin:0 0 18px;color:var(--mute)" id="authIntro">Signing in shares fund prices with other users and loads the latest. Your holdings, £ amounts, statements and all personal data stay on this device only — never uploaded.</p>
-    <form class="auth-form" id="authForm">
-      <label>Email<input type="email" id="authEmail" autocomplete="email" required></label>
-      <label id="authCodeLabel" class="hidden">Recovery code<input type="text" id="authCode" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label>
-      <label id="authPassLabel">Password<input type="password" id="authPass" autocomplete="current-password" minlength="8" required></label>
-      <div class="auth-err" id="authErr"></div>
-      <button class="btn gold" type="submit" id="authSubmit" style="padding:12px">Sign in</button>
-      <div class="auth-switch" id="authSwitch">No account yet? <a id="authToggle">Create one</a></div>
-      <div class="auth-switch" id="authForgotWrap"><a id="authForgot">Forgot password?</a></div>
-    </form>
-    <div id="recoveryBox" class="hidden">
-      <h2 style="margin:0 0 6px">Save your recovery code</h2>
-      <p class="note" style="margin:0 0 14px;color:var(--mute)">This is the <b>only</b> way to reset your password — we can't recover it for you. Store it somewhere safe. It won't be shown again.</p>
-      <div class="recovery-code" id="recoveryCode">—</div>
-      <div class="auth-form" style="margin-top:16px">
-        <button class="btn" id="recoveryCopy" type="button">Copy code</button>
-        <button class="btn gold" id="recoveryDone" type="button" style="padding:12px">I've saved it</button>
-      </div>
-    </div>
-  </div>
-</div>
 <div id="fundModal" class="modal-overlay" onclick="if(event.target===this)closeFundModal()">
   <div class="modal-content" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeFundModal()">×</button>
@@ -317,17 +292,11 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 </div>
 <button id="themeToggle" class="theme-toggle" title="Switch light / dark mode" aria-label="Toggle theme">🌙</button>
 <div class="wrap">
-<div class="acct-bar" id="acctBar" style="display:none">
-  <span class="acct-sync" id="acctSync"></span>
-  <span class="acct-email" id="acctEmail"></span>
-  <button class="btn" id="acctRecovery" style="display:none" title="Show a new recovery code for resetting your password">Recovery code</button>
-  <button class="btn" id="acctBtn">Sign in</button>
-</div>
 <header>
   <div class="eyebrow" id="eyebrow">Fund Dashboard · upload your monthly downloads</div>
   <h1>Your funds, <em>re-measured</em> whenever you refresh the data.</h1>
   <p class="sub" id="headerSub">Drop in the fund price spreadsheets and annual pension statements you download — they're scored on return, risk and drawdown, with your holdings and a retirement projection built from your own numbers.</p>
-  <p class="datanote">🔒 <b>Where your data lives:</b> your holdings, £ amounts, pension statements, salary and date of birth stay <b>on this device only</b> — they are never uploaded. Signing in shares just the <b>fund price sheets</b> to a shared library, so the latest prices sync across your devices (nothing personal). Uploading a fund sheet <b>adds to</b> its price history rather than replacing it, so older data isn't lost. Use <b>Export</b> to back up your personal data; <b>Clear all</b> wipes this device only — the shared fund library is never deleted.</p>
+  <p class="datanote">🔒 <b>Where your data lives:</b> your holdings, £ amounts, pension statements, salary and date of birth stay <b>on this device only</b> — they are never uploaded, and there are no accounts or logins. Only the <b>fund price sheets</b> (non-personal market data) sync to a shared library so the latest prices load automatically. Uploading a fund sheet <b>adds to</b> its price history rather than replacing it, so older data isn't lost. Use <b>Export</b> to back up your personal data; <b>Clear all</b> wipes this device only.</p>
   <p class="disclaim">Information tool, not financial advice. Figures are historical; past performance does not predict future returns. Ignores fees, charges, tax and how funds move together, and says nothing about your goals or timeframe. For a recommendation, speak to a regulated financial adviser.</p>
 </header>
 <div id="backupReminder" class="backup-reminder hidden">
@@ -365,6 +334,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <span class="chip"><b id="fcount">0</b> funds loaded</span>
     <span class="chip hidden" id="fsChip"><b id="fscount">0</b> factsheets</span>
     <span class="chip">priced to <b id="asof">—</b></span>
+    <span class="acct-sync" id="fundSync"></span>
     <button class="btn" id="addMore">+ Add / update files</button>
     <button class="btn" id="exportBtn">⬇ Export</button>
     <button class="btn" id="csvBtn" title="Download the fund metrics table as CSV">⬇ CSV</button>
@@ -2725,148 +2695,60 @@ if(SHARED_REPORTS){
   recompute();
 })();
 
-/* ---------- user accounts + Neon cloud sync ----------
-   Shared: fund price series + factsheets (readable by any signed-in user).
-   Private: holdings, valuations, contributions, projection — one jsonb blob per user.
-   If the database isn't configured (503 / network error) the whole feature stays
-   hidden and the app behaves exactly as the local-only version. */
-let USER=null, SYNC_MUTE=false;
+/* ---------- shared fund-price library (open, no accounts) ----------
+   The database holds ONLY the non-personal fund price series + factsheets, open to
+   anyone. All personal data (holdings, valuations, contributions, projection,
+   statements, salary, DOB, uploaded-file names) stays on this device and is never
+   sent anywhere. If the database isn't configured (503/404/network) the app just
+   runs fully local. */
 async function api(path,opts){
   try{
-    const r=await fetch(path,{headers:{'Content-Type':'application/json'},credentials:'same-origin',...opts});
+    const r=await fetch(path,{headers:{'Content-Type':'application/json'},...opts});
     const j=await r.json().catch(()=>({}));
     return {ok:r.ok,status:r.status,...j};
   }catch(e){ return {ok:false,status:0,error:'network'}; }
 }
-function setAcctSync(t){ const el=$('acctSync'); if(el)el.textContent=t||''; }
-function renderAcct(){
-  $('acctEmail').textContent=USER?USER.email:'';
-  $('acctBtn').textContent=USER?'Sign out':'Sign in';
-  const rec=$('acctRecovery'); if(rec)rec.style.display=USER?'':'none';
-  if(!USER)setAcctSync('');
-}
-// NOTE: personal data (holdings, valuations, contributions, projection, statements,
-// salary, DOB, uploaded-file names) is deliberately kept on this device only — it is
-// never sent to the server. Only shared fund prices + factsheets are synced below.
+function setAcctSync(t){ const el=$('fundSync'); if(el)el.textContent=t||''; }
+// push newly parsed fund prices + factsheets to the shared library
 async function pushFundsCloud(){
-  if(!USER)return;
   if(!FUNDS.length&&!FACTSHEETS.length)return;
   const payload={funds:FUNDS.map(f=>({name:f.name,rows:f.rows.map(r=>[+r.d,r.p])})),factsheets:FACTSHEETS};
   const r=await api('/api/funds',{method:'POST',body:JSON.stringify(payload)});
-  if(r.ok)setAcctSync('✓ Fund data shared');
+  if(r.ok)setAcctSync('✓ Fund library updated');
 }
-// pull only the SHARED fund prices + factsheets from the server; personal data is never fetched
+// pull the shared fund prices + factsheets (merging so accumulated history isn't lost)
 async function pullCloud(){
-  if(!USER)return;
-  setAcctSync('Loading shared funds…');
-  SYNC_MUTE=true;
-  try{
-    const f=await api('/api/funds');
-    if(f.ok&&Array.isArray(f.funds)){
-      f.funds.forEach(row=>{
-        if(!Array.isArray(row.rows))return;
-        const rows=row.rows.map(([d,p])=>({d:new Date(d),p})).sort((a,b)=>a.d-b.d);
-        if(!rows.length)return;
-        const ix=FUNDS.findIndex(x=>x.name===row.name);
-        if(ix>=0)FUNDS[ix]={name:row.name,rows:mergeFundRows(FUNDS[ix].rows,rows)}; else FUNDS.push({name:row.name,rows});
-      });
-      (f.factsheets||[]).forEach(row=>{
-        if(!row.data||!row.data.name)return;
-        const ix=FACTSHEETS.findIndex(x=>normName(x.name)===normName(row.data.name));
-        if(ix>=0)FACTSHEETS[ix]=row.data; else FACTSHEETS.push(row.data);
-      });
-      saveFunds(); saveFactsheets();
-    }
-    if(FUNDS.length||FACTSHEETS.length){
-      $('uploadSection').classList.add('hidden');
-      $('loadedBar').classList.remove('hidden');
-      $('dash').classList.remove('hidden');
-      recompute();
-    }
-    syncFundValueInput();syncMonthlyInput();
-    setAcctSync('✓ Shared funds synced · your personal data stays on this device');
-  }finally{ SYNC_MUTE=false; }
+  const f=await api('/api/funds');
+  if(!f.ok||!Array.isArray(f.funds))return; // no server / not configured — stay local
+  f.funds.forEach(row=>{
+    if(!Array.isArray(row.rows))return;
+    const rows=row.rows.map(([d,p])=>({d:new Date(d),p})).sort((a,b)=>a.d-b.d);
+    if(!rows.length)return;
+    const ix=FUNDS.findIndex(x=>x.name===row.name);
+    if(ix>=0)FUNDS[ix]={name:row.name,rows:mergeFundRows(FUNDS[ix].rows,rows)}; else FUNDS.push({name:row.name,rows});
+  });
+  (f.factsheets||[]).forEach(row=>{
+    if(!row.data||!row.data.name)return;
+    const ix=FACTSHEETS.findIndex(x=>normName(x.name)===normName(row.data.name));
+    if(ix>=0)FACTSHEETS[ix]=row.data; else FACTSHEETS.push(row.data);
+  });
+  saveFunds(); saveFactsheets();
+  if(FUNDS.length||FACTSHEETS.length){
+    $('uploadSection').classList.add('hidden');
+    $('loadedBar').classList.remove('hidden');
+    $('dash').classList.remove('hidden');
+    recompute();
+  }
+  syncFundValueInput();syncMonthlyInput();
+  setAcctSync('✓ Fund library synced');
 }
 // share newly parsed fund data after an upload
 {
   const _hf=window.handleFiles;
   window.handleFiles=async function(fl){ await _hf(fl); pushFundsCloud(); };
 }
-/* auth modal — supports login / signup / reset (recovery-code) */
-let AUTH_MODE='login', recoveryDoneAction=null;
-function openAuthModal(mode){
-  mode=mode||'login';
-  $('authErr').textContent='';
-  $('authForm').classList.remove('hidden');
-  $('recoveryBox').classList.add('hidden');
-  setAuthMode(mode);
-  $('authModal').classList.add('open');
-  $('authEmail').focus();
-}
-function closeAuthModal(){ $('authModal').classList.remove('open'); }
-function setAuthMode(m){
-  AUTH_MODE=m;
-  const title={login:'Sign in',signup:'Create account',reset:'Reset password'}[m];
-  $('authTitle').textContent=title; $('authSubmit').textContent=title;
-  $('authCodeLabel').classList.toggle('hidden',m!=='reset');
-  $('authCode').required=(m==='reset');
-  $('authPassLabel').firstChild.textContent=m==='reset'?'New password':'Password';
-  $('authPass').autocomplete=m==='login'?'current-password':'new-password';
-  $('authForgotWrap').style.display=m==='login'?'block':'none';
-  $('authIntro').style.display=m==='reset'?'none':'block';
-  $('authSwitch').innerHTML=m==='signup'?'Already have an account? <a id="authToggle">Sign in</a>'
-    :m==='reset'?'Remembered it? <a id="authToggle">Sign in</a>'
-    :'No account yet? <a id="authToggle">Create one</a>';
-  $('authToggle').onclick=()=>setAuthMode(m==='login'?'signup':'login');
-}
-function showRecoveryCode(code,onDone){
-  $('recoveryCode').textContent=code;
-  recoveryDoneAction=onDone||(()=>closeAuthModal());
-  $('authForm').classList.add('hidden');
-  $('recoveryBox').classList.remove('hidden');
-  $('authModal').classList.add('open');
-}
-$('authForgot').onclick=()=>setAuthMode('reset');
-$('recoveryCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('recoveryCode').textContent);$('recoveryCopy').textContent='Copied ✓';setTimeout(()=>$('recoveryCopy').textContent='Copy code',1500);}catch(e){}};
-$('recoveryDone').onclick=()=>{const a=recoveryDoneAction;recoveryDoneAction=null;if(a)a();else closeAuthModal();};
-$('authForm').onsubmit=async e=>{
-  e.preventDefault();
-  $('authErr').textContent='';
-  $('authSubmit').disabled=true;
-  const body={action:AUTH_MODE,email:$('authEmail').value,password:$('authPass').value};
-  if(AUTH_MODE==='reset')body.code=$('authCode').value;
-  const r=await api('/api/auth',{method:'POST',body:JSON.stringify(body)});
-  $('authSubmit').disabled=false;
-  if(r.ok&&r.user){
-    USER=r.user; renderAcct(); $('authPass').value=''; $('authCode').value='';
-    if(r.recoveryCode){ // signup or reset — show the code, then sync once they've saved it
-      showRecoveryCode(r.recoveryCode,async()=>{ closeAuthModal(); await pullCloud(); });
-    }else{ closeAuthModal(); await pullCloud(); }
-  }else{
-    $('authErr').textContent=r.error||'Something went wrong — try again.';
-  }
-};
-$('acctRecovery').onclick=async()=>{
-  if(!USER)return;
-  if(!confirm('Show a new recovery code? This replaces any previous one — the old code stops working.'))return;
-  const r=await api('/api/auth',{method:'POST',body:JSON.stringify({action:'recovery'})});
-  if(r.ok&&r.recoveryCode)showRecoveryCode(r.recoveryCode,()=>closeAuthModal());
-  else alert(r.error||'Could not generate a code.');
-};
-$('acctBtn').onclick=async()=>{
-  if(USER){
-    await api('/api/auth',{method:'POST',body:JSON.stringify({action:'logout'})});
-    USER=null; renderAcct();
-  }else openAuthModal('login');
-};
-(async function initAccount(){
-  const r=await api('/api/auth');
-  if(r.status!==200)return; // no database / no API (static preview) — stay local-only
-  $('acctBar').style.display='flex';
-  USER=r.user||null;
-  renderAcct();
-  if(USER)await pullCloud();
-})();
+// on load, fetch the latest shared fund prices (no login needed)
+pullCloud();
 </script>
 </body>
 </html>
