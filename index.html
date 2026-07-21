@@ -556,6 +556,16 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 <script>
 const $=id=>document.getElementById(id);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Fund names + factsheet text are rendered into innerHTML in many places and can now
+// arrive from the OPEN shared library (any anonymous writer). Strip HTML-significant
+// characters as they enter memory so every downstream render is safe (single choke point).
+const safeText=s=>String(s??'').replace(/[<>]/g,'').replace(/\s+/g,' ').trim().slice(0,300);
+function sanitizeFactsheet(f){
+  if(!f||typeof f!=='object')return f;
+  const cleanList=(a,key)=>Array.isArray(a)?a.map(x=>({...x,[key]:safeText(x&&x[key])})):a;
+  return {...f, name:safeText(f.name), objective:safeText(f.objective),
+    holdings:cleanList(f.holdings,'name'), assetSplit:cleanList(f.assetSplit,'name'), geoSplit:cleanList(f.geoSplit,'name')};
+}
 // Shared fund-file storage (Vercel Blob). Requires a Blob store connected to the
 // Vercel project (provides BLOB_READ_WRITE_TOKEN) — flip to true once provisioned.
 const SHARED_REPORTS=false;
@@ -690,7 +700,7 @@ function periodsPerYear(times){
 
 // ---------- parsing ----------
 function cleanName(fn){
-  return fn.replace(/\.(xlsx|xls)$/i,'').split('_Download')[0].replace(/_/g,' ').trim();
+  return safeText(fn.replace(/\.(xlsx|xls)$/i,'').split('_Download')[0].replace(/_/g,' ').trim());
 }
 function parseDate(s){
   s=String(s).trim();
@@ -795,7 +805,7 @@ function parseFactsheet(pages){
     if(state==='hold')F.holdings.push({name:label,weight:parseFloat(pm[1])});
     else (state==='asset'?F.assetSplit:F.geoSplit).push({name:label,pct:parseFloat(pm[1])});
   }
-  return F.name?F:null;
+  return F.name?sanitizeFactsheet(F):null;
 }
 // ---------- annual pension statement parsing (workplace "Pension Plan statement" template) ----------
 const MONTHS_UK=['january','february','march','april','may','june','july','august','september','october','november','december'];
@@ -2722,15 +2732,17 @@ async function pullCloud(){
   if(!f.ok||!Array.isArray(f.funds))return; // no server / not configured — stay local
   f.funds.forEach(row=>{
     if(!Array.isArray(row.rows))return;
-    const rows=row.rows.map(([d,p])=>({d:new Date(d),p})).sort((a,b)=>a.d-b.d);
+    const name=safeText(row.name); if(!name)return; // names from the open library are untrusted
+    const rows=row.rows.map(([d,p])=>({d:new Date(d),p:+p})).filter(r=>r.d>0&&Number.isFinite(r.p)).sort((a,b)=>a.d-b.d);
     if(!rows.length)return;
-    const ix=FUNDS.findIndex(x=>x.name===row.name);
-    if(ix>=0)FUNDS[ix]={name:row.name,rows:mergeFundRows(FUNDS[ix].rows,rows)}; else FUNDS.push({name:row.name,rows});
+    const ix=FUNDS.findIndex(x=>x.name===name);
+    if(ix>=0)FUNDS[ix]={name,rows:mergeFundRows(FUNDS[ix].rows,rows)}; else FUNDS.push({name,rows});
   });
   (f.factsheets||[]).forEach(row=>{
     if(!row.data||!row.data.name)return;
-    const ix=FACTSHEETS.findIndex(x=>normName(x.name)===normName(row.data.name));
-    if(ix>=0)FACTSHEETS[ix]=row.data; else FACTSHEETS.push(row.data);
+    const data=sanitizeFactsheet(row.data); if(!data.name)return;
+    const ix=FACTSHEETS.findIndex(x=>normName(x.name)===normName(data.name));
+    if(ix>=0)FACTSHEETS[ix]=data; else FACTSHEETS.push(data);
   });
   saveFunds(); saveFactsheets();
   if(FUNDS.length||FACTSHEETS.length){

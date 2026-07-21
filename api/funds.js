@@ -19,19 +19,22 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const funds = Array.isArray(req.body?.funds) ? req.body.funds.slice(0, 200) : [];
       const factsheets = Array.isArray(req.body?.factsheets) ? req.body.factsheets.slice(0, 200) : [];
+      // the write endpoint is open, so strip HTML-significant chars from stored names as
+      // defense-in-depth against a stored-XSS payload in the shared library
+      const clean = (v) => String(v).replace(/[<>]/g, '');
       let nf = 0, ns = 0;
       for (const f of funds) {
         // rows arrive as [[epochMs, price], ...]
         if (!f || typeof f.name !== 'string' || !f.name.trim() || !Array.isArray(f.rows) || !f.rows.length) continue;
         await s`INSERT INTO funds(name, rows, updated_at)
-                VALUES(${f.name.slice(0, 300)}, ${JSON.stringify(f.rows)}::jsonb, now())
+                VALUES(${clean(f.name).slice(0, 300)}, ${JSON.stringify(f.rows)}::jsonb, now())
                 ON CONFLICT(name) DO UPDATE SET rows = EXCLUDED.rows, updated_at = now()`;
         nf++;
       }
       for (const fs of factsheets) {
         if (!fs || typeof fs.name !== 'string' || !fs.name.trim()) continue;
         await s`INSERT INTO factsheets(name, data, updated_at)
-                VALUES(${fs.name.slice(0, 300)}, ${JSON.stringify(fs)}::jsonb, now())
+                VALUES(${clean(fs.name).slice(0, 300)}, ${JSON.stringify(fs)}::jsonb, now())
                 ON CONFLICT(name) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`;
         ns++;
       }
