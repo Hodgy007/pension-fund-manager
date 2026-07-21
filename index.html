@@ -343,6 +343,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 <!-- LOADED STATE -->
 <div id="loadedBar" class="card hidden" style="margin-top:16px">
   <div class="loaded-bar">
+    <span class="chip chip-click hidden" id="stChip" title="Show which statement PDFs you've uploaded"><b id="stcount">0</b> statements uploaded</span>
     <span class="chip chip-click" id="fundChip" title="Show which uploaded files these funds came from"><b id="fcount">0</b> funds loaded</span>
     <span class="chip chip-click hidden" id="fsChip" title="Show which uploaded files these factsheets came from"><b id="fscount">0</b> factsheets</span>
     <span class="chip">priced to <b id="asof">—</b></span>
@@ -1131,6 +1132,7 @@ function recompute(){
 function renderAll(){
   $('fcount').textContent=FUNDS.length;
   $('fscount').textContent=FACTSHEETS.length; $('fsChip').classList.toggle('hidden',!FACTSHEETS.length);
+  $('stcount').textContent=STATEMENTS.length; $('stChip').classList.toggle('hidden',!STATEMENTS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
   renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderBenchmark(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderBackupReminder(); renderObs();
@@ -2516,12 +2518,14 @@ function recordSource(name,kind,detail,pot){
 }
 const UF_ICON={statement:'📄',fund:'📊',factsheet:'📕',skipped:'⚠️'};
 const UF_KIND={statement:'annual statement',fund:'fund prices',factsheet:'factsheet',skipped:'not recognised'};
-let SOURCE_FILTER=null; // null = all · 'fund' | 'factsheet' — set by clicking the chips in the loaded bar
+let SOURCE_FILTER=null; // null = box hidden · 'statement' | 'fund' | 'factsheet' — set by clicking the chips in the loaded bar
+const CHIP_KIND={stChip:'statement',fundChip:'fund',fsChip:'factsheet'};
 function renderSources(){
   const el=$('uploadedFiles'); if(!el)return;
-  ['fundChip','fsChip'].forEach((id,i)=>{const c=$(id);if(c)c.classList.toggle('active',SOURCE_FILTER===(i?'factsheet':'fund'));});
-  if(!SOURCES.length&&!SOURCE_FILTER){el.innerHTML='';return;}
-  const shown=SOURCES.filter(x=>!SOURCE_FILTER||x.kind===SOURCE_FILTER)
+  Object.entries(CHIP_KIND).forEach(([id,kind])=>{const c=$(id);if(c)c.classList.toggle('active',SOURCE_FILTER===kind);});
+  el.style.display=SOURCE_FILTER?'':'none'; // the file list only appears when a chip is clicked
+  if(!SOURCE_FILTER){el.innerHTML='';return;}
+  const shown=SOURCES.filter(x=>x.kind===SOURCE_FILTER)
     .sort((a,b)=>b.when.localeCompare(a.when));
   const rows=shown.map(x=>{
     const when=new Date(x.when).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
@@ -2534,14 +2538,16 @@ function renderSources(){
       <span class="uf-when">${when}</span>
       <button data-n="${escapeHtml(x.name)}" title="Remove from this list (your extracted data is kept)">×</button></div>`;
   }).join('');
-  const label=SOURCE_FILTER?`${UF_KIND[SOURCE_FILTER]} files (${shown.length} of ${SOURCES.length})`:`Files you've uploaded (${SOURCES.length})`;
-  el.innerHTML=`<div class="uf-h">${label}${SOURCE_FILTER?`<button class="uf-clear" id="ufClear">show all ×</button>`:''}</div>`+
-    (rows||`<p class="note" style="margin:4px 0;font-size:12.5px;color:var(--faint)">No ${UF_KIND[SOURCE_FILTER]} files recorded on this device — ${SOURCE_FILTER==='fund'?'these fund prices may have come from the shared library rather than your own uploads.':'upload factsheet PDFs to see them here.'}</p>`);
+  const empty={statement:'No statement PDFs recorded on this device yet — drop your annual Pension Plan statements into the upload area.',
+    fund:'No fund price sheets recorded on this device — these fund prices may have come from the shared library rather than your own uploads.',
+    factsheet:'No factsheet PDFs recorded on this device — upload factsheets to see them here.'};
+  el.innerHTML=`<div class="uf-h">${UF_KIND[SOURCE_FILTER]} files uploaded (${shown.length})<button class="uf-clear" id="ufClear">hide ×</button></div>`+
+    (rows||`<p class="note" style="margin:4px 0;font-size:12.5px;color:var(--faint)">${empty[SOURCE_FILTER]}</p>`);
   const cl=$('ufClear'); if(cl)cl.onclick=()=>{SOURCE_FILTER=null;renderSources();};
   el.querySelectorAll('.uf-row button').forEach(b=>b.onclick=()=>{SOURCES=SOURCES.filter(x=>x.name!==b.dataset.n);saveSources();renderSources();});
 }
-// clicking the loaded-bar chips filters the uploaded-files list to that kind
-[['fundChip','fund'],['fsChip','factsheet']].forEach(([id,kind])=>{
+// clicking a loaded-bar chip reveals the file list filtered to that kind; clicking again hides it
+Object.entries(CHIP_KIND).forEach(([id,kind])=>{
   const c=$(id); if(!c)return;
   c.onclick=()=>{
     SOURCE_FILTER=SOURCE_FILTER===kind?null:kind;
