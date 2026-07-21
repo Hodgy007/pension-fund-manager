@@ -356,11 +356,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <div class="fundval-row">
     <label for="fundValue">Total fund value</label>
     <div class="fundval-input"><span class="cur">£</span><input id="fundValue" type="number" min="0" step="100" placeholder="e.g. 50000"></div>
-    <label for="workContrib" style="margin-left:8px">Work contribution</label>
-    <div class="fundval-input"><span class="cur">£</span><input id="workContrib" type="number" min="0" step="10" placeholder="e.g. 150"></div>
-    <label for="personalContrib" style="margin-left:8px">Personal contribution</label>
-    <div class="fundval-input"><span class="cur">£</span><input id="personalContrib" type="number" min="0" step="10" placeholder="e.g. 100"></div>
-    <span class="note" id="fundValueNote">Today's pot value plus your regular monthly payments. Work + personal contributions are combined to feed the growth chart, so you can separate real investment growth from the money you pay in.</span>
+    <span class="note" id="fundValueNote">Today's pot value — recorded as today's point on the chart below. Monthly contributions are set in the retirement planner (pre-filled from your statements).</span>
   </div>
   <div id="upStatus" class="note" style="display:none;margin-top:10px;font-family:var(--mono);font-size:12.5px"></div>
 </div>
@@ -2060,8 +2056,10 @@ function renderFundPerf(){
   });
   if(pts.length>1){
     const ln=pts.map(p=>`${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
-    s+=`<polygon points="${X(pts[0].t).toFixed(1)},${Y(0).toFixed(1)} ${ln} ${X(pts[pts.length-1].t).toFixed(1)},${Y(0).toFixed(1)}" fill="${line}" opacity=".08"/>`;
-    s+=`<polyline points="${ln}" fill="none" stroke="${line}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    // pointer-events none: the area fill and line are drawn over the contribution bars
+    // and would otherwise swallow their hover events
+    s+=`<polygon points="${X(pts[0].t).toFixed(1)},${Y(0).toFixed(1)} ${ln} ${X(pts[pts.length-1].t).toFixed(1)},${Y(0).toFixed(1)}" fill="${line}" opacity=".08" pointer-events="none"/>`;
+    s+=`<polyline points="${ln}" fill="none" stroke="${line}" stroke-width="2.5" stroke-linejoin="round" pointer-events="none"/>`;
   }
   pts.forEach((p,i)=>{s+=`<circle class="pf-pt" cx="${X(p.t).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="5.5" fill="${line}" stroke="var(--bg)" stroke-width="2" data-i="${i}" style="cursor:pointer"/>`;});
   svg.innerHTML=s;
@@ -2125,11 +2123,14 @@ function renderTimeline(){
   // ---- push the latest year's real figures into the monthly contribution boxes ----
   const latest=S[n-1];
   $('tlApplyContrib').onclick=()=>{
+    // keep the split figures in local state/storage for export compatibility,
+    // and set the retirement planner's contribution to the statement total
     WORK_CONTRIB=Math.round(((latest.employer||0)+(latest.employee||0))/12*100)/100;
     PERSONAL_CONTRIB=Math.round(((latest.avc||0)+(latest.bonusWaived||0))/12*100)/100;
     MONTHLY=WORK_CONTRIB+PERSONAL_CONTRIB;
-    saveMonthly(); syncMonthlyInput(); renderHistory(); renderProjection();
-    $('tlApplyNote').textContent=`Set from your ${latest.year||latest.date.slice(0,4)} statement — work ${fmtMoney(WORK_CONTRIB)}/mo (you + the Firm via payroll), personal ${fmtMoney(PERSONAL_CONTRIB)}/mo (AVCs). Edit the boxes at the top if that year wasn't typical (e.g. you joined part-way through).`;
+    PROJ.mon=Math.round(MONTHLY); PROJ.basis='gross';
+    saveMonthly(); saveProjection(); renderHistory(); renderProjection();
+    $('tlApplyNote').textContent=`Retirement planner contribution set to ${fmtMoney(MONTHLY)}/mo gross, from your ${latest.year||latest.date.slice(0,4)} statement (${fmtMoney((latest.employer||0)+(latest.employee||0))} via payroll + ${fmtMoney((latest.avc||0)+(latest.bonusWaived||0))} AVCs over the year). Adjust it in the planner if that year wasn't typical.`;
   };
   if(!$('tlApplyNote').textContent)
     $('tlApplyNote').textContent=`Latest statement (${latest.year||latest.date.slice(0,4)}): ${fmtMoney(stmtPaidIn(latest))} went in over the year ≈ ${fmtMoney(stmtPaidIn(latest)/12)}/month.`;
@@ -2493,14 +2494,9 @@ function loadMonthly(){
   }catch(e){}
   return 0;
 }
-$('workContrib').oninput=e=>{
-  WORK_CONTRIB=parseFloat(e.target.value)||0; MONTHLY=WORK_CONTRIB+PERSONAL_CONTRIB;
-  saveMonthly(); renderHistory();
-};
-$('personalContrib').oninput=e=>{
-  PERSONAL_CONTRIB=parseFloat(e.target.value)||0; MONTHLY=WORK_CONTRIB+PERSONAL_CONTRIB;
-  saveMonthly(); renderHistory();
-};
+// the work/personal contribution boxes were removed from the top bar — contributions
+// now live in the retirement planner (pjMon), pre-filled from statements. The
+// WORK_CONTRIB/PERSONAL_CONTRIB state and storage remain for export/import compatibility.
 $('valAdd').onclick=()=>{
   const today=new Date().toISOString().slice(0,10);
   if(!VALUATIONS.find(v=>v.date===today))VALUATIONS.push({date:today,value:0});
