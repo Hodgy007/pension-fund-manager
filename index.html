@@ -237,6 +237,14 @@ tr.held:hover td{background:rgba(31,111,235,.09)}
 @media(max-width:900px){.obs{grid-template-columns:1fr}}
 .obs .o{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--primary);border-radius:10px;padding:16px;line-height:1.5}
 .obs .o h4{font-size:13px;margin-bottom:8px;font-weight:600;color:var(--ink)}
+.obs .o.good{border-left-color:var(--pos);background:color-mix(in srgb,var(--pos) 7%,var(--panel))}
+.obs .o.warn{border-left-color:var(--neg);background:color-mix(in srgb,var(--neg) 7%,var(--panel))}
+.rls-bar{position:relative;height:8px;background:linear-gradient(90deg,var(--neg),var(--gold) 48%,var(--pos));border-radius:4px;margin:44px 10px 40px}
+.rls-tick{position:absolute;top:-5px;width:2px;height:18px;background:var(--ink);opacity:.55}
+.rls-tk-lbl{position:absolute;top:-36px;left:50%;transform:translateX(-50%);font-size:10px;line-height:1.25;text-align:center;color:var(--mute);white-space:nowrap;font-family:var(--mono)}
+.rls-you{position:absolute;top:50%;width:16px;height:16px;border-radius:50%;background:var(--primary);border:3px solid var(--bg);transform:translate(-50%,-50%);box-shadow:0 0 0 1.5px var(--primary)}
+.rls-you::after{content:'You';position:absolute;top:15px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--primary);font-weight:700}
+.rls-toggle{font-size:11px;color:var(--mute);font-weight:400;text-transform:none;letter-spacing:0;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .obs .o p{font-size:12px;color:var(--mute);line-height:1.6}
 .note{font-size:12px;color:var(--mute);line-height:1.5}
 footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);line-height:1.7}
@@ -596,6 +604,8 @@ function niceStep(span){const raw=span/6,mag=Math.pow(10,Math.floor(Math.log10(r
 // income-tax bands below are fixed for the tax year and change at each Budget.
 const TAX={year:'2025/26',pa:12570,paTaperFrom:100000,basicBand:37700,addnThresholdTaxable:112570,
   rateBasic:.20,rateHigher:.40,rateAddn:.45,lumpSumAllowance:268275,annualAllowance:60000,fullStatePension:11973};
+// PLSA Retirement Living Standards — annual after-tax budgets, excl. housing costs (2024 figures, national outside London)
+const RLS={year:'2024',single:{Minimum:14400,Moderate:31300,Comfortable:43100},couple:{Minimum:22400,Moderate:43100,Comfortable:59000}};
 // income tax on a gross annual income (incl. personal-allowance taper over £100k)
 function incomeTax(gross){
   if(!(gross>0))return 0;
@@ -869,6 +879,7 @@ function parseStatement(pages){
   if(!Object.keys(S.accumulated).length)delete S.accumulated;
   S.baseSalary=amt(/Base Salary\s*£\s*([\d,]+(?:\.\d+)?)/i);
   S.benefitSalary=amt(/Benefit Salary\s*£\s*([\d,]+(?:\.\d+)?)/i);
+  S.firmMaxPct=+(g(/maximum of\s*(\d+(?:\.\d+)?)\s*%\s*of your Benefit Salary/i)||0)||null;
   S.npd=ukDate(g(/Normal Pension Date\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i))
       ||ukDate(g(/AT\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4}),\s*YOUR (?:NORMAL PENSION|TARGET RETIREMENT) DATE/i));
   S.joined=ukDate(g(/Date joined Plan\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i));
@@ -1855,6 +1866,26 @@ function renderProjection(){
       <div class="stat"><div class="lbl">Net income/yr</div><div class="val">${fmtMoney(netInc)}</div></div>
     </div>
     <p class="note" style="margin:12px 0 0;color:var(--faint)">Assumes you take the 25% tax-free lump sum, then draw ${d.wr||0}% of the remaining pot a year as taxable income${spInc>0?`, plus the full State Pension of ${fmtMoney(spInc)} (payable from State Pension age, and only with a full NI record)`:''}${d.other>0?`, plus ${fmtMoney(d.other)} of other taxable income`:''}${!spInc&&!d.other?' (tick the State Pension box or add other income above)':''}. A flat-rate, single-year view — real drawdown, uprating and your tax position will vary.</p>
+    ${rlsBlock(netInc)}
+  </div>`;
+  const cpl=$('pjCouple'); if(cpl)cpl.onchange=e=>{PROJ.couple=e.target.checked;saveProjection();renderProjection();};
+}
+// compares projected net retirement income to the PLSA Retirement Living Standards
+function rlsBlock(netInc){
+  const hh=PROJ.couple?'couple':'single', t=RLS[hh];
+  const max=t.Comfortable*1.18, pct=v=>Math.max(0,Math.min(100,v/max*100));
+  const verdict=netInc>=t.Comfortable?'at or above the <b>Comfortable</b> standard'
+    :netInc>=t.Moderate?'between the <b>Moderate</b> and <b>Comfortable</b> standards'
+    :netInc>=t.Minimum?'between the <b>Minimum</b> and <b>Moderate</b> standards'
+    :'below the <b>Minimum</b> standard';
+  const ticks=['Minimum','Moderate','Comfortable'].map(k=>`<span class="rls-tick" style="left:${pct(t[k])}%"><span class="rls-tk-lbl">${k}<br>${fmtMoney(t[k])}</span></span>`).join('');
+  return `<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
+    <div class="cardlbl" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <span>Vs PLSA Retirement Living Standards · ${hh}, ${RLS.year}</span>
+      <label class="rls-toggle"><input type="checkbox" id="pjCouple" ${PROJ.couple?'checked':''}> for a couple</label>
+    </div>
+    <div class="rls-bar">${ticks}${PRIVACY?'':`<span class="rls-you" style="left:${pct(netInc)}%"></span>`}</div>
+    <p class="note" style="margin:10px 0 0">Your projected net income of <b>${fmtMoney(netInc)}/yr</b> is ${PRIVACY?'compared against the tiers above':verdict} for a ${hh==='couple'?'couple':'single person'}. These are independent benchmarks of what each retirement lifestyle costs, <b>excluding housing costs</b> (rent/mortgage). <a href="https://www.retirementlivingstandards.org.uk" target="_blank" rel="noopener">retirementlivingstandards.org.uk</a></p>
   </div>`;
 }
 function drawProjChart(s){
@@ -1886,7 +1917,8 @@ function readProjInputs(){
     basis:val('pjBasis'),rate:num('pjRate'),retn:num('pjRetn'),vol:num('pjVol'),
     esc:num('pjEsc'),cpi:num('pjCpi'),aa:num('pjAA'),tgt:num('pjTgt'),
     real:$('pjReal')?$('pjReal').checked:true,wr:num('pjWr'),other:num('pjOther'),
-    sp:$('pjSP')?$('pjSP').checked:false};
+    sp:$('pjSP')?$('pjSP').checked:false,
+    couple:$('pjCouple')?$('pjCouple').checked:PROJ.couple};
   Object.keys(PROJ).forEach(k=>{if(PROJ[k]==null)delete PROJ[k];});
   saveProjection(); renderProjection();
 }
@@ -2028,7 +2060,22 @@ function renderTimeline(){
     `${n>1?`Across your ${n} statements (${span}), your pot went from ${fmtMoney(first.totalValue||0)} to ${fmtMoney(latest.totalValue||0)}`:`Your ${span} statement puts your pot at ${fmtMoney(latest.totalValue||0)}`}. `+
     `${fmtMoney(youAll+firmAll)} was paid in — ${fmtMoney(youAll)} by you, ${fmtMoney(firmAll)} by the Firm`+
     `${growAll!=null?` — and investment ${growAll<0?'losses took':'growth added'} ${signed(growAll)} ${growAll<0?'off':'on top'}`:''}.`]);
-  if(youAll>0&&firmAll>0)obs.push(['The employer money is doing heavy lifting',
+  // ---- employer-match capture check: are you getting all the Firm's money? ----
+  const benefitSalary=S.map(x=>x.benefitSalary).filter(Boolean).pop();
+  const firmMaxPct=S.map(x=>x.firmMaxPct).filter(Boolean).pop();
+  const fullYrs=S.filter(x=>!(x.joined&&x.periodStart&&x.joined>x.periodStart));
+  const matchBase=fullYrs.length?fullYrs[fullYrs.length-1]:latest;
+  if(benefitSalary&&firmMaxPct&&matchBase.employer!=null){
+    const firmPct=matchBase.employer/benefitSalary*100, yb=yr(matchBase);
+    if(firmPct>=firmMaxPct-0.4){
+      obs.push([`✓ You're capturing the full employer match`,
+        `In ${yb} the Firm paid in ${fmtMoney(matchBase.employer)} — about ${firmPct.toFixed(1)}% of your ${fmtMoney(benefitSalary)} Benefit Salary, at or above the ${firmMaxPct}% maximum the Firm will match. You're getting all the employer money on offer.`,'good']);
+    }else{
+      const missing=(firmMaxPct-firmPct)/100*benefitSalary;
+      obs.push([`⚠ You may be leaving employer money on the table`,
+        `In ${yb} the Firm added ${fmtMoney(matchBase.employer)} — about ${firmPct.toFixed(1)}% of your ${fmtMoney(benefitSalary)} Benefit Salary — but it matches up to ${firmMaxPct}%. Raising your own contribution to unlock the full match could bring in up to ~<b>${fmtMoney(missing)}/yr</b> more from the Firm — free money, before any investment growth. Worth checking your contribution level on MyBenefits.`,'warn']);
+    }
+  }else if(youAll>0&&firmAll>0)obs.push(['The employer money is doing heavy lifting',
     `For every £1 you have put in, the Firm has added £${(firmAll/youAll).toFixed(2)}. An employer match is the highest-returning part of any workplace pension — worth checking you contribute enough to capture all of it.`]);
   if(n>1){
     const lastG=stmtGrowth(latest), lastIn=stmtPaidIn(latest);
@@ -2056,7 +2103,7 @@ function renderTimeline(){
   obs.push(['This is information, not advice',
     `Everything above is arithmetic on the statements you uploaded, computed in your browser — nothing is sent to any server or AI service. It ignores tax, charges and your wider finances. For a personal recommendation, speak to a regulated financial adviser.`]);
   $('tlObs').innerHTML=`<div class="cardlbl">What your statements say<span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--faint);margin-left:10px">/ NOT ADVICE</span></div>
-    <div class="obs" style="margin-top:12px">${obs.map(([h,p])=>`<div class="o"><h4>${h}</h4><p>${p}</p></div>`).join('')}</div>`;
+    <div class="obs" style="margin-top:12px">${obs.map(([h,p,cls])=>`<div class="o ${cls||''}"><h4>${h}</h4><p>${p}</p></div>`).join('')}</div>`;
 }
 function renderObs(){
   const o=[];
