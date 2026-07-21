@@ -122,6 +122,16 @@ html.light .perf-date{color-scheme:light}
 .tl-table td button:hover{color:var(--neg)}
 .tl-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--mute)}
 .tl-legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.uploaded-files{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.uploaded-files .uf-h{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px}
+.uf-row{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
+.uf-row:last-child{border-bottom:none}
+.uf-ico{flex-shrink:0}
+.uf-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.uf-kind{font-size:11px;color:var(--faint);white-space:nowrap}
+.uf-when{font-size:11px;color:var(--faint);white-space:nowrap}
+.uf-row button{background:none;border:none;color:var(--faint);cursor:pointer;font-size:14px;padding:0 2px}
+.uf-row button:hover{color:var(--neg)}
 .btn{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:6px;cursor:pointer;transition:.15s;font-weight:600}
 .btn:hover{border-color:var(--primary);color:var(--primary);background:var(--panel)}
 .btn.gold{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
@@ -342,6 +352,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <label class="toggle" title="Hide your £ amounts for privacy"><input type="checkbox" id="privacyToggle"><span class="track"><span class="knob"></span></span><span class="tlbl">Hide values</span></label>
     <input type="file" id="importInput" accept=".json,application/json" class="hidden">
   </div>
+  <div id="uploadedFiles" class="uploaded-files"></div>
   <div class="fundval-row">
     <label for="fundValue">Total fund value</label>
     <div class="fundval-input"><span class="cur">£</span><input id="fundValue" type="number" min="0" step="100" placeholder="e.g. 50000"></div>
@@ -402,10 +413,11 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     </div>
   </div>
 
-  <h2>Fund performance<span class="n">/ YOUR RECORDED VALUES</span></h2>
+  <h2>Your pension over time<span class="n">/ VALUE &amp; CONTRIBUTIONS</span></h2>
   <div class="card">
-    <div class="cardlbl">Your pot's actual value over time — every point is a value you've recorded</div>
+    <div class="cardlbl">Your pot's value over time (line), with each year's money paid in shown as bars once you upload your statements</div>
     <svg id="perfChart" viewBox="0 0 760 300"></svg>
+    <div class="tl-legend" id="perfLegend"></div>
     <div class="fundval-row">
       <label for="fundStartDate">Fund start</label>
       <input type="date" id="fundStartDate" class="perf-date">
@@ -418,11 +430,9 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   </div>
 
   <div id="tlWrap" class="hidden">
-  <h2>Pension timeline<span class="n">/ FROM YOUR ANNUAL STATEMENTS</span></h2>
+  <h2>Year-by-year breakdown<span class="n">/ FROM YOUR ANNUAL STATEMENTS</span></h2>
   <div class="card">
-    <div class="cardlbl">Built from the annual Pension Plan statement PDFs you upload — drop one per year into the file area and each adds a year here (and a point on the performance chart above)</div>
-    <svg id="tlChart" viewBox="0 0 760 320" style="width:100%;height:auto"></svg>
-    <div class="tl-legend" id="tlLegend"></div>
+    <div class="cardlbl">Each annual Pension Plan statement PDF you upload adds a year here and to the chart above</div>
     <div style="overflow-x:auto"><table class="tl-table" id="tlTable"></table></div>
     <div class="he-foot" style="margin-top:14px">
       <button class="btn gold" id="tlApplyContrib">Use latest statement as my monthly contributions</button>
@@ -609,6 +619,7 @@ let EXCLUDE_CONTRIB=false; // chart toggle: show investment growth only (net of 
 let PROJ={};         // retirement projection inputs
 let FACTSHEETS=[];   // parsed PDF factsheets: [{name,asOf,ocf,unitPrice,launch,objective,cum,ann,assetSplit,geoSplit,holdings}]
 let STATEMENTS=[];   // parsed annual pension statements: [{date,year,totalValue,employer,employee,avc,...,funds,plans}] — private, one per statement year
+let SOURCES=[];      // log of uploaded source documents: [{name,when,kind,detail}] — names only, the files themselves aren't stored
 let COMPARE=new Set();// fund names selected in the comparison chart
 let CMP_RANGE=0;     // compare-chart window in years (0 = max available)
 const CMP_COLORS=['#3987e5','#c98500','#199e70','#d55181','#8b97a8','#36cfc9','#ff9f43','#a0d911','#eb2f96','#f0556d'];
@@ -851,6 +862,7 @@ function parseStatement(pages){
   S.npd=ukDate(g(/Normal Pension Date\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i))
       ||ukDate(g(/AT\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4}),\s*YOUR (?:NORMAL PENSION|TARGET RETIREMENT) DATE/i));
   S.joined=ukDate(g(/Date joined Plan\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i));
+  S.dob=ukDate(g(/Date of birth\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i));
   S.estAtNPD=amt(/estimated total value[^£]*£\s*([\d,]+(?:\.\d+)?)/i); // old: "…at your Normal Pension Date is £401,000" (column interleave may split the sentence)
   if(S.estAtNPD==null){
     // new: "Your pension account could be worth £501,000 £36,000 £537,000" — Main / Top-Up / Total, take the last
@@ -1054,7 +1066,7 @@ function renderAll(){
   $('fscount').textContent=FACTSHEETS.length; $('fsChip').classList.toggle('hidden',!FACTSHEETS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -1689,16 +1701,37 @@ $('cmpAll').onclick=()=>{COMPARE=new Set(FUNDS.map(f=>f.name));saveCompare();ren
 $('cmpNone').onclick=()=>{COMPARE=new Set();saveCompare();renderCompare();};
 $('cmpRanges').querySelectorAll('.filt').forEach(b=>b.onclick=()=>{CMP_RANGE=+b.dataset.range;renderCompare();});
 // ---------- retirement projection ----------
+// values the retirement planner can borrow from your uploaded statements
+// (only used where you haven't set that field yourself)
+function stmtDefaults(){
+  if(!STATEMENTS.length)return {};
+  const S=STATEMENTS.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const out={};
+  const dob=S.map(x=>x.dob).find(Boolean);
+  const npd=S.map(x=>x.npd).find(Boolean);
+  const yrs=(a,b)=>(new Date(b)-new Date(a))/(365.25*864e5);
+  if(dob){
+    out.age=Math.floor(yrs(dob,new Date().toISOString().slice(0,10)));
+    if(npd)out.ret=Math.round(yrs(dob,npd));
+  }
+  // monthly gross paid in, from the latest full statement year (skip a partial join year)
+  const full=S.filter(x=>!(x.joined&&x.periodStart&&x.joined>x.periodStart));
+  const base=full.length?full[full.length-1]:S[S.length-1];
+  const paid=stmtPaidIn(base);
+  if(paid>0){out.mon=Math.round(paid/12);out.basis='gross';}
+  return out;
+}
 function projDefaults(){
+  const sd=stmtDefaults();
   return {
-    age:PROJ.age??40, ret:PROJ.ret??67,
+    age:PROJ.age??sd.age??40, ret:PROJ.ret??sd.ret??67,
     // a saved pot of 0/blank falls back to the latest recorded value, so the chart
     // always starts from your current pension pot rather than a stale zero
     pot:(PROJ.pot>0?PROJ.pot:(latestValue()||0)),
     otherPots:PROJ.otherPots??0,
     sp:PROJ.sp===true,
-    mon:PROJ.mon??200,
-    basis:PROJ.basis||'takehome',
+    mon:PROJ.mon??sd.mon??200,
+    basis:PROJ.basis||sd.basis||'takehome',
     rate:PROJ.rate??20,
     retn:PROJ.retn??(PORT&&PORT.ann!=null?+PORT.ann.toFixed(1):5),
     vol:PROJ.vol??(PORT&&PORT.vol!=null?+PORT.vol.toFixed(1):12),
@@ -1768,6 +1801,15 @@ function renderProjection(){
   const moneyTag=s.real?" <span style='color:var(--faint);font-weight:400'>(today's money)</span>":'';
   const aaWarn=s.grossAnnualFirst>s.aa?`<p class="note" style="margin:12px 0 0;color:var(--neg)">⚠ Your contributions of about ${fmtMoney(s.grossAnnualFirst)}/yr (incl. relief) exceed the ${fmtMoney(s.aa)} annual allowance — the excess can be taxed unless covered by carry-forward. (Allowance may also be lower if you've flexibly accessed a pension (MPAA £10,000) or are a high earner (taper).)</p>`:'';
   const reliefNote=`<p class="note" style="margin:12px 0 0;color:var(--mute)">Tax relief adds about <b>${fmtMoney(s.reliefInPot)}</b> to your pension over the period${s.extraReliefAnnual>0?`, and as a ${d.rate}% taxpayer you can reclaim a further ~<b>${fmtMoney(s.extraReliefAnnual)}/yr</b> through Self Assessment`:''}. Your own money in: ${fmtMoney(s.totalNet)}.</p>`;
+  // note which planner fields were pre-filled from statements (only where you haven't overridden them)
+  const sd=stmtDefaults(), filled=[];
+  if(STATEMENTS.length){
+    if(!(PROJ.pot>0)&&latestValue())filled.push(`current pot (${fmtMoney(latestValue())})`);
+    if(PROJ.age==null&&sd.age!=null)filled.push(`age (${sd.age})`);
+    if(PROJ.ret==null&&sd.ret!=null)filled.push(`retirement age (${sd.ret})`);
+    if(PROJ.mon==null&&sd.mon!=null)filled.push(`contributions (${fmtMoney(sd.mon)}/mo gross)`);
+  }
+  const stmtNote=filled.length?`<p class="note" style="margin:10px 0 0;color:var(--gold)">Pre-filled from your statements: ${filled.join(', ')}. Change any field below to override.</p>`:'';
   $('projOut').innerHTML=`
     <div class="stat-row">
       <div class="stat"><div class="lbl">Likely pot at ${s.startAge+s.years} (${retYear})${moneyTag}</div><div class="val">${fmtMoney(s.finalP50)}</div></div>
@@ -1778,7 +1820,7 @@ function renderProjection(){
       <div class="stat"><div class="lbl">Unlucky (10th pct)</div><div class="val sm">${fmtMoney(s.finalP10)}</div></div>
       <div class="stat"><div class="lbl">Lucky (90th pct)</div><div class="val sm">${fmtMoney(s.finalP90)}</div></div>
       ${s.tgt>0?`<div class="stat"><div class="lbl">Chance of reaching ${fmtMoney(s.tgt)}</div><div class="val sm ${s.probTgt>=0.5?'pos':'neg'}">${Math.round(s.probTgt*100)}%</div></div>`:'<div class="stat"><div class="lbl">Set a target</div><div class="val sm" style="color:var(--faint)">—</div></div>'}
-    </div>${reliefNote}${aaWarn}`;
+    </div>${stmtNote}${reliefNote}${aaWarn}`;
   drawProjChart(s);
   // ----- at-retirement tax breakdown (today's money, current bands) -----
   const pot=s.medianReal;
@@ -1861,9 +1903,12 @@ function renderFundPerf(){
   const W=760,H=300,L=78,R=24,T=18,B=42;
   const pts=vals.map(v=>({t:+new Date(v.date),v:v.value}));
   const t0=pts[0].t, t1=Math.max(pts[pts.length-1].t,t0+864e5);
-  const vmax=(Math.max(...pts.map(p=>p.v))||1000)*1.08; // all-zero points still need a scale
+  const stmtsIn=STATEMENTS.filter(st=>{const t=+new Date(st.date);return t>=t0&&t<=t1;});
+  const paidMax=stmtsIn.length?Math.max(...stmtsIn.map(stmtPaidIn)):0;
+  const vmax=(Math.max(...pts.map(p=>p.v),paidMax)||1000)*1.08; // all-zero points still need a scale
   const X=t=>L+(t-t0)/(t1-t0)*(W-L-R);
   const Y=v=>T+(1-v/vmax)*(H-T-B);
+  const line=TL_COL.value; // green pot-value line stays distinct from the blue "firm" bars
   let s='';
   for(let i=0;i<=4;i++){
     const v=vmax/4*i, y=Y(v);
@@ -1873,13 +1918,35 @@ function renderFundPerf(){
   const fmtD=t=>new Date(t).toLocaleDateString('en-GB',{month:'short',year:'2-digit'});
   const xt=[t0]; if(t1-t0>200*864e5)xt.push((t0+t1)/2); if(t1>t0)xt.push(t1);
   xt.forEach(t=>{s+=`<text x="${X(t)}" y="${H-14}" text-anchor="middle" fill="var(--faint)" font-size="11">${fmtD(t)}</text>`;});
+  // contribution bars from each statement year (drawn behind the value line)
+  const bw=stmtsIn.length?Math.max(6,Math.min(34,(W-L-R)/(stmtsIn.length+1)*0.55)):0;
+  stmtsIn.forEach(st=>{
+    const cx=X(+new Date(st.date)); let y0=Y(0);
+    [['firm',st.employer||0],['you',(st.employee||0)+(st.avc||0)+(st.bonusWaived||0)],['transfer',st.transferIn||0]].forEach(([k,v])=>{
+      if(!(v>0))return;
+      const y1=y0-(Y(0)-Y(v));
+      s+=`<rect class="pf-bar" x="${(cx-bw/2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(y0-y1,1).toFixed(1)}" fill="${TL_COL[k]}" rx="1.5" opacity=".92" data-d="${st.date}" data-k="${k}" data-v="${v}"/>`;
+      y0=y1;
+    });
+  });
   if(pts.length>1){
-    const line=pts.map(p=>`${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
-    s+=`<polygon points="${X(pts[0].t).toFixed(1)},${Y(0).toFixed(1)} ${line} ${X(pts[pts.length-1].t).toFixed(1)},${Y(0).toFixed(1)}" fill="var(--primary)" opacity=".08"/>`;
-    s+=`<polyline points="${line}" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round"/>`;
+    const ln=pts.map(p=>`${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
+    s+=`<polygon points="${X(pts[0].t).toFixed(1)},${Y(0).toFixed(1)} ${ln} ${X(pts[pts.length-1].t).toFixed(1)},${Y(0).toFixed(1)}" fill="${line}" opacity=".08"/>`;
+    s+=`<polyline points="${ln}" fill="none" stroke="${line}" stroke-width="2.5" stroke-linejoin="round"/>`;
   }
-  pts.forEach((p,i)=>{s+=`<circle class="pf-pt" cx="${X(p.t).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="5.5" fill="var(--primary)" stroke="var(--bg)" stroke-width="2" data-i="${i}" style="cursor:pointer"/>`;});
+  pts.forEach((p,i)=>{s+=`<circle class="pf-pt" cx="${X(p.t).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="5.5" fill="${line}" stroke="var(--bg)" stroke-width="2" data-i="${i}" style="cursor:pointer"/>`;});
   svg.innerHTML=s;
+  const pl=$('perfLegend');
+  if(pl)pl.innerHTML=(stmtsIn.length
+    ?[['value','Pot value'],['firm','Firm paid in'],['you','You paid in (incl. AVCs)'],...(stmtsIn.some(st=>st.transferIn>0)?[['transfer','Transfers in']]:[])]
+    :[['value','Pot value']]).map(([k,l])=>`<span><span class="sw" style="background:${k==='value'?line:TL_COL[k]}"></span>${l}</span>`).join('');
+  const segName={firm:'Firm paid in',you:'You paid in (incl. AVCs)',transfer:'Transfers in'};
+  svg.querySelectorAll('.pf-bar').forEach(r=>{
+    r.onmousemove=e=>{const st=STATEMENTS.find(x=>x.date===r.dataset.d);
+      tip.innerHTML=`<b>${(st&&(st.year||st.date.slice(0,4)))||''} statement year</b><div class="r"><span>${segName[r.dataset.k]}</span><span>${fmtMoney(+r.dataset.v)}</span></div>`;
+      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';};
+    r.onmouseleave=()=>tip.style.opacity=0;
+  });
   svg.querySelectorAll('.pf-pt').forEach(c=>{
     const i=+c.dataset.i, p=pts[i], prev=pts[i-1], first=pts[0];
     c.onmousemove=e=>{
@@ -1900,51 +1967,9 @@ function renderTimeline(){
   wrap.classList.toggle('hidden',!STATEMENTS.length);
   if(!STATEMENTS.length)return;
   const S=STATEMENTS.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const n=S.length;
   const fmtSigned=v=>v==null?'—':PRIVACY?'£•••••':(v<0?'−£':'£')+Math.abs(Math.round(v)).toLocaleString('en-GB');
-  // ---- chart: stacked money-in bars per statement year + pot-value line ----
-  const svg=$('tlChart');
-  const W=760,H=320,L=78,R=24,T=18,B=46;
-  const n=S.length, slot=(W-L-R)/n, bw=Math.min(56,slot*0.5);
-  const vmax=Math.max(...S.map(x=>Math.max(x.totalValue||0,stmtPaidIn(x))),1000)*1.1;
-  const X=i=>L+slot*(i+0.5);
-  const Y=v=>T+(1-v/vmax)*(H-T-B);
-  let s='';
-  for(let i=0;i<=4;i++){
-    const v=vmax/4*i,y=Y(v);
-    s+=`<line x1="${L}" y1="${y}" x2="${W-R}" y2="${y}" stroke="var(--line)" stroke-width="1" opacity=".6"/>`;
-    s+=`<text x="${L-8}" y="${y+4}" text-anchor="end" fill="var(--faint)" font-size="11">${PRIVACY?'£•••':'£'+abbrMoney(v)}</text>`;
-  }
-  S.forEach((st,i)=>{
-    const x=X(i)-bw/2; let y0=Y(0);
-    [['firm',st.employer||0],['you',(st.employee||0)+(st.avc||0)+(st.bonusWaived||0)],['transfer',st.transferIn||0]].forEach(([k,v])=>{
-      if(!(v>0))return;
-      const y1=y0-(Y(0)-Y(v));
-      s+=`<rect class="tl-seg" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(y0-y1,1).toFixed(1)}" fill="${TL_COL[k]}" rx="1.5" data-i="${i}" data-k="${k}" data-v="${v}"/>`;
-      y0=y1;
-    });
-    s+=`<text x="${X(i)}" y="${H-16}" text-anchor="middle" fill="var(--faint)" font-size="11">${st.year||st.date.slice(0,4)}</text>`;
-  });
-  if(n>1)s+=`<polyline points="${S.map((st,i)=>`${X(i).toFixed(1)},${Y(st.totalValue||0).toFixed(1)}`).join(' ')}" fill="none" stroke="${TL_COL.value}" stroke-width="2.5" stroke-linejoin="round"/>`;
-  S.forEach((st,i)=>{s+=`<circle class="tl-pt" cx="${X(i).toFixed(1)}" cy="${Y(st.totalValue||0).toFixed(1)}" r="5.5" fill="${TL_COL.value}" stroke="var(--bg)" stroke-width="2" data-i="${i}" style="cursor:pointer"/>`;});
-  svg.innerHTML=s;
-  const segName={firm:'Firm paid in',you:'You paid in (incl. AVCs)',transfer:'Transfers in'};
-  svg.querySelectorAll('.tl-seg').forEach(r=>{
-    r.onmousemove=e=>{const st=S[+r.dataset.i];
-      tip.innerHTML=`<b>${st.year||st.date.slice(0,4)} statement year</b><div class="r"><span>${segName[r.dataset.k]}</span><span>${fmtMoney(+r.dataset.v)}</span></div>`;
-      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';};
-    r.onmouseleave=()=>tip.style.opacity=0;
-  });
-  svg.querySelectorAll('.tl-pt').forEach(c=>{
-    c.onmousemove=e=>{const st=S[+c.dataset.i],g=stmtGrowth(st);
-      tip.innerHTML=`<b>${new Date(st.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</b>
-        <div class="r"><span>Pot value</span><span>${fmtMoney(st.totalValue||0)}</span></div>
-        <div class="r"><span>Paid in this year</span><span>${fmtMoney(stmtPaidIn(st))}</span></div>`+
-        (g!=null?`<div class="r"><span>Investment growth</span><span class="${g>=0?'pos':'neg'}">${fmtSigned(g)}</span></div>`:'');
-      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';};
-    c.onmouseleave=()=>tip.style.opacity=0;
-  });
-  $('tlLegend').innerHTML=[['value','Pot value at statement date'],['firm','Firm paid in'],['you','You paid in (incl. AVCs)'],['transfer','Transfers in']]
-    .map(([k,l])=>`<span><span class="sw" style="background:${TL_COL[k]}"></span>${l}</span>`).join('');
+  // (the pot-value line + contribution bars now render on the single chart in the section above)
   // ---- year-by-year table ----
   const rows=S.map(st=>{
     const g=stmtGrowth(st);
@@ -2256,6 +2281,30 @@ function saveFactsheets(){try{localStorage.setItem('fund_factsheets',JSON.string
 function loadFactsheets(){try{const s=localStorage.getItem('fund_factsheets');if(s)return JSON.parse(s).filter(f=>f&&f.name);}catch(e){}return [];}
 function saveStatements(){try{localStorage.setItem('fund_statements',JSON.stringify(STATEMENTS));}catch(e){}}
 function loadStatements(){try{const s=localStorage.getItem('fund_statements');if(s)return JSON.parse(s).filter(x=>x&&x.date);}catch(e){}return [];}
+function saveSources(){try{localStorage.setItem('fund_sources',JSON.stringify(SOURCES));}catch(e){}}
+function loadSources(){try{const s=localStorage.getItem('fund_sources');if(s)return JSON.parse(s).filter(x=>x&&x.name);}catch(e){}return [];}
+function recordSource(name,kind,detail){
+  const when=new Date().toISOString();
+  const i=SOURCES.findIndex(x=>x.name===name);
+  const rec={name,when,kind,detail:detail||''};
+  if(i>=0)SOURCES[i]=rec; else SOURCES.push(rec);
+}
+const UF_ICON={statement:'📄',fund:'📊',factsheet:'📕',skipped:'⚠️'};
+const UF_KIND={statement:'annual statement',fund:'fund prices',factsheet:'factsheet',skipped:'not recognised'};
+function renderSources(){
+  const el=$('uploadedFiles'); if(!el)return;
+  if(!SOURCES.length){el.innerHTML='';return;}
+  const rows=SOURCES.slice().sort((a,b)=>b.when.localeCompare(a.when)).map(x=>{
+    const when=new Date(x.when).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    return `<div class="uf-row"><span class="uf-ico">${UF_ICON[x.kind]||'📄'}</span>
+      <span class="uf-name" title="${escapeHtml(x.name)}">${escapeHtml(x.name)}</span>
+      <span class="uf-kind">${UF_KIND[x.kind]||x.kind}${x.detail?` · ${escapeHtml(x.detail)}`:''}</span>
+      <span class="uf-when">${when}</span>
+      <button data-n="${escapeHtml(x.name)}" title="Remove from this list (your extracted data is kept)">×</button></div>`;
+  }).join('');
+  el.innerHTML=`<div class="uf-h">Files you've uploaded (${SOURCES.length})</div>${rows}`;
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>{SOURCES=SOURCES.filter(x=>x.name!==b.dataset.n);saveSources();renderSources();});
+}
 // ---------- upload wiring ----------
 // total fund value (manual) — the top box records today's value into the series
 function syncFundValueInput(){const el=$('fundValue');if(!el)return;el.type=PRIVACY?'password':'number';if(document.activeElement!==el){const lv=latestValue();el.value=lv>0?lv:'';}}
@@ -2324,7 +2373,7 @@ function exportData(){
     funds:FUNDS.map(f=>({n:f.name,r:f.rows.map(x=>[+x.d,x.p])})),
     holdings:HOLDINGS, history:HISTORY, valuations:VALUATIONS,
     contributions:CONTRIBUTIONS, monthly:MONTHLY, workContrib:WORK_CONTRIB, personalContrib:PERSONAL_CONTRIB,
-    projection:PROJ, factsheets:FACTSHEETS, statements:STATEMENTS
+    projection:PROJ, factsheets:FACTSHEETS, statements:STATEMENTS, sources:SOURCES
   };
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const url=URL.createObjectURL(blob), a=document.createElement('a');
@@ -2371,7 +2420,8 @@ async function importData(file){
     if(data.projection&&typeof data.projection==='object')PROJ=data.projection;
     if(Array.isArray(data.factsheets))FACTSHEETS=data.factsheets.filter(f=>f&&f.name);
     if(Array.isArray(data.statements))STATEMENTS=data.statements.filter(x=>x&&x.date);
-    saveHistory(); saveValuations(); saveContributions(); saveMonthly(); saveProjection(); saveFactsheets(); saveStatements(); saveState(); saveFunds(); syncFundValueInput(); syncMonthlyInput();
+    if(Array.isArray(data.sources))SOURCES=data.sources.filter(x=>x&&x.name);
+    saveHistory(); saveValuations(); saveContributions(); saveMonthly(); saveProjection(); saveFactsheets(); saveStatements(); saveSources(); saveState(); saveFunds(); syncFundValueInput(); syncMonthlyInput();
     $('uploadSection').classList.add('hidden'); $('loadedBar').classList.remove('hidden'); $('dash').classList.remove('hidden');
     $('errbox').textContent=''; $('loadbar').textContent=`Imported ${FUNDS.length} fund(s), ${VALUATIONS.length} recorded value(s)${FACTSHEETS.length?`, ${FACTSHEETS.length} factsheet(s)`:''}.`;
     recompute();
@@ -2411,7 +2461,7 @@ window.addEventListener('drop',e=>{
   e.preventDefault();
   if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);
 });
-$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;WORK_CONTRIB=0;PERSONAL_CONTRIB=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];STATEMENTS=[];['fund_data','fund_holdings','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_work_contrib','fund_personal_contrib','fund_projection','fund_compare','fund_factsheets','fund_statements'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
+$('clearAll').onclick=()=>{FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;WORK_CONTRIB=0;PERSONAL_CONTRIB=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];STATEMENTS=[];SOURCES=[];['fund_data','fund_holdings','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_work_contrib','fund_personal_contrib','fund_projection','fund_compare','fund_factsheets','fund_statements','fund_sources'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();renderSources();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 function upMsg(text,isErr){const u=$('upStatus');if(u){u.style.display=text?'block':'none';u.textContent=text||'';u.style.color=isErr?'var(--neg)':'var(--mute)';}const e=$('errbox');if(e&&isErr)e.textContent=text;const l=$('loadbar');if(l&&!isErr)l.textContent=text;}
 // parse a batch of {name, buf} items into FUNDS/FACTSHEETS; returns a summary string
 async function processItems(items){
@@ -2428,22 +2478,26 @@ async function processItems(items){
           STATEMENTS.sort((a,b)=>a.date.localeCompare(b.date));
           upsertValuation(St.date,St.totalValue); // each statement year becomes a point on the performance chart
           if(St.prevDate&&St.prevTotal!=null)upsertValuation(St.prevDate,St.prevTotal); // 2023+ statements also state the prior year's total
+          recordSource(item.name,'statement',`${St.year||St.date.slice(0,4)} · pot ${fmtMoney(St.totalValue||0)}`);
           stmts++;continue;
         }
         const F=parseFactsheet(pages);
-        if(!F){skipped++;pdfErrs.push(`${item.name}: couldn’t read this PDF as a factsheet or annual statement.`);continue;}
+        if(!F){skipped++;recordSource(item.name,'skipped','');pdfErrs.push(`${item.name}: couldn’t read this PDF as a factsheet or annual statement.`);continue;}
         const ix=FACTSHEETS.findIndex(x=>normName(x.name)===normName(F.name));
         if(ix>=0)FACTSHEETS[ix]=F; else FACTSHEETS.push(F);
+        recordSource(item.name,'factsheet',F.name);
         sheets++;
       }else{
         const r=parseWorkbook(item.name,item.buf);
-        if(!r){skipped++;continue;}
+        if(!r){skipped++;recordSource(item.name,'skipped','');continue;}
         const ix=FUNDS.findIndex(f=>f.name===r.name);
         if(ix>=0)FUNDS[ix]=r; else FUNDS.push(r);
+        recordSource(item.name,'fund',r.name);
         added++;
       }
-    }catch(err){skipped++; if(/\.pdf$/i.test(item.name))pdfErrs.push(`${item.name}: ${err&&err.message||err}`);}
+    }catch(err){skipped++;recordSource(item.name,'skipped',''); if(/\.pdf$/i.test(item.name))pdfErrs.push(`${item.name}: ${err&&err.message||err}`);}
   }
+  saveSources();
   if(sheets)saveFactsheets();
   if(stmts){saveStatements();saveValuations();}
   const summary=`Loaded ${added} fund(s)${sheets?`, ${sheets} factsheet(s)`:''}${stmts?`, ${stmts} annual statement(s)`:''}${skipped?`, skipped ${skipped}`:''}.`;
@@ -2466,6 +2520,7 @@ function activateDashboard(){
   if(!Object.keys(PROJ).length)PROJ=loadProjection();
   if(!FACTSHEETS.length)FACTSHEETS=loadFactsheets();
   if(!STATEMENTS.length)STATEMENTS=loadStatements();
+  if(!SOURCES.length)SOURCES=loadSources();
   if(!COMPARE.size)COMPARE=loadCompare()||new Set(HOLDINGS.filter(h=>h[1]>0).map(h=>h[0]));
   if(!MONTHLY)MONTHLY=loadMonthly();
   PRIVACY=loadPrivacy(); $('privacyToggle').checked=PRIVACY; syncFundValueInput(); syncMonthlyInput();
@@ -2606,6 +2661,7 @@ if(SHARED_REPORTS){
 (function restoreCache(){
   const cached=loadFunds();
   STATEMENTS=loadStatements();
+  SOURCES=loadSources();
   if(!cached.length&&!STATEMENTS.length)return;
   FUNDS=cached;
   HISTORY=loadHistoryLS();
@@ -2643,7 +2699,7 @@ function renderAcct(){
 function personalPayload(){
   return {holdings:HOLDINGS,history:HISTORY,valuations:VALUATIONS,contributions:CONTRIBUTIONS,
           workContrib:WORK_CONTRIB,personalContrib:PERSONAL_CONTRIB,projection:PROJ,compare:[...COMPARE],
-          statements:STATEMENTS};
+          statements:STATEMENTS,sources:SOURCES};
 }
 function scheduleCloudSync(){
   if(!USER||SYNC_MUTE)return;
@@ -2695,7 +2751,8 @@ async function pullCloud(){
       if(d.projection&&typeof d.projection==='object')PROJ=d.projection;
       if(Array.isArray(d.compare))COMPARE=new Set(d.compare);
       if(Array.isArray(d.statements))STATEMENTS=d.statements.filter(x=>x&&x.date);
-      saveState();saveHistory();saveValuations();saveContributions();saveMonthly();saveProjection();saveCompare();saveFactsheets();saveStatements();
+      if(Array.isArray(d.sources))SOURCES=d.sources.filter(x=>x&&x.name);
+      saveState();saveHistory();saveValuations();saveContributions();saveMonthly();saveProjection();saveCompare();saveFactsheets();saveStatements();saveSources();
     }else if(u.ok&&!u.data){
       // first sign-in on this account: seed the cloud from whatever is on this device
       await pushUserData();
@@ -2711,7 +2768,7 @@ async function pullCloud(){
   }finally{ SYNC_MUTE=false; }
 }
 // any personal-data save also schedules a cloud push (no-op when signed out)
-['saveState','saveHistory','saveValuations','saveContributions','saveMonthly','saveProjection','saveCompare','saveStatements'].forEach(n=>{
+['saveState','saveHistory','saveValuations','saveContributions','saveMonthly','saveProjection','saveCompare','saveStatements','saveSources'].forEach(n=>{
   const orig=window[n];
   if(typeof orig==='function')window[n]=function(...a){orig.apply(this,a);scheduleCloudSync();};
 });
