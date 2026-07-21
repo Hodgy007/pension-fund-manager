@@ -430,6 +430,11 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <div class="card">
     <div class="cardlbl">Each annual Pension Plan statement PDF you upload adds a year here and to the chart above</div>
     <div style="overflow-x:auto"><table class="tl-table" id="tlTable"></table></div>
+    <div id="tlGrowthWrap" class="hidden" style="margin-top:20px">
+      <div class="cardlbl">Investment growth by year — what markets added or took, after contributions</div>
+      <svg id="tlGrowth" viewBox="0 0 760 220" style="width:100%;height:auto"></svg>
+    </div>
+    <div id="tlFundsHeld" style="margin-top:20px"></div>
     <div class="he-foot" style="margin-top:14px">
       <button class="btn gold" id="tlApplyContrib">Use latest statement as my monthly contributions</button>
       <span class="note" id="tlApplyNote" style="font-size:12px;color:var(--faint)"></span>
@@ -2089,6 +2094,74 @@ function renderFundPerf(){
 }
 /* ---------- pension timeline (from annual statement PDFs) ---------- */
 const TL_COL={firm:'#3987e5',you:'#c98500',transfer:'#d55181',value:'#199e70'};
+// diverging bars: the natural form for signed yearly figures — gains rise from the
+// zero line, losses hang below it, so direction is carried by position, not just colour
+function renderGrowthBars(S){
+  const wrap=$('tlGrowthWrap'); if(!wrap)return;
+  const yrs=S.map((st,i)=>({st,g:stmtGrowth(st),prev:st.prevTotal!=null?st.prevTotal:(i>0?S[i-1].totalValue:null)}))
+             .filter(x=>x.g!=null);
+  wrap.classList.toggle('hidden',yrs.length<2);
+  if(yrs.length<2)return;
+  const svg=$('tlGrowth');
+  const W=760,H=220,L=70,R=20,T=30,B=34;
+  const maxAbs=Math.max(...yrs.map(x=>Math.abs(x.g)),1);
+  // split the plot height between gains (above zero) and losses (below), proportionally
+  const posSpan=Math.max(...yrs.map(x=>x.g),0)||maxAbs;
+  const negSpan=Math.max(-Math.min(...yrs.map(x=>x.g),0),maxAbs*0.06); // keep a sliver below zero even in all-gain years
+  const zero=T+(H-T-B)*posSpan/(posSpan+negSpan);
+  const Y=v=>v>=0?zero-(v/posSpan)*(zero-T):zero+(-v/negSpan)*(H-B-zero);
+  const slot=(W-L-R)/yrs.length, bw=Math.min(64,slot*0.55);
+  let s=`<line x1="${L}" y1="${zero}" x2="${W-R}" y2="${zero}" stroke="var(--line)" stroke-width="1.5"/>`;
+  s+=`<text x="${L-8}" y="${zero+4}" text-anchor="end" fill="var(--faint)" font-size="11">£0</text>`;
+  yrs.forEach((x,i)=>{
+    const cx=L+slot*(i+0.5), y=Y(x.g), up=x.g>=0;
+    const pct=x.prev>0?x.g/((x.prev+(x.st.totalValue||0))/2)*100:null;
+    s+=`<rect class="tg-bar" x="${(cx-bw/2).toFixed(1)}" y="${(up?y:zero).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(Math.abs(zero-y),1.5).toFixed(1)}" fill="var(--${up?'pos':'neg'})" rx="2" opacity=".85" data-i="${i}"/>`;
+    s+=`<text x="${cx}" y="${(up?y-7:y+15).toFixed(1)}" text-anchor="middle" fill="var(--${up?'pos':'neg'})" font-size="11.5" font-weight="600">${PRIVACY?'£•••':(up?'+':'−')+'£'+abbrMoney(Math.abs(x.g))}</text>`;
+    s+=`<text x="${cx}" y="${H-16}" text-anchor="middle" fill="var(--faint)" font-size="11">${x.st.year||x.st.date.slice(0,4)}</text>`;
+    if(pct!=null&&!PRIVACY)s+=`<text x="${cx}" y="${H-3}" text-anchor="middle" fill="var(--faint)" font-size="9.5">${(pct>=0?'+':'')+pct.toFixed(1)}%</text>`;
+  });
+  svg.innerHTML=s;
+  svg.querySelectorAll('.tg-bar').forEach(r=>{
+    r.onmousemove=e=>{const x=yrs[+r.dataset.i];
+      const pct=x.prev>0?x.g/((x.prev+(x.st.totalValue||0))/2)*100:null;
+      tip.innerHTML=`<b>${x.st.year||x.st.date.slice(0,4)}</b><div class="r"><span>Investment growth</span><span class="${x.g>=0?'pos':'neg'}">${PRIVACY?'£•••••':(x.g<0?'−£':'£')+Math.abs(Math.round(x.g)).toLocaleString('en-GB')}</span></div>`+
+        (pct!=null?`<div class="r"><span>On the average pot</span><span class="${pct>=0?'pos':'neg'}">${(pct>=0?'+':'')+pct.toFixed(1)}%</span></div>`:'');
+      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';};
+    r.onmouseleave=()=>tip.style.opacity=0;
+  });
+}
+// funds held, from the newest statement that itemises them (the 2023+ template doesn't)
+function renderFundsHeld(S){
+  const el=$('tlFundsHeld'); if(!el)return;
+  const src=[...S].reverse().find(st=>st.funds&&st.funds.length);
+  if(!src){el.innerHTML='';return;}
+  const latest=S[S.length-1];
+  const total=src.funds.reduce((a,f)=>a+(f.endValue||0),0);
+  // aggregate by fund name across Main/Top-Up (often the same fund in both plans)
+  const agg={};
+  src.funds.forEach(f=>{const k=normName(f.name);
+    if(!agg[k])agg[k]={name:f.name,value:0,plans:[],ter:f.ter};
+    agg[k].value+=f.endValue||0; agg[k].plans.push(f.plan);});
+  const rows=Object.values(agg).sort((a,b)=>b.value-a.value);
+  const canApply=FUNDS.length&&rows.every(r=>FUNDS.some(f=>{const a=normName(f.name),b=normName(r.name);return a===b||a.includes(b)||b.includes(a);}));
+  el.innerHTML=`<div class="cardlbl">Funds you held · from your ${src.year||src.date.slice(0,4)} statement${src!==latest?` <span style="color:var(--gold)">(newer statements don't itemise funds)</span>`:''}</div>
+    ${rows.map(r=>`<div class="uf-row"><span class="uf-ico">◆</span>
+      <span class="uf-name">${escapeHtml(r.name)}</span>
+      <span class="uf-kind">${r.plans.join(' + ')}${r.ter!=null?` · TER ${r.ter}%`:''}</span>
+      <span class="uf-when" style="font-size:12.5px;color:var(--ink)">${fmtMoney(r.value)} · ${total>0?(r.value/total*100).toFixed(0):'—'}%</span></div>`).join('')}
+    <p class="note" style="margin:8px 0 0;font-size:12px;color:var(--faint)">${src!==latest?`Your ${latest.year||''} statement no longer lists individual funds — check MyPensionUK for your current investment mix. `:''}${canApply?'':'Upload these funds’ price sheets to compare them in the dashboard.'}</p>
+    ${canApply?`<div class="he-foot" style="margin-top:10px"><button class="btn" id="tlUseFunds">Set these as my holdings (by value)</button></div>`:''}`;
+  const btn=$('tlUseFunds');
+  if(btn)btn.onclick=()=>{
+    HOLDINGS=rows.map(r=>{
+      const f=FUNDS.find(f=>{const a=normName(f.name),b=normName(r.name);return a===b||a.includes(b)||b.includes(a);});
+      return [f.name,Math.round(r.value/total*1000)/10];
+    });
+    recompute();
+    $('heRows').scrollIntoView({behavior:'smooth',block:'center'});
+  };
+}
 function renderTimeline(){
   const wrap=$('tlWrap'); if(!wrap)return;
   wrap.classList.toggle('hidden',!STATEMENTS.length);
@@ -2120,6 +2193,8 @@ function renderTimeline(){
     STATEMENTS=STATEMENTS.filter(x=>x.date!==b.dataset.d);
     saveStatements(); renderTimeline();
   });
+  renderGrowthBars(S);
+  renderFundsHeld(S);
   // ---- push the latest year's real figures into the monthly contribution boxes ----
   const latest=S[n-1];
   $('tlApplyContrib').onclick=()=>{
