@@ -40,13 +40,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, funds: nf, factsheets: ns });
     }
 
-    if (req.method === 'DELETE') {
-      // clear the shared fund library (used by "Clear all" so it's a true reset)
-      await s`DELETE FROM funds`;
-      await s`DELETE FROM factsheets`;
-      return res.status(200).json({ ok: true });
-    }
-
+    // no DELETE: the shared fund library is intentionally not clearable from the app
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error('funds error:', err);

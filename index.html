@@ -122,6 +122,8 @@ html.light .perf-date{color-scheme:light}
 .tl-table td button:hover{color:var(--neg)}
 .tl-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--mute)}
 .tl-legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.backup-reminder{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between;background:rgba(212,166,74,.12);border:1px solid var(--gold);border-radius:10px;padding:12px 16px;margin:0 0 20px;font-size:14px;line-height:1.5}
+.backup-reminder .br-actions{display:flex;gap:8px;flex-shrink:0}
 .datanote{font-size:13.5px;line-height:1.55;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:12px 14px;margin:14px 0 0;max-width:760px}
 .datanote b{color:var(--ink)}
 .uploaded-files{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
@@ -312,9 +314,13 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <div class="eyebrow" id="eyebrow">Fund Dashboard · upload your monthly downloads</div>
   <h1>Your funds, <em>re-measured</em> whenever you refresh the data.</h1>
   <p class="sub" id="headerSub">Drop in the fund price spreadsheets and annual pension statements you download — they're scored on return, risk and drawdown, with your holdings and a retirement projection built from your own numbers.</p>
-  <p class="datanote">🔒 <b>Where your data lives:</b> your holdings, £ amounts, pension statements, salary and date of birth stay <b>on this device only</b> — they are never uploaded. Signing in shares just the <b>fund price sheets</b> to a shared library, so the latest prices sync across your devices (nothing personal). Use <b>Export</b> to back up your personal data, or <b>Clear all</b> to wipe everything (and, when signed in, the shared fund library too).</p>
+  <p class="datanote">🔒 <b>Where your data lives:</b> your holdings, £ amounts, pension statements, salary and date of birth stay <b>on this device only</b> — they are never uploaded. Signing in shares just the <b>fund price sheets</b> to a shared library, so the latest prices sync across your devices (nothing personal). Uploading a fund sheet <b>adds to</b> its price history rather than replacing it, so older data isn't lost. Use <b>Export</b> to back up your personal data; <b>Clear all</b> wipes this device only — the shared fund library is never deleted.</p>
   <p class="disclaim">Information tool, not financial advice. Figures are historical; past performance does not predict future returns. Ignores fees, charges, tax and how funds move together, and says nothing about your goals or timeframe. For a recommendation, speak to a regulated financial adviser.</p>
 </header>
+<div id="backupReminder" class="backup-reminder hidden">
+  <span>⬇ <b>Back up your data.</b> It's stored only on this device — export a copy so you don't lose it if your browser is cleared or you switch device.</span>
+  <span class="br-actions"><button class="btn gold" id="backupNow">Back up now</button><button class="btn" id="backupSnooze">Later</button></span>
+</div>
 
 <!-- SHARED REPORTS -->
 <div id="reportsPanel" class="card" style="margin-bottom:20px">
@@ -726,6 +732,14 @@ function parseWorkbook(name,buf){
   rows.sort((a,b)=>a.d-b.d);
   return rows.length?{name:cleanName(name),rows}:null;
 }
+// union two price series by date so re-uploading a fund ADDS to its history rather than
+// replacing it — provider exports often only carry ~5 years, so this keeps older prices.
+function mergeFundRows(existing,incoming){
+  const map=new Map();
+  for(const x of existing||[]) if(x&&x.d!=null&&isFinite(+x.d)) map.set(+x.d,x.p);
+  for(const x of incoming||[]) if(x&&x.d!=null&&isFinite(+x.d)) map.set(+x.d,x.p); // newest upload wins on an overlapping date
+  return [...map.entries()].sort((a,b)=>a[0]-b[0]).map(([t,p])=>({d:new Date(t),p}));
+}
 async function readFile(file){
   return parseWorkbook(file.name, await file.arrayBuffer());
 }
@@ -1069,7 +1083,7 @@ function renderAll(){
   $('fscount').textContent=FACTSHEETS.length; $('fsChip').classList.toggle('hidden',!FACTSHEETS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderBackupReminder(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -2382,6 +2396,18 @@ function exportData(){
   const url=URL.createObjectURL(blob), a=document.createElement('a');
   a.href=url; a.download=`fund-dashboard-${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  try{localStorage.setItem('fund_last_backup',String(Date.now()));localStorage.removeItem('fund_backup_snooze');}catch(e){}
+  renderBackupReminder();
+}
+// gentle reminder to export, since personal data lives only in this browser
+function hasPersonalData(){return (STATEMENTS&&STATEMENTS.length)||(VALUATIONS&&VALUATIONS.length)||(HOLDINGS&&HOLDINGS.length)||(CONTRIBUTIONS&&CONTRIBUTIONS.length)||WORK_CONTRIB>0||PERSONAL_CONTRIB>0;}
+function renderBackupReminder(){
+  const el=$('backupReminder'); if(!el)return;
+  let last=0,snooze=0;
+  try{last=+localStorage.getItem('fund_last_backup')||0;snooze=+localStorage.getItem('fund_backup_snooze')||0;}catch(e){}
+  const now=Date.now(), DAY=864e5;
+  const due=hasPersonalData()&&(now-last)>14*DAY&&(now-snooze)>7*DAY;
+  el.classList.toggle('hidden',!due);
 }
 // download the fund metrics table as a spreadsheet-friendly CSV
 function exportCSV(){
@@ -2431,6 +2457,8 @@ async function importData(file){
   }catch(err){$('errbox').textContent='Could not read that file: '+(err.message||err);}
 }
 $('exportBtn').onclick=exportData;
+$('backupNow').onclick=exportData;
+$('backupSnooze').onclick=()=>{try{localStorage.setItem('fund_backup_snooze',String(Date.now()));}catch(e){}renderBackupReminder();};
 $('csvBtn').onclick=exportCSV;
 $('importBtn').onclick=()=>$('importInput').click();
 $('importInput').onchange=e=>{if(e.target.files[0])importData(e.target.files[0]);e.target.value='';};
@@ -2464,12 +2492,8 @@ window.addEventListener('drop',e=>{
   e.preventDefault();
   if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)handleFiles(e.dataTransfer.files);
 });
-$('clearAll').onclick=async()=>{
-  const msg=USER
-    ?'Clear everything on this device AND remove the shared fund price library from the server? Your personal data lives only on this device, so this cannot be undone.'
-    :'Clear everything on this device? Your data is stored only here, so this cannot be undone.';
-  if(!confirm(msg))return;
-  if(USER){setAcctSync('Clearing shared fund library…');try{await api('/api/funds',{method:'DELETE'});}catch(e){}setAcctSync('');}
+$('clearAll').onclick=()=>{
+  if(!confirm('Clear everything on this device? Your personal data is stored only here, so this cannot be undone. (The shared fund library on the server is not affected.)'))return;
   FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;WORK_CONTRIB=0;PERSONAL_CONTRIB=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];STATEMENTS=[];SOURCES=[];['fund_data','fund_holdings','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_work_contrib','fund_personal_contrib','fund_projection','fund_compare','fund_factsheets','fund_statements','fund_sources'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();renderSources();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 function upMsg(text,isErr){const u=$('upStatus');if(u){u.style.display=text?'block':'none';u.textContent=text||'';u.style.color=isErr?'var(--neg)':'var(--mute)';}const e=$('errbox');if(e&&isErr)e.textContent=text;const l=$('loadbar');if(l&&!isErr)l.textContent=text;}
 // parse a batch of {name, buf} items into FUNDS/FACTSHEETS; returns a summary string
@@ -2500,8 +2524,10 @@ async function processItems(items){
         const r=parseWorkbook(item.name,item.buf);
         if(!r){skipped++;recordSource(item.name,'skipped','');continue;}
         const ix=FUNDS.findIndex(f=>f.name===r.name);
-        if(ix>=0)FUNDS[ix]=r; else FUNDS.push(r);
-        recordSource(item.name,'fund',r.name);
+        const merged=ix>=0?mergeFundRows(FUNDS[ix].rows,r.rows):r.rows; // add to existing history, don't overwrite
+        if(ix>=0)FUNDS[ix]={name:r.name,rows:merged}; else FUNDS.push({name:r.name,rows:merged});
+        const mmm=t=>new Date(t).toLocaleDateString('en-GB',{month:'short',year:'numeric'});
+        recordSource(item.name,'fund',`${r.name} · ${merged.length} prices, ${mmm(merged[0].d)}–${mmm(merged[merged.length-1].d)}`);
         added++;
       }
     }catch(err){skipped++;recordSource(item.name,'skipped',''); if(/\.pdf$/i.test(item.name))pdfErrs.push(`${item.name}: ${err&&err.message||err}`);}
@@ -2727,9 +2753,8 @@ async function pullCloud(){
         if(!Array.isArray(row.rows))return;
         const rows=row.rows.map(([d,p])=>({d:new Date(d),p})).sort((a,b)=>a.d-b.d);
         if(!rows.length)return;
-        const rec={name:row.name,rows};
         const ix=FUNDS.findIndex(x=>x.name===row.name);
-        if(ix>=0)FUNDS[ix]=rec; else FUNDS.push(rec);
+        if(ix>=0)FUNDS[ix]={name:row.name,rows:mergeFundRows(FUNDS[ix].rows,rows)}; else FUNDS.push({name:row.name,rows});
       });
       (f.factsheets||[]).forEach(row=>{
         if(!row.data||!row.data.name)return;
