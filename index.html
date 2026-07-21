@@ -283,7 +283,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <div class="modal-content" style="max-width:400px" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeAuthModal()">×</button>
     <h2 style="margin:0 0 6px" id="authTitle">Sign in</h2>
-    <p class="note" style="margin:0 0 18px;color:var(--mute)">Your fund data is shared with other users; your holdings and £ amounts are private to your account.</p>
+    <p class="note" style="margin:0 0 18px;color:var(--mute)">Signing in shares fund prices with other users and loads the latest. Your holdings, £ amounts, statements and all personal data stay on this device only — never uploaded.</p>
     <form class="auth-form" id="authForm">
       <label>Email<input type="email" id="authEmail" autocomplete="email" required></label>
       <label>Password<input type="password" id="authPass" autocomplete="current-password" minlength="8" required></label>
@@ -2682,7 +2682,7 @@ if(SHARED_REPORTS){
    Private: holdings, valuations, contributions, projection — one jsonb blob per user.
    If the database isn't configured (503 / network error) the whole feature stays
    hidden and the app behaves exactly as the local-only version. */
-let USER=null, SYNC_MUTE=false, syncTimer=null;
+let USER=null, SYNC_MUTE=false;
 async function api(path,opts){
   try{
     const r=await fetch(path,{headers:{'Content-Type':'application/json'},credentials:'same-origin',...opts});
@@ -2696,22 +2696,9 @@ function renderAcct(){
   $('acctBtn').textContent=USER?'Sign out':'Sign in';
   if(!USER)setAcctSync('');
 }
-function personalPayload(){
-  return {holdings:HOLDINGS,history:HISTORY,valuations:VALUATIONS,contributions:CONTRIBUTIONS,
-          workContrib:WORK_CONTRIB,personalContrib:PERSONAL_CONTRIB,projection:PROJ,compare:[...COMPARE],
-          statements:STATEMENTS,sources:SOURCES};
-}
-function scheduleCloudSync(){
-  if(!USER||SYNC_MUTE)return;
-  clearTimeout(syncTimer);
-  setAcctSync('Saving…');
-  syncTimer=setTimeout(pushUserData,1200);
-}
-async function pushUserData(){
-  if(!USER)return;
-  const r=await api('/api/userdata',{method:'POST',body:JSON.stringify({data:personalPayload()})});
-  setAcctSync(r.ok?'✓ Saved to your account':'⚠ Cloud save failed');
-}
+// NOTE: personal data (holdings, valuations, contributions, projection, statements,
+// salary, DOB, uploaded-file names) is deliberately kept on this device only — it is
+// never sent to the server. Only shared fund prices + factsheets are synced below.
 async function pushFundsCloud(){
   if(!USER)return;
   if(!FUNDS.length&&!FACTSHEETS.length)return;
@@ -2719,9 +2706,10 @@ async function pushFundsCloud(){
   const r=await api('/api/funds',{method:'POST',body:JSON.stringify(payload)});
   if(r.ok)setAcctSync('✓ Fund data shared');
 }
+// pull only the SHARED fund prices + factsheets from the server; personal data is never fetched
 async function pullCloud(){
   if(!USER)return;
-  setAcctSync('Loading your data…');
+  setAcctSync('Loading shared funds…');
   SYNC_MUTE=true;
   try{
     const f=await api('/api/funds');
@@ -2739,23 +2727,7 @@ async function pullCloud(){
         const ix=FACTSHEETS.findIndex(x=>normName(x.name)===normName(row.data.name));
         if(ix>=0)FACTSHEETS[ix]=row.data; else FACTSHEETS.push(row.data);
       });
-    }
-    const u=await api('/api/userdata');
-    if(u.ok&&u.data){
-      const d=u.data;
-      if(Array.isArray(d.holdings))HOLDINGS=d.holdings.filter(h=>Array.isArray(h)).map(h=>[h[0],+h[1]||0]);
-      if(Array.isArray(d.history))HISTORY=d.history;
-      if(Array.isArray(d.valuations))VALUATIONS=d.valuations.filter(v=>v&&v.date);
-      if(Array.isArray(d.contributions))CONTRIBUTIONS=d.contributions.filter(c=>c&&c.date);
-      WORK_CONTRIB=+d.workContrib||0; PERSONAL_CONTRIB=+d.personalContrib||0; MONTHLY=WORK_CONTRIB+PERSONAL_CONTRIB;
-      if(d.projection&&typeof d.projection==='object')PROJ=d.projection;
-      if(Array.isArray(d.compare))COMPARE=new Set(d.compare);
-      if(Array.isArray(d.statements))STATEMENTS=d.statements.filter(x=>x&&x.date);
-      if(Array.isArray(d.sources))SOURCES=d.sources.filter(x=>x&&x.name);
-      saveState();saveHistory();saveValuations();saveContributions();saveMonthly();saveProjection();saveCompare();saveFactsheets();saveStatements();saveSources();
-    }else if(u.ok&&!u.data){
-      // first sign-in on this account: seed the cloud from whatever is on this device
-      await pushUserData();
+      saveFunds(); saveFactsheets();
     }
     if(FUNDS.length||FACTSHEETS.length){
       $('uploadSection').classList.add('hidden');
@@ -2764,14 +2736,9 @@ async function pullCloud(){
       recompute();
     }
     syncFundValueInput();syncMonthlyInput();
-    setAcctSync('✓ Synced');
+    setAcctSync('✓ Shared funds synced · your personal data stays on this device');
   }finally{ SYNC_MUTE=false; }
 }
-// any personal-data save also schedules a cloud push (no-op when signed out)
-['saveState','saveHistory','saveValuations','saveContributions','saveMonthly','saveProjection','saveCompare','saveStatements','saveSources'].forEach(n=>{
-  const orig=window[n];
-  if(typeof orig==='function')window[n]=function(...a){orig.apply(this,a);scheduleCloudSync();};
-});
 // share newly parsed fund data after an upload
 {
   const _hf=window.handleFiles;

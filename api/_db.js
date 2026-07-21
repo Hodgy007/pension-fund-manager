@@ -39,10 +39,10 @@ export async function ensureSchema() {
       data jsonb NOT NULL,
       updated_at timestamptz NOT NULL DEFAULT now(),
       updated_by bigint)`;
-    await s`CREATE TABLE IF NOT EXISTS user_data(
-      user_id bigint PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-      data jsonb NOT NULL DEFAULT '{}'::jsonb,
-      updated_at timestamptz NOT NULL DEFAULT now())`;
+    // Personal data (holdings, valuations, statements, salary, DOB, ...) is kept
+    // client-side only and never sent to the server. Drop the old per-user table so
+    // any data previously synced into it is removed from the database entirely.
+    await s`DROP TABLE IF EXISTS user_data`;
   })();
   await schemaReady;
   return true;
