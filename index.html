@@ -127,6 +127,10 @@ html.light .perf-date{color-scheme:light}
 .backup-reminder .br-actions{display:flex;gap:8px;flex-shrink:0}
 .datanote{font-size:13.5px;line-height:1.55;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:12px 14px;margin:14px 0 0;max-width:760px}
 .datanote b{color:var(--ink)}
+.chip-click{cursor:pointer;user-select:none;transition:.15s}
+.chip-click:hover{border-color:var(--primary);color:var(--ink)}
+.chip-click.active{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 14%,var(--panel2));color:var(--ink)}
+.uf-clear{background:none;border:none;color:var(--primary);cursor:pointer;font-size:11px;font-family:var(--mono);padding:0;margin-left:8px}
 .uploaded-files{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
 .uploaded-files .uf-h{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px}
 .uf-row{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
@@ -339,8 +343,8 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 <!-- LOADED STATE -->
 <div id="loadedBar" class="card hidden" style="margin-top:16px">
   <div class="loaded-bar">
-    <span class="chip"><b id="fcount">0</b> funds loaded</span>
-    <span class="chip hidden" id="fsChip"><b id="fscount">0</b> factsheets</span>
+    <span class="chip chip-click" id="fundChip" title="Show which uploaded files these funds came from"><b id="fcount">0</b> funds loaded</span>
+    <span class="chip chip-click hidden" id="fsChip" title="Show which uploaded files these factsheets came from"><b id="fscount">0</b> factsheets</span>
     <span class="chip">priced to <b id="asof">—</b></span>
     <span class="acct-sync" id="fundSync"></span>
     <button class="btn" id="addMore">+ Add / update files</button>
@@ -2511,10 +2515,14 @@ function recordSource(name,kind,detail){
 }
 const UF_ICON={statement:'📄',fund:'📊',factsheet:'📕',skipped:'⚠️'};
 const UF_KIND={statement:'annual statement',fund:'fund prices',factsheet:'factsheet',skipped:'not recognised'};
+let SOURCE_FILTER=null; // null = all · 'fund' | 'factsheet' — set by clicking the chips in the loaded bar
 function renderSources(){
   const el=$('uploadedFiles'); if(!el)return;
-  if(!SOURCES.length){el.innerHTML='';return;}
-  const rows=SOURCES.slice().sort((a,b)=>b.when.localeCompare(a.when)).map(x=>{
+  ['fundChip','fsChip'].forEach((id,i)=>{const c=$(id);if(c)c.classList.toggle('active',SOURCE_FILTER===(i?'factsheet':'fund'));});
+  if(!SOURCES.length&&!SOURCE_FILTER){el.innerHTML='';return;}
+  const shown=SOURCES.filter(x=>!SOURCE_FILTER||x.kind===SOURCE_FILTER)
+    .sort((a,b)=>b.when.localeCompare(a.when));
+  const rows=shown.map(x=>{
     const when=new Date(x.when).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
     return `<div class="uf-row"><span class="uf-ico">${UF_ICON[x.kind]||'📄'}</span>
       <span class="uf-name" title="${escapeHtml(x.name)}">${escapeHtml(x.name)}</span>
@@ -2522,9 +2530,21 @@ function renderSources(){
       <span class="uf-when">${when}</span>
       <button data-n="${escapeHtml(x.name)}" title="Remove from this list (your extracted data is kept)">×</button></div>`;
   }).join('');
-  el.innerHTML=`<div class="uf-h">Files you've uploaded (${SOURCES.length})</div>${rows}`;
-  el.querySelectorAll('button').forEach(b=>b.onclick=()=>{SOURCES=SOURCES.filter(x=>x.name!==b.dataset.n);saveSources();renderSources();});
+  const label=SOURCE_FILTER?`${UF_KIND[SOURCE_FILTER]} files (${shown.length} of ${SOURCES.length})`:`Files you've uploaded (${SOURCES.length})`;
+  el.innerHTML=`<div class="uf-h">${label}${SOURCE_FILTER?`<button class="uf-clear" id="ufClear">show all ×</button>`:''}</div>`+
+    (rows||`<p class="note" style="margin:4px 0;font-size:12.5px;color:var(--faint)">No ${UF_KIND[SOURCE_FILTER]} files recorded on this device — ${SOURCE_FILTER==='fund'?'these fund prices may have come from the shared library rather than your own uploads.':'upload factsheet PDFs to see them here.'}</p>`);
+  const cl=$('ufClear'); if(cl)cl.onclick=()=>{SOURCE_FILTER=null;renderSources();};
+  el.querySelectorAll('.uf-row button').forEach(b=>b.onclick=()=>{SOURCES=SOURCES.filter(x=>x.name!==b.dataset.n);saveSources();renderSources();});
 }
+// clicking the loaded-bar chips filters the uploaded-files list to that kind
+[['fundChip','fund'],['fsChip','factsheet']].forEach(([id,kind])=>{
+  const c=$(id); if(!c)return;
+  c.onclick=()=>{
+    SOURCE_FILTER=SOURCE_FILTER===kind?null:kind;
+    renderSources();
+    if(SOURCE_FILTER)$('uploadedFiles').scrollIntoView({behavior:'smooth',block:'nearest'});
+  };
+});
 // ---------- upload wiring ----------
 // total fund value (manual) — the top box records today's value into the series
 function syncFundValueInput(){const el=$('fundValue');if(!el)return;el.type=PRIVACY?'password':'number';if(document.activeElement!==el){const lv=latestValue();el.value=lv>0?lv:'';}}
