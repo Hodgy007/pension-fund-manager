@@ -328,10 +328,10 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 <div class="card" style="margin-bottom:20px">
   <h2 style="margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <svg class="ai-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;fill:var(--primary)"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/></svg>
-    AI fund insights<span class="n">/ HOW IT WORKS</span>
+    AI fund insights<span class="n">/ ALREADY GENERATED</span>
   </h2>
   <p class="note" style="margin:0;color:var(--mute);font-size:13.5px;line-height:1.7">
-    When you add a fund <b>factsheet PDF</b>, an AI model reads its <b>public</b> data — what the fund holds, its asset and region split, charges, and performance versus benchmark — and writes a few plain-English notes on what the fund is and why its returns look the way they do. Open any fund to read them under <b>"What the data suggests"</b>, marked <span class="ai-badge"><svg class="ai-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/></svg>AI</span>. It reasons only over the factsheet, so it can still be wrong — check anything that matters against the source.
+    An AI model has read each fund's <b>public</b> factsheet data — what the fund holds, its asset and region split, charges, and performance versus benchmark — and written a few plain-English notes on what the fund is and why its returns have looked the way they do. Open any fund to read them under <b>"What the data suggests"</b>, marked <span class="ai-badge"><svg class="ai-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/></svg>AI</span>; hit <b>Regenerate</b> for a fresh pass. The notes reason only over the factsheet, so they can still be wrong — check anything that matters against the source.
   </p>
   <p class="note" style="margin:10px 0 0;color:var(--faint);font-size:12px;line-height:1.6">
     <b>Your holdings, weights and £ amounts are never sent</b> — only the fund's own public factsheet data leaves your device. This is information, not advice: it never tells you what to buy, sell or switch.
@@ -2557,7 +2557,7 @@ function obsSectionHtml(fs){
     return `<div class="fund-detail-section"><h3 class="obs-h">What the data suggests ${badge}</h3>
       <p class="note" style="margin:0;color:var(--neg)">Couldn’t generate — ${escapeHtml(fs.obsError)} <button class="btn" onclick="regenObs('${nm}')" style="margin-left:8px">Retry</button></p></div>`;
   return `<div class="fund-detail-section"><h3 class="obs-h">What the data suggests ${badge}</h3>
-    <p class="note" style="margin:0;color:var(--faint)">No AI insights yet. <button class="btn" onclick="genObs('${nm}')" style="margin-left:8px">Generate</button></p></div>`;
+    <p class="note" style="margin:0;color:var(--faint)">No AI insights stored for this fund yet. <button class="btn" onclick="genObs('${nm}')" style="margin-left:8px">Generate</button></p></div>`;
 }
 function findFactsheet(name){return FACTSHEETS.find(x=>normName(x.name)===normName(name));}
 function genObs(name){const fs=findFactsheet(name); if(fs)fetchFundObservations(fs,false);}
