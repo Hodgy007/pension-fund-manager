@@ -29,6 +29,13 @@ export async function ensureSchema() {
       data jsonb NOT NULL,
       updated_at timestamptz NOT NULL DEFAULT now(),
       updated_by bigint)`;
+    // AI-generated per-fund observations, keyed by fund name. Non-personal, shared.
+    await s`CREATE TABLE IF NOT EXISTS observations(
+      name text PRIMARY KEY,
+      cards jsonb NOT NULL,
+      as_of text,
+      model text,
+      updated_at timestamptz NOT NULL DEFAULT now())`;
     // accounts removed — drop the old user/session/personal tables so no emails,
     // password hashes or personal data remain in the database
     await s`DROP TABLE IF EXISTS user_data`;

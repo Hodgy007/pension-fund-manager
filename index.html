@@ -256,17 +256,8 @@ tr.held:hover td{background:rgba(31,111,235,.09)}
 .hcard-ai .ai-ico{width:10px;height:10px}
 .und-link{display:inline-flex;align-items:center;gap:5px}
 .und-link .ai-ico{width:10px;height:10px;opacity:.65;flex:0 0 auto}
-.ai-fund{margin-bottom:14px}
-.ai-fund-h{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;color:var(--ink);margin-bottom:12px}
-.ai-progress{margin-bottom:16px}
-.ai-progress-bar{height:6px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;overflow:hidden}
-.ai-progress-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:4px;transition:width .4s ease}
-.ai-progress-bar.indet span{width:35%!important;animation:aiIndet 1.1s ease-in-out infinite}
-@keyframes aiIndet{0%{margin-left:-35%}100%{margin-left:100%}}
-.ai-progress-lbl{display:flex;align-items:center;gap:7px;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--mute)}
-.ai-progress-lbl .ai-ico{width:13px;height:13px}
-.upstatus-bar{height:5px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;overflow:hidden;margin-top:8px}
-.upstatus-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:4px;transition:width .4s ease}
+.obs-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.obs-regen{margin-left:auto;font-size:11px;padding:5px 10px}
 .note{font-size:12px;color:var(--mute);line-height:1.5}
 footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);line-height:1.7}
 .err{color:var(--neg);font-size:12px;margin-top:10px}
@@ -525,9 +516,6 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <h2>Holdings, fund by fund<span class="n">/ HIGHLIGHTED</span></h2>
   <div class="grid hold-grid" id="holdCards"></div>
 
-  <h2>AI fund insights<span class="n">/ PER FUND, FROM FACTSHEETS</span></h2>
-  <div id="aiInsights"></div>
-
   <h2>Look-through &amp; overlap<span class="n">/ WHAT YOU ACTUALLY HOLD</span></h2>
   <div id="lookThrough"></div>
 
@@ -614,8 +602,10 @@ const safeText=s=>String(s??'').replace(/[<>]/g,'').replace(/\s+/g,' ').trim().s
 function sanitizeFactsheet(f){
   if(!f||typeof f!=='object')return f;
   const cleanList=(a,key)=>Array.isArray(a)?a.map(x=>({...x,[key]:safeText(x&&x[key])})):a;
+  const cleanObs=a=>Array.isArray(a)?a.map(c=>({heading:safeText(c&&c.heading),body:safeText(c&&c.body)})):a;
   return {...f, name:safeText(f.name), objective:safeText(f.objective),
-    holdings:cleanList(f.holdings,'name'), assetSplit:cleanList(f.assetSplit,'name'), geoSplit:cleanList(f.geoSplit,'name')};
+    holdings:cleanList(f.holdings,'name'), assetSplit:cleanList(f.assetSplit,'name'), geoSplit:cleanList(f.geoSplit,'name'),
+    observations:cleanObs(f.observations)};
 }
 // Shared fund-file storage (Vercel Blob). Requires a Blob store connected to the
 // Vercel project (provides BLOB_READ_WRITE_TOKEN) — flip to true once provisioned.
@@ -1171,7 +1161,7 @@ function renderAll(){
   $('stcount').textContent=STATEMENTS.length; $('stChip').classList.toggle('hidden',!STATEMENTS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderAiInsights(); renderLookThrough(); renderBenchmark(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderBackupReminder(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderBenchmark(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderBackupReminder(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -2548,64 +2538,39 @@ function loadFactsheets(){try{const s=localStorage.getItem('fund_factsheets');if
 // Input is PUBLIC factsheet data only — the user's holdings, weights and £ amounts never leave the device.
 const AI_ICON='<svg class="ai-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/></svg>';
 function fundHasObs(name){const fs=FACTSHEETS.find(x=>normName(x.name)===normName(name));return !!(fs&&fs.observations&&fs.observations.length);}
-let OBS_PROGRESS={done:0,total:0,active:false};
 const OBS_DISCLAIM=`Generated by AI from each fund's public factsheet — information, not a personal recommendation or financial advice. It reasons only over the factsheet and can still be wrong; check anything that matters against the source. Your holdings and £ amounts are never sent.`;
 function obsCardsHtml(obs){return obs.map(c=>`<div class="o"><h4>${escapeHtml(c.heading)}</h4><p>${escapeHtml(c.body)}</p></div>`).join('');}
+// AI observations shown inside a fund's detail modal. Pre-generated and stored in the shared
+// database, so they're already here on open; a Regenerate button forces a fresh pass.
 function obsSectionHtml(fs){
-  if(fs.obsLoading){
-    return `<div class="fund-detail-section"><h3>What the data suggests <span class="ai-badge">${AI_ICON}AI</span></h3>
-      <p class="note" style="color:var(--faint);font-size:13px;margin:0">Reading this factsheet…</p></div>`;
-  }
-  if(!fs.observations||!fs.observations.length)return '';
-  return `<div class="fund-detail-section"><h3>What the data suggests <span class="ai-badge">${AI_ICON}AI</span></h3>
-    <div class="obs">${obsCardsHtml(fs.observations)}</div>
-    <p class="note" style="margin-top:10px;font-size:11px;color:var(--faint)">${OBS_DISCLAIM}</p>
-  </div>`;
+  const nm=qattr(fs.name);
+  const badge=`<span class="ai-badge">${AI_ICON}AI</span>`;
+  const regenBtn=`<button class="btn obs-regen" onclick="regenObs('${nm}')">↻ Regenerate</button>`;
+  if(fs.obsLoading)
+    return `<div class="fund-detail-section"><h3 class="obs-h">What the data suggests ${badge}</h3>
+      <p class="note" style="color:var(--faint);font-size:13px;margin:0">Generating…</p></div>`;
+  if(fs.observations&&fs.observations.length)
+    return `<div class="fund-detail-section"><h3 class="obs-h">What the data suggests ${badge}${regenBtn}</h3>
+      <div class="obs">${obsCardsHtml(fs.observations)}</div>
+      <p class="note" style="margin-top:10px;font-size:11px;color:var(--faint)">${OBS_DISCLAIM}</p></div>`;
+  if(fs.obsError)
+    return `<div class="fund-detail-section"><h3 class="obs-h">What the data suggests ${badge}</h3>
+      <p class="note" style="margin:0;color:var(--neg)">Couldn’t generate — ${escapeHtml(fs.obsError)} <button class="btn" onclick="regenObs('${nm}')" style="margin-left:8px">Retry</button></p></div>`;
+  return `<div class="fund-detail-section"><h3 class="obs-h">What the data suggests ${badge}</h3>
+    <p class="note" style="margin:0;color:var(--faint)">No AI insights yet. <button class="btn" onclick="genObs('${nm}')" style="margin-left:8px">Generate</button></p></div>`;
 }
-// dedicated, always-visible section listing AI insights per factsheet — reachable without price sheets or holdings
-function renderAiInsights(){
-  const el=$('aiInsights'); if(!el)return;
-  if(!FACTSHEETS.length){
-    el.innerHTML=`<div class="card"><p class="note" style="margin:0;color:var(--faint)">Upload a fund <b>factsheet PDF</b> to get AI-written notes on what each fund holds and why its returns look the way they do. They also appear inside each fund's detail view.</p></div>`;
-    return;
-  }
-  const p=OBS_PROGRESS;
-  const head=p.active?`<div class="ai-progress"><div class="ai-progress-bar${p.total?'':' indet'}"><span style="width:${p.total?Math.round(p.done/p.total*100):100}%"></span></div>
-    <div class="ai-progress-lbl">${AI_ICON} Generating AI insights…${p.total?` (${p.done}/${p.total})`:''}</div></div>`:'';
-  const blocks=FACTSHEETS.map(fs=>{
-    const nm=escapeHtml(fs.name);
-    if(fs.obsLoading)
-      return `<div class="card ai-fund"><div class="ai-fund-h">${nm}</div><p class="note" style="margin:0;color:var(--faint)">Reading this factsheet…</p></div>`;
-    if(fs.observations&&fs.observations.length)
-      return `<div class="card ai-fund"><div class="ai-fund-h">${nm} <span class="ai-badge">${AI_ICON}AI</span></div><div class="obs">${obsCardsHtml(fs.observations)}</div></div>`;
-    if(fs.obsError)
-      return `<div class="card ai-fund"><div class="ai-fund-h">${nm}</div><p class="note" style="margin:0;color:var(--neg)">AI insights unavailable — ${escapeHtml(fs.obsError)} <button class="btn" data-gen="${nm}" style="margin-left:8px">Retry</button></p></div>`;
-    return `<div class="card ai-fund"><div class="ai-fund-h">${nm}</div><p class="note" style="margin:0;color:var(--faint)">No AI insights yet. <button class="btn" data-gen="${nm}" style="margin-left:8px">Generate</button></p></div>`;
-  }).join('');
-  el.innerHTML=head+blocks+`<p class="note" style="margin-top:2px;font-size:11px;color:var(--faint)">${OBS_DISCLAIM}</p>`;
-  el.querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>{const fs=FACTSHEETS.find(x=>x.name===b.dataset.gen);if(fs){fs.obsError=null;fs.observations=null;refreshObservations([fs]);}});
-}
-function updateObsUpStatus(){
-  const us=$('upStatus'); if(!us)return; const p=OBS_PROGRESS; if(!p.active&&!p.total)return;
-  us.style.display='block'; us.style.color='var(--mute)';
-  const pct=p.total?Math.round(p.done/p.total*100):100;
-  if(p.active) us.innerHTML=`✨ Generating AI insights… (${p.done}/${p.total})<div class="upstatus-bar"><span style="width:${pct}%"></span></div>`;
-  else{
-    const ok=p.ok||0, fail=p.total-ok;
-    us.innerHTML=fail
-      ?`✨ AI insights: ${ok} ready, ${fail} couldn’t be generated — see the “AI fund insights” section below.`
-      :`✨ AI insights ready for ${ok} fund${ok>1?'s':''} — see the “AI fund insights” section below.`;
-  }
-}
+function findFactsheet(name){return FACTSHEETS.find(x=>normName(x.name)===normName(name));}
+function genObs(name){const fs=findFactsheet(name); if(fs)fetchFundObservations(fs,false);}
+function regenObs(name){const fs=findFactsheet(name); if(fs){fs.observations=null;fs.obsError=null;fetchFundObservations(fs,true);}}
 function refreshModalIfShowing(name){
   if(CURRENT_MODAL_FUND&&normName(CURRENT_MODAL_FUND)===normName(name)&&$('fundModal').classList.contains('open'))openFundModal(CURRENT_MODAL_FUND);
 }
-async function fetchFundObservations(F){
-  F.obsLoading=true; F.obsError=null; refreshModalIfShowing(F.name); renderAiInsights();
+async function fetchFundObservations(F,regenerate){
+  F.obsLoading=true; F.obsError=null; refreshModalIfShowing(F.name);
   try{
     const res=await fetch('/api/observe',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({name:F.name,objective:F.objective,features:F.features,ocf:F.ocf,unitPrice:F.unitPrice,
-        launch:F.launch,asOf:F.asOf,benchmarkName:F.benchmarkName,holdings:F.holdings,assetSplit:F.assetSplit,geoSplit:F.geoSplit,cum:F.cum,ann:F.ann})});
+        launch:F.launch,asOf:F.asOf,benchmarkName:F.benchmarkName,holdings:F.holdings,assetSplit:F.assetSplit,geoSplit:F.geoSplit,cum:F.cum,ann:F.ann,regenerate:!!regenerate})});
     if(!res.ok){let d='';try{d=(await res.json()).details||'';}catch(e){}throw new Error('HTTP '+res.status+(d?': '+d:''));}
     const data=await res.json();
     F.observations=Array.isArray(data.cards)?data.cards:[];
@@ -2613,23 +2578,13 @@ async function fetchFundObservations(F){
   }catch(err){
     F.obsError=(err&&err.message)||String(err);
   }finally{
-    delete F.obsLoading; saveFactsheets(); refreshModalIfShowing(F.name); renderAiInsights();
+    delete F.obsLoading; saveFactsheets(); refreshModalIfShowing(F.name); if(typeof renderHoldCards==='function')renderHoldCards();
   }
 }
-// generate observations for factsheets that don't yet have them (skips done / errored / in-flight)
+// silently generate (and store in the shared DB) observations for any factsheets that don't have them yet
 async function refreshObservations(sheets){
   const todo=(sheets||[]).filter(F=>F&&!(F.observations&&F.observations.length)&&!F.obsLoading&&!F.obsError);
-  if(!todo.length){renderAiInsights();return;}
-  OBS_PROGRESS={done:0,total:todo.length,active:true,ok:0};
-  renderAiInsights(); updateObsUpStatus();
-  for(const F of todo){
-    await fetchFundObservations(F);
-    OBS_PROGRESS.done++;
-    if(F.observations&&F.observations.length)OBS_PROGRESS.ok++;
-    updateObsUpStatus();
-  }
-  OBS_PROGRESS.active=false;
-  updateObsUpStatus(); renderAiInsights();
+  for(const F of todo){ await fetchFundObservations(F,false); }
 }
 // ---------- underlying-fund explainer (AI general knowledge, by name) ----------
 const UNDERLYING_EXPLAIN={}; // normName -> {loading,error,data}
@@ -2955,7 +2910,7 @@ async function processItems(items){
   const us=$('upStatus');
   if(us){us.style.display='block';us.textContent=summary+(pdfErrs.length?'  '+pdfErrs.slice(0,2).join('  ·  '):'');us.style.color=pdfErrs.length?'var(--neg)':'var(--mute)';}
   if(pdfErrs.length)$('errbox').textContent=pdfErrs.slice(0,3).join('  ·  ');
-  // kick off AI insights after the load summary is shown, so its progress bar replaces it cleanly
+  // generate AI insights in the background and store them in the shared DB (shown in each fund's modal)
   if(sheets)refreshObservations(updatedSheets);
   return {added,skipped,sheets,pdfErrs};
 }
