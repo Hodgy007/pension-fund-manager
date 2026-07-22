@@ -14,7 +14,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inconsolata:wght@400;700&display=swap');
 :root{
   --bg:#0f1117; --panel:#161b22; --panel2:#1c2330; --line:#2d333b;
-  --ink:#e8edf4; --mute:#7d8590; --faint:#6e7681;
+  --ink:#e8edf4; --mute:#a1abb8; --faint:#88919d;
   --pos:#2ea043; --neg:#da3633; --primary:#1f6feb; --accent:#58a6ff; --gold:#d4a64a;
   --font:'Inter',sans-serif; --mono:'Inconsolata',monospace;
 }
@@ -38,8 +38,8 @@ header{padding:48px 0 32px;border-bottom:1px solid var(--line);margin-bottom:32p
 .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--primary);margin-bottom:16px;font-weight:600}
 h1{font-family:var(--font);font-weight:600;font-size:clamp(32px,5vw,48px);letter-spacing:-.02em;line-height:1.2}
 h1 em{font-style:italic;color:var(--primary)}
-.sub{color:var(--mute);margin-top:14px;max-width:700px;font-size:15px;line-height:1.6}
-.disclaim{margin-top:16px;font-size:12.5px;color:var(--faint);border-left:2px solid var(--line);padding-left:12px;max-width:700px}
+.sub{color:var(--mute);margin-top:14px;font-size:15px;line-height:1.6}
+.disclaim{margin-top:16px;font-size:12.5px;color:var(--faint);border-left:2px solid var(--line);padding-left:12px}
 h2{font-family:var(--font);font-weight:600;font-size:20px;margin:40px 0 18px;letter-spacing:-.01em;line-height:1.3}
 h2 .n{font-family:var(--mono);font-size:10px;color:var(--faint);margin-left:12px;letter-spacing:.08em;font-weight:400}
 .grid{display:grid;gap:16px}
@@ -251,6 +251,20 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <p class="sub">Drop in the price-history spreadsheets you download each month. Fund files are parsed in your browser and shared so anyone here can load the latest data — but your holdings and £ amounts stay on this device only, never uploaded anywhere.</p>
   <p class="disclaim">Information tool, not financial advice. Figures are historical; past performance does not predict future returns. Ignores fees, charges, tax and how funds move together, and says nothing about your goals or timeframe. For a recommendation, speak to a regulated financial adviser.</p>
 </header>
+
+<!-- AI INSIGHTS EXPLAINER -->
+<div class="card" style="margin-bottom:20px">
+  <h2 style="margin:0 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <svg class="ai-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;fill:var(--primary)"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/></svg>
+    AI fund insights<span class="n">/ HOW IT WORKS</span>
+  </h2>
+  <p class="note" style="margin:0;color:var(--mute);font-size:13.5px;line-height:1.7">
+    When you add a fund <b>factsheet PDF</b>, an AI model reads its <b>public</b> data — what the fund holds, its asset and region split, charges, and performance versus benchmark — and writes a few plain-English notes on what the fund is and why its returns look the way they do. Open any fund to read them under <b>"What the data suggests"</b>, marked <span class="ai-badge"><svg class="ai-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/></svg>AI</span>. It reasons only over the factsheet, so it can still be wrong — check anything that matters against the source.
+  </p>
+  <p class="note" style="margin:10px 0 0;color:var(--faint);font-size:12px;line-height:1.6">
+    <b>Your holdings, weights and £ amounts are never sent</b> — only the fund's own public factsheet data leaves your device. This is information, not advice: it never tells you what to buy, sell or switch.
+  </p>
+</div>
 
 <!-- SHARED REPORTS -->
 <div id="reportsPanel" class="card" style="margin-bottom:20px">
