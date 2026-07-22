@@ -125,7 +125,7 @@ html.light .perf-date{color-scheme:light}
 .recovery-code{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:.06em;text-align:center;background:var(--panel2);border:1px dashed var(--gold);border-radius:8px;padding:16px;color:var(--ink);word-break:break-all}
 .backup-reminder{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between;background:rgba(212,166,74,.12);border:1px solid var(--gold);border-radius:10px;padding:12px 16px;margin:0 0 20px;font-size:14px;line-height:1.5}
 .backup-reminder .br-actions{display:flex;gap:8px;flex-shrink:0}
-.datanote{font-size:13.5px;line-height:1.55;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:12px 14px;margin:14px 0 0;max-width:760px}
+.datanote{font-size:13.5px;line-height:1.55;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:12px 14px;margin:14px 0 0}
 .datanote b{color:var(--ink)}
 .chip-click{cursor:pointer;user-select:none;transition:.15s}
 .chip-click:hover{border-color:var(--primary);color:var(--ink)}
@@ -254,6 +254,19 @@ tr.held:hover td{background:rgba(31,111,235,.09)}
 .ai-ico{width:11px;height:11px;fill:currentColor;flex:0 0 auto}
 .hcard-ai{display:inline-flex;align-items:center;gap:3px;margin-left:8px;font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;font-weight:600;color:var(--primary);vertical-align:middle}
 .hcard-ai .ai-ico{width:10px;height:10px}
+.und-link{display:inline-flex;align-items:center;gap:5px}
+.und-link .ai-ico{width:10px;height:10px;opacity:.65;flex:0 0 auto}
+.ai-fund{margin-bottom:14px}
+.ai-fund-h{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;color:var(--ink);margin-bottom:12px}
+.ai-progress{margin-bottom:16px}
+.ai-progress-bar{height:6px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.ai-progress-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:4px;transition:width .4s ease}
+.ai-progress-bar.indet span{width:35%!important;animation:aiIndet 1.1s ease-in-out infinite}
+@keyframes aiIndet{0%{margin-left:-35%}100%{margin-left:100%}}
+.ai-progress-lbl{display:flex;align-items:center;gap:7px;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--mute)}
+.ai-progress-lbl .ai-ico{width:13px;height:13px}
+.upstatus-bar{height:5px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;overflow:hidden;margin-top:8px}
+.upstatus-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:4px;transition:width .4s ease}
 .note{font-size:12px;color:var(--mute);line-height:1.5}
 footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);line-height:1.7}
 .err{color:var(--neg);font-size:12px;margin-top:10px}
@@ -511,6 +524,9 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 
   <h2>Holdings, fund by fund<span class="n">/ HIGHLIGHTED</span></h2>
   <div class="grid hold-grid" id="holdCards"></div>
+
+  <h2>AI fund insights<span class="n">/ PER FUND, FROM FACTSHEETS</span></h2>
+  <div id="aiInsights"></div>
 
   <h2>Look-through &amp; overlap<span class="n">/ WHAT YOU ACTUALLY HOLD</span></h2>
   <div id="lookThrough"></div>
@@ -1155,7 +1171,7 @@ function renderAll(){
   $('stcount').textContent=STATEMENTS.length; $('stChip').classList.toggle('hidden',!STATEMENTS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderBenchmark(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderBackupReminder(); renderObs();
+  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderAiInsights(); renderLookThrough(); renderBenchmark(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderBackupReminder(); renderObs();
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -1350,7 +1366,7 @@ function renderLookThrough(){
   <div class="card" style="margin-top:14px">
     <div class="cardlbl">Underlying funds — effective exposure across your holdings${overlaps.length?` · <span style="color:var(--primary)">${overlaps.length} reached via more than one of your funds</span>`:''}</div>
     <div class="lt-scroll lt-scroll-ov">${lt.underlying.map(u=>`<div class="ov-row">
-      <div style="flex:1"><div style="display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:linear-gradient(135deg,${u.via.map(v=>fundColors[v.fund]).join(',')})"></span><div>${u.name}${u.overlap?' <span class="ov-flag">overlap</span>':''}</div></div>
+      <div style="flex:1"><div style="display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:linear-gradient(135deg,${u.via.map(v=>fundColors[v.fund]).join(',')})"></span><div class="clickable-fund und-link" onclick="openUnderlyingModal('${qattr(u.name)}')" title="What is this fund? (AI)">${u.name}${AI_ICON}${u.overlap?' <span class="ov-flag">overlap</span>':''}</div></div>
         <div class="ov-via">via ${u.via.map(v=>`<span style="color:${fundColors[v.fund]};font-weight:600">${v.fund}</span> (${v.weight}%)`).join(', ')}</div></div>
       <span class="ov-tot">${u.total.toFixed(1)}%</span></div>`).join('')}</div>
     <p class="note" style="margin-top:10px;font-size:12px;color:var(--faint)">"Effective exposure" weights each fund's underlying holdings by how much of your portfolio sits in that fund. An <span style="color:var(--primary)">overlap</span> flags an underlying fund reached through two or more of your holdings — hidden concentration. Colored bars and text match your holding funds. Source: your uploaded factsheets.</p>
@@ -2351,7 +2367,7 @@ function renderObs(){
 }
 // ---------- fund details modal ----------
 let CURRENT_MODAL_FUND=null;
-function closeFundModal(){$('fundModal').classList.remove('open');CURRENT_MODAL_FUND=null;}
+function closeFundModal(){$('fundModal').classList.remove('open');CURRENT_MODAL_FUND=null;CURRENT_UND=null;}
 function removeFund(name){
   if(!confirm(`Remove "${name}", its price history and factsheet? Your other funds, holdings and recorded values are kept.`))return;
   FUNDS=FUNDS.filter(f=>f.name!==name);
@@ -2454,7 +2470,7 @@ function openFundModal(fundName){
         <h3>Top Holdings</h3>
         <div class="fund-holdings-list">`;
       fs.holdings.slice(0,10).forEach(h=>{
-        html+=`<div class="fund-holding-row"><span>${h.name}</span><span class="fund-holding-pct">${h.weight.toFixed(1)}%</span></div>`;
+        html+=`<div class="fund-holding-row"><span class="clickable-fund und-link" onclick="openUnderlyingModal('${qattr(h.name)}')" title="What is this fund? (AI)">${h.name}${AI_ICON}</span><span class="fund-holding-pct">${h.weight.toFixed(1)}%</span></div>`;
       });
       html+=`</div></div>`;
     }
@@ -2532,42 +2548,141 @@ function loadFactsheets(){try{const s=localStorage.getItem('fund_factsheets');if
 // Input is PUBLIC factsheet data only — the user's holdings, weights and £ amounts never leave the device.
 const AI_ICON='<svg class="ai-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/></svg>';
 function fundHasObs(name){const fs=FACTSHEETS.find(x=>normName(x.name)===normName(name));return !!(fs&&fs.observations&&fs.observations.length);}
+let OBS_PROGRESS={done:0,total:0,active:false};
+const OBS_DISCLAIM=`Generated by AI from each fund's public factsheet — information, not a personal recommendation or financial advice. It reasons only over the factsheet and can still be wrong; check anything that matters against the source. Your holdings and £ amounts are never sent.`;
+function obsCardsHtml(obs){return obs.map(c=>`<div class="o"><h4>${escapeHtml(c.heading)}</h4><p>${escapeHtml(c.body)}</p></div>`).join('');}
 function obsSectionHtml(fs){
   if(fs.obsLoading){
     return `<div class="fund-detail-section"><h3>What the data suggests <span class="ai-badge">${AI_ICON}AI</span></h3>
       <p class="note" style="color:var(--faint);font-size:13px;margin:0">Reading this factsheet…</p></div>`;
   }
   if(!fs.observations||!fs.observations.length)return '';
-  const cards=fs.observations.map(c=>`<div class="o"><h4>${escapeHtml(c.heading)}</h4><p>${escapeHtml(c.body)}</p></div>`).join('');
   return `<div class="fund-detail-section"><h3>What the data suggests <span class="ai-badge">${AI_ICON}AI</span></h3>
-    <div class="obs">${cards}</div>
-    <p class="note" style="margin-top:10px;font-size:11px;color:var(--faint)">Generated by AI from this fund's own factsheet — information, not a personal recommendation or financial advice. It reasons only over the figures on the factsheet and can still be wrong; check anything that matters against the source.</p>
+    <div class="obs">${obsCardsHtml(fs.observations)}</div>
+    <p class="note" style="margin-top:10px;font-size:11px;color:var(--faint)">${OBS_DISCLAIM}</p>
   </div>`;
+}
+// dedicated, always-visible section listing AI insights per factsheet — reachable without price sheets or holdings
+function renderAiInsights(){
+  const el=$('aiInsights'); if(!el)return;
+  if(!FACTSHEETS.length){
+    el.innerHTML=`<div class="card"><p class="note" style="margin:0;color:var(--faint)">Upload a fund <b>factsheet PDF</b> to get AI-written notes on what each fund holds and why its returns look the way they do. They also appear inside each fund's detail view.</p></div>`;
+    return;
+  }
+  const p=OBS_PROGRESS;
+  const head=p.active?`<div class="ai-progress"><div class="ai-progress-bar${p.total?'':' indet'}"><span style="width:${p.total?Math.round(p.done/p.total*100):100}%"></span></div>
+    <div class="ai-progress-lbl">${AI_ICON} Generating AI insights…${p.total?` (${p.done}/${p.total})`:''}</div></div>`:'';
+  const blocks=FACTSHEETS.map(fs=>{
+    const nm=escapeHtml(fs.name);
+    if(fs.obsLoading)
+      return `<div class="card ai-fund"><div class="ai-fund-h">${nm}</div><p class="note" style="margin:0;color:var(--faint)">Reading this factsheet…</p></div>`;
+    if(fs.observations&&fs.observations.length)
+      return `<div class="card ai-fund"><div class="ai-fund-h">${nm} <span class="ai-badge">${AI_ICON}AI</span></div><div class="obs">${obsCardsHtml(fs.observations)}</div></div>`;
+    if(fs.obsError)
+      return `<div class="card ai-fund"><div class="ai-fund-h">${nm}</div><p class="note" style="margin:0;color:var(--neg)">AI insights unavailable — ${escapeHtml(fs.obsError)} <button class="btn" data-gen="${nm}" style="margin-left:8px">Retry</button></p></div>`;
+    return `<div class="card ai-fund"><div class="ai-fund-h">${nm}</div><p class="note" style="margin:0;color:var(--faint)">No AI insights yet. <button class="btn" data-gen="${nm}" style="margin-left:8px">Generate</button></p></div>`;
+  }).join('');
+  el.innerHTML=head+blocks+`<p class="note" style="margin-top:2px;font-size:11px;color:var(--faint)">${OBS_DISCLAIM}</p>`;
+  el.querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>{const fs=FACTSHEETS.find(x=>x.name===b.dataset.gen);if(fs){fs.obsError=null;fs.observations=null;refreshObservations([fs]);}});
+}
+function updateObsUpStatus(){
+  const us=$('upStatus'); if(!us)return; const p=OBS_PROGRESS; if(!p.active&&!p.total)return;
+  us.style.display='block'; us.style.color='var(--mute)';
+  const pct=p.total?Math.round(p.done/p.total*100):100;
+  if(p.active) us.innerHTML=`✨ Generating AI insights… (${p.done}/${p.total})<div class="upstatus-bar"><span style="width:${pct}%"></span></div>`;
+  else{
+    const ok=p.ok||0, fail=p.total-ok;
+    us.innerHTML=fail
+      ?`✨ AI insights: ${ok} ready, ${fail} couldn’t be generated — see the “AI fund insights” section below.`
+      :`✨ AI insights ready for ${ok} fund${ok>1?'s':''} — see the “AI fund insights” section below.`;
+  }
 }
 function refreshModalIfShowing(name){
   if(CURRENT_MODAL_FUND&&normName(CURRENT_MODAL_FUND)===normName(name)&&$('fundModal').classList.contains('open'))openFundModal(CURRENT_MODAL_FUND);
 }
 async function fetchFundObservations(F){
-  F.obsLoading=true; F.obsError=null; refreshModalIfShowing(F.name);
+  F.obsLoading=true; F.obsError=null; refreshModalIfShowing(F.name); renderAiInsights();
   try{
     const res=await fetch('/api/observe',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({name:F.name,objective:F.objective,features:F.features,ocf:F.ocf,unitPrice:F.unitPrice,
         launch:F.launch,asOf:F.asOf,benchmarkName:F.benchmarkName,holdings:F.holdings,assetSplit:F.assetSplit,geoSplit:F.geoSplit,cum:F.cum,ann:F.ann})});
-    if(!res.ok)throw new Error('HTTP '+res.status);
+    if(!res.ok){let d='';try{d=(await res.json()).details||'';}catch(e){}throw new Error('HTTP '+res.status+(d?': '+d:''));}
     const data=await res.json();
     F.observations=Array.isArray(data.cards)?data.cards:[];
+    if(!F.observations.length)F.obsError='No insights returned for this factsheet.';
   }catch(err){
     F.obsError=(err&&err.message)||String(err);
   }finally{
-    delete F.obsLoading; saveFactsheets(); refreshModalIfShowing(F.name);
+    delete F.obsLoading; saveFactsheets(); refreshModalIfShowing(F.name); renderAiInsights();
   }
 }
-// generate observations for any factsheet that doesn't yet have them (skips ones already done)
+// generate observations for factsheets that don't yet have them (skips done / errored / in-flight)
 async function refreshObservations(sheets){
-  for(const F of sheets){
-    if(!F||F.observations&&F.observations.length||F.obsLoading)continue;
+  const todo=(sheets||[]).filter(F=>F&&!(F.observations&&F.observations.length)&&!F.obsLoading&&!F.obsError);
+  if(!todo.length){renderAiInsights();return;}
+  OBS_PROGRESS={done:0,total:todo.length,active:true,ok:0};
+  renderAiInsights(); updateObsUpStatus();
+  for(const F of todo){
     await fetchFundObservations(F);
+    OBS_PROGRESS.done++;
+    if(F.observations&&F.observations.length)OBS_PROGRESS.ok++;
+    updateObsUpStatus();
   }
+  OBS_PROGRESS.active=false;
+  updateObsUpStatus(); renderAiInsights();
+}
+// ---------- underlying-fund explainer (AI general knowledge, by name) ----------
+const UNDERLYING_EXPLAIN={}; // normName -> {loading,error,data}
+let CURRENT_UND=null;
+function catSafe(n){try{return cat(n);}catch(e){return '';}}
+function underlyingGrounded(name){
+  const lt=(typeof lookThrough==='function')?lookThrough():null;
+  return lt&&lt.underlying?lt.underlying.find(x=>normName(x.name)===normName(name)):null;
+}
+async function fetchFundExplanation(name){
+  const k=normName(name);
+  const st=UNDERLYING_EXPLAIN[k]||(UNDERLYING_EXPLAIN[k]={});
+  if(st.loading||st.data)return;
+  st.loading=true; st.error=null; renderUnderlyingModal(name);
+  try{
+    const res=await fetch('/api/explain-fund',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,assetClass:catSafe(name)})});
+    if(!res.ok){let d='';try{d=(await res.json()).details||'';}catch(e){}throw new Error('HTTP '+res.status+(d?': '+d:''));}
+    st.data=await res.json();
+  }catch(err){ st.error=(err&&err.message)||String(err); }
+  finally{ st.loading=false; renderUnderlyingModal(name); }
+}
+function renderUnderlyingModal(name){
+  if(!CURRENT_UND||normName(CURRENT_UND)!==normName(name))return;
+  const st=UNDERLYING_EXPLAIN[normName(name)]||{};
+  const u=underlyingGrounded(name); const cls=catSafe(name);
+  let html=`<div class="fund-detail-header"><div class="fund-detail-name">${escapeHtml(name)}</div>
+    <div class="fund-detail-meta"><span>Underlying fund</span>${cls?`<span>${escapeHtml(cls)}</span>`:''}${u?`<span>Effective weight: ${u.total.toFixed(1)}%</span>`:''}</div></div>`;
+  if(u&&u.via&&u.via.length)
+    html+=`<div class="fund-detail-section"><h3>How you hold it</h3><p class="note" style="margin:0;color:var(--mute)">Reached via ${u.via.map(v=>`<b>${escapeHtml(v.fund)}</b>`).join(', ')}${u.overlap?' — held through more than one of your funds':''}.</p></div>`;
+  html+=`<div class="fund-detail-section"><h3>What this fund is <span class="ai-badge">${AI_ICON}AI · general knowledge</span></h3>`;
+  if(st.loading){
+    html+=`<p class="note" style="margin:0;color:var(--faint)">Looking this fund up…</p>`;
+  }else if(st.error){
+    html+=`<p class="note" style="margin:0;color:var(--neg)">Couldn’t look this fund up — ${escapeHtml(st.error)} <button class="btn" id="undRetry" style="margin-left:8px">Retry</button></p>`;
+  }else if(st.data){
+    const d=st.data;
+    if(d.summary)html+=`<p style="color:var(--mute);font-size:13.5px;line-height:1.7;margin:0 0 12px">${escapeHtml(d.summary)}</p>`;
+    if(d.assetClass)html+=`<p class="note" style="margin:0 0 10px"><b>Type:</b> ${escapeHtml(d.assetClass)}</p>`;
+    if(Array.isArray(d.madeOf)&&d.madeOf.length)
+      html+=`<div style="margin:0 0 10px"><div class="cardlbl" style="color:var(--primary)">Typically made of</div><ul style="margin:6px 0 0;padding-left:18px;color:var(--mute);font-size:13px;line-height:1.7">${d.madeOf.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>`;
+    if(d.strategy)html+=`<p class="note" style="margin:0"><b>Approach:</b> ${escapeHtml(d.strategy)}</p>`;
+    if(d.confident===false)html+=`<p class="note" style="margin:8px 0 0;color:var(--faint)">The exact fund couldn’t be pinned down, so this describes the general category its name implies.</p>`;
+  }
+  html+=`<p class="note" style="margin-top:12px;font-size:11px;color:var(--faint)">AI general knowledge — <b>not live data and not from a factsheet</b>. It may be outdated or not specific to your share class, and excludes current holdings, prices and performance. Information, not advice. Upload this fund’s own factsheet PDF to see its verified holdings.</p></div>`;
+  $('fundModalBody').innerHTML=html;
+  $('fundModal').classList.add('open');
+  const rb=$('undRetry'); if(rb)rb.onclick=()=>{delete UNDERLYING_EXPLAIN[normName(name)];fetchFundExplanation(name);};
+}
+function openUnderlyingModal(name){
+  CURRENT_UND=name; CURRENT_MODAL_FUND=null;
+  renderUnderlyingModal(name);
+  fetchFundExplanation(name);
 }
 function saveStatements(){try{localStorage.setItem('fund_statements',JSON.stringify(STATEMENTS));}catch(e){}}
 function loadStatements(){try{const s=localStorage.getItem('fund_statements');if(s)return JSON.parse(s).filter(x=>x&&x.date);}catch(e){}return [];}
@@ -2833,13 +2948,15 @@ async function processItems(items){
     }catch(err){skipped++;recordSource(item.name,'skipped',''); if(/\.pdf$/i.test(item.name))pdfErrs.push(`${item.name}: ${err&&err.message||err}`);}
   }
   saveSources();
-  if(sheets){saveFactsheets(); refreshObservations(updatedSheets);}
+  if(sheets)saveFactsheets();
   if(stmts){saveStatements();saveValuations();}
   const summary=`Loaded ${added} fund(s)${sheets?`, ${sheets} factsheet(s)`:''}${stmts?`, ${stmts} annual statement(s)`:''}${skipped?`, skipped ${skipped}`:''}.`;
   $('loadbar').textContent=summary;
   const us=$('upStatus');
   if(us){us.style.display='block';us.textContent=summary+(pdfErrs.length?'  '+pdfErrs.slice(0,2).join('  ·  '):'');us.style.color=pdfErrs.length?'var(--neg)':'var(--mute)';}
   if(pdfErrs.length)$('errbox').textContent=pdfErrs.slice(0,3).join('  ·  ');
+  // kick off AI insights after the load summary is shown, so its progress bar replaces it cleanly
+  if(sheets)refreshObservations(updatedSheets);
   return {added,skipped,sheets,pdfErrs};
 }
 // initialise holdings/state from localStorage and reveal the dashboard, once FUNDS/FACTSHEETS are populated
@@ -2864,6 +2981,8 @@ function activateDashboard(){
   $('loadedBar').classList.remove('hidden');
   $('dash').classList.remove('hidden');
   recompute();
+  // generate AI insights for any factsheets loaded from a previous session that don't have them yet
+  refreshObservations(FACTSHEETS);
 }
 async function handleFiles(fileList){
   const all=[...fileList];

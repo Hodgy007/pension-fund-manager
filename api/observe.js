@@ -134,7 +134,11 @@ export default async function handler(req, res) {
         'Factsheet data for one fund (JSON). Write the observation cards.\n\n' +
         JSON.stringify(fund, null, 2),
       providerOptions: {
-        gateway: { tags: ['feature:fund-observations'] },
+        gateway: {
+          tags: ['feature:fund-observations'],
+          // if the primary model (OBSERVE_MODEL) is unavailable on the gateway, fall back rather than fail
+          models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
+        },
       },
     });
 
