@@ -254,6 +254,8 @@ tr.held:hover td{background:rgba(31,111,235,.09)}
 .ai-ico{width:11px;height:11px;fill:currentColor;flex:0 0 auto}
 .hcard-ai{display:inline-flex;align-items:center;gap:3px;margin-left:8px;font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;font-weight:600;color:var(--primary);vertical-align:middle}
 .hcard-ai .ai-ico{width:10px;height:10px}
+.und-link{display:inline-flex;align-items:center;gap:5px}
+.und-link .ai-ico{width:10px;height:10px;opacity:.65;flex:0 0 auto}
 .ai-fund{margin-bottom:14px}
 .ai-fund-h{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;color:var(--ink);margin-bottom:12px}
 .ai-progress{margin-bottom:16px}
@@ -1364,7 +1366,7 @@ function renderLookThrough(){
   <div class="card" style="margin-top:14px">
     <div class="cardlbl">Underlying funds — effective exposure across your holdings${overlaps.length?` · <span style="color:var(--primary)">${overlaps.length} reached via more than one of your funds</span>`:''}</div>
     <div class="lt-scroll lt-scroll-ov">${lt.underlying.map(u=>`<div class="ov-row">
-      <div style="flex:1"><div style="display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:linear-gradient(135deg,${u.via.map(v=>fundColors[v.fund]).join(',')})"></span><div>${u.name}${u.overlap?' <span class="ov-flag">overlap</span>':''}</div></div>
+      <div style="flex:1"><div style="display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:linear-gradient(135deg,${u.via.map(v=>fundColors[v.fund]).join(',')})"></span><div class="clickable-fund und-link" onclick="openUnderlyingModal('${qattr(u.name)}')" title="What is this fund? (AI)">${u.name}${AI_ICON}${u.overlap?' <span class="ov-flag">overlap</span>':''}</div></div>
         <div class="ov-via">via ${u.via.map(v=>`<span style="color:${fundColors[v.fund]};font-weight:600">${v.fund}</span> (${v.weight}%)`).join(', ')}</div></div>
       <span class="ov-tot">${u.total.toFixed(1)}%</span></div>`).join('')}</div>
     <p class="note" style="margin-top:10px;font-size:12px;color:var(--faint)">"Effective exposure" weights each fund's underlying holdings by how much of your portfolio sits in that fund. An <span style="color:var(--primary)">overlap</span> flags an underlying fund reached through two or more of your holdings — hidden concentration. Colored bars and text match your holding funds. Source: your uploaded factsheets.</p>
@@ -2365,7 +2367,7 @@ function renderObs(){
 }
 // ---------- fund details modal ----------
 let CURRENT_MODAL_FUND=null;
-function closeFundModal(){$('fundModal').classList.remove('open');CURRENT_MODAL_FUND=null;}
+function closeFundModal(){$('fundModal').classList.remove('open');CURRENT_MODAL_FUND=null;CURRENT_UND=null;}
 function removeFund(name){
   if(!confirm(`Remove "${name}", its price history and factsheet? Your other funds, holdings and recorded values are kept.`))return;
   FUNDS=FUNDS.filter(f=>f.name!==name);
@@ -2468,7 +2470,7 @@ function openFundModal(fundName){
         <h3>Top Holdings</h3>
         <div class="fund-holdings-list">`;
       fs.holdings.slice(0,10).forEach(h=>{
-        html+=`<div class="fund-holding-row"><span>${h.name}</span><span class="fund-holding-pct">${h.weight.toFixed(1)}%</span></div>`;
+        html+=`<div class="fund-holding-row"><span class="clickable-fund und-link" onclick="openUnderlyingModal('${qattr(h.name)}')" title="What is this fund? (AI)">${h.name}${AI_ICON}</span><span class="fund-holding-pct">${h.weight.toFixed(1)}%</span></div>`;
       });
       html+=`</div></div>`;
     }
@@ -2628,6 +2630,59 @@ async function refreshObservations(sheets){
   }
   OBS_PROGRESS.active=false;
   updateObsUpStatus(); renderAiInsights();
+}
+// ---------- underlying-fund explainer (AI general knowledge, by name) ----------
+const UNDERLYING_EXPLAIN={}; // normName -> {loading,error,data}
+let CURRENT_UND=null;
+function catSafe(n){try{return cat(n);}catch(e){return '';}}
+function underlyingGrounded(name){
+  const lt=(typeof lookThrough==='function')?lookThrough():null;
+  return lt&&lt.underlying?lt.underlying.find(x=>normName(x.name)===normName(name)):null;
+}
+async function fetchFundExplanation(name){
+  const k=normName(name);
+  const st=UNDERLYING_EXPLAIN[k]||(UNDERLYING_EXPLAIN[k]={});
+  if(st.loading||st.data)return;
+  st.loading=true; st.error=null; renderUnderlyingModal(name);
+  try{
+    const res=await fetch('/api/explain-fund',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,assetClass:catSafe(name)})});
+    if(!res.ok){let d='';try{d=(await res.json()).details||'';}catch(e){}throw new Error('HTTP '+res.status+(d?': '+d:''));}
+    st.data=await res.json();
+  }catch(err){ st.error=(err&&err.message)||String(err); }
+  finally{ st.loading=false; renderUnderlyingModal(name); }
+}
+function renderUnderlyingModal(name){
+  if(!CURRENT_UND||normName(CURRENT_UND)!==normName(name))return;
+  const st=UNDERLYING_EXPLAIN[normName(name)]||{};
+  const u=underlyingGrounded(name); const cls=catSafe(name);
+  let html=`<div class="fund-detail-header"><div class="fund-detail-name">${escapeHtml(name)}</div>
+    <div class="fund-detail-meta"><span>Underlying fund</span>${cls?`<span>${escapeHtml(cls)}</span>`:''}${u?`<span>Effective weight: ${u.total.toFixed(1)}%</span>`:''}</div></div>`;
+  if(u&&u.via&&u.via.length)
+    html+=`<div class="fund-detail-section"><h3>How you hold it</h3><p class="note" style="margin:0;color:var(--mute)">Reached via ${u.via.map(v=>`<b>${escapeHtml(v.fund)}</b>`).join(', ')}${u.overlap?' — held through more than one of your funds':''}.</p></div>`;
+  html+=`<div class="fund-detail-section"><h3>What this fund is <span class="ai-badge">${AI_ICON}AI · general knowledge</span></h3>`;
+  if(st.loading){
+    html+=`<p class="note" style="margin:0;color:var(--faint)">Looking this fund up…</p>`;
+  }else if(st.error){
+    html+=`<p class="note" style="margin:0;color:var(--neg)">Couldn’t look this fund up — ${escapeHtml(st.error)} <button class="btn" id="undRetry" style="margin-left:8px">Retry</button></p>`;
+  }else if(st.data){
+    const d=st.data;
+    if(d.summary)html+=`<p style="color:var(--mute);font-size:13.5px;line-height:1.7;margin:0 0 12px">${escapeHtml(d.summary)}</p>`;
+    if(d.assetClass)html+=`<p class="note" style="margin:0 0 10px"><b>Type:</b> ${escapeHtml(d.assetClass)}</p>`;
+    if(Array.isArray(d.madeOf)&&d.madeOf.length)
+      html+=`<div style="margin:0 0 10px"><div class="cardlbl" style="color:var(--primary)">Typically made of</div><ul style="margin:6px 0 0;padding-left:18px;color:var(--mute);font-size:13px;line-height:1.7">${d.madeOf.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>`;
+    if(d.strategy)html+=`<p class="note" style="margin:0"><b>Approach:</b> ${escapeHtml(d.strategy)}</p>`;
+    if(d.confident===false)html+=`<p class="note" style="margin:8px 0 0;color:var(--faint)">The exact fund couldn’t be pinned down, so this describes the general category its name implies.</p>`;
+  }
+  html+=`<p class="note" style="margin-top:12px;font-size:11px;color:var(--faint)">AI general knowledge — <b>not live data and not from a factsheet</b>. It may be outdated or not specific to your share class, and excludes current holdings, prices and performance. Information, not advice. Upload this fund’s own factsheet PDF to see its verified holdings.</p></div>`;
+  $('fundModalBody').innerHTML=html;
+  $('fundModal').classList.add('open');
+  const rb=$('undRetry'); if(rb)rb.onclick=()=>{delete UNDERLYING_EXPLAIN[normName(name)];fetchFundExplanation(name);};
+}
+function openUnderlyingModal(name){
+  CURRENT_UND=name; CURRENT_MODAL_FUND=null;
+  renderUnderlyingModal(name);
+  fetchFundExplanation(name);
 }
 function saveStatements(){try{localStorage.setItem('fund_statements',JSON.stringify(STATEMENTS));}catch(e){}}
 function loadStatements(){try{const s=localStorage.getItem('fund_statements');if(s)return JSON.parse(s).filter(x=>x&&x.date);}catch(e){}return [];}
