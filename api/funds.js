@@ -12,7 +12,15 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const funds = await s`SELECT name, rows, updated_at FROM funds ORDER BY name`;
-      const factsheets = await s`SELECT name, data, updated_at FROM factsheets ORDER BY name`;
+      const rawFs = await s`SELECT name, data, updated_at FROM factsheets ORDER BY name`;
+      // attach any AI observations so they arrive with the normal factsheet sync
+      const obs = await s`SELECT name, cards FROM observations`;
+      const obsMap = {};
+      for (const o of obs) obsMap[o.name] = o.cards;
+      const factsheets = rawFs.map((r) => ({
+        ...r,
+        data: { ...r.data, observations: obsMap[r.name] || (r.data && r.data.observations) || null },
+      }));
       return res.status(200).json({ funds, factsheets });
     }
 
