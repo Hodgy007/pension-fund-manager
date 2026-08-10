@@ -154,3 +154,46 @@ test('periodsPerYear: falls back to 252 on degenerate input', () => {
   assert.equal(F.periodsPerYear([]), 252);
   assert.equal(F.periodsPerYear([new Date()]), 252);
 });
+
+// ---------- projection: current + additional contribution ----------
+const projArgs = (over = {}) => ({
+  age: 40, ret: 67, pot: 50000, otherPots: 0, mon: 200, extra: 0,
+  basis: 'gross', rate: 20, retn: 5, vol: 12, esc: 0, cpi: 2.5,
+  aa: 60000, tgt: 0, real: false, wr: 4, other: 0, ...over,
+});
+
+test('contribCalc: additional contribution is added to the current one', () => {
+  const base = F.contribCalc(projArgs({ mon: 200 }));
+  const both = F.contribCalc(projArgs({ mon: 200, extra: 150 }));
+  assert.equal(both.grossMon, 350);
+  assert.equal(both.grossMon, base.grossMon + 150);
+});
+
+test('contribCalc: relief at source grosses up the combined contribution', () => {
+  // £200 current + £100 extra from take-home at 20% -> £375 gross into the pot
+  const c = F.contribCalc(projArgs({ basis: 'takehome', rate: 20, mon: 200, extra: 100 }));
+  assert.ok(Math.abs(c.grossMon - 375) < 1e-9, `expected 375 gross, got ${c.grossMon}`);
+  assert.equal(c.netMon, 300); // relief at source: your own money is the full 300
+});
+
+test('contribCalc: a blank or negative additional contribution is ignored', () => {
+  const plain = F.contribCalc(projArgs({ mon: 200 })).grossMon;
+  for (const extra of [null, undefined, NaN, -50]) {
+    assert.equal(F.contribCalc(projArgs({ mon: 200, extra })).grossMon, plain, `extra=${extra}`);
+  }
+});
+
+test('projectMC: the additional contribution lifts the projected pot', () => {
+  const withOut = F.projectMC(projArgs({ extra: 0 }));
+  const withIt = F.projectMC(projArgs({ extra: 200 }));
+  assert.equal(withOut.extraMon, 0);
+  assert.equal(withOut.extraUplift, 0);
+  assert.equal(withIt.extraMon, 200);
+  assert.ok(withIt.extraUplift > 0, `expected a positive uplift, got ${withIt.extraUplift}`);
+  // an extra £200 on top of £200 doubles the money paid in on top of the starting pot
+  const paidIn = s => s.totalGross - 50000;
+  assert.ok(Math.abs(paidIn(withIt) - 2 * paidIn(withOut)) < 1e-6,
+    `expected paid-in to double, got ${paidIn(withIt)} vs ${paidIn(withOut)}`);
+  // and the first-year gross feeds the annual-allowance check
+  assert.equal(withIt.grossAnnualFirst, 400 * 12);
+});

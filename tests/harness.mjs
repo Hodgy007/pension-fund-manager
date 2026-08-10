@@ -51,7 +51,7 @@ export function loadApp() {
     'irr', 'pctile', 'niceStep', 'incomeTax', 'cat', 'parseDate', 'normName',
     'cleanName', 'gaussian', 'cleanValuations', 'cleanContributions',
     'monthlyFlows', 'effectiveContributions', 'computeValuations', 'latestValue',
-    'periodsPerYear', 'TAX',
+    'periodsPerYear', 'TAX', 'contribCalc', 'projectMC',
   ];
 
   const epilogue = `

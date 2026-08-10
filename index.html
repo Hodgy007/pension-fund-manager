@@ -562,7 +562,8 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
       <label>Retirement age<input type="number" id="pjRet" min="40" max="100" step="1"></label>
       <label>Pot value now (£)<input type="number" id="pjPot" min="0" step="500"></label>
       <label>Other pension pots (£)<input type="number" id="pjOtherPots" min="0" step="500" placeholder="old workplace pots etc."></label>
-      <label>Contribution (£/month)<input type="number" id="pjMon" min="0" step="50"></label>
+      <label>Current contribution (£/month)<input type="number" id="pjMon" min="0" step="50"></label>
+      <label>Additional contribution (£/month)<input type="number" id="pjExtra" min="0" step="50" placeholder="extra on top, e.g. 100"></label>
       <label>Contribution is<select id="pjBasis"><option value="takehome">From my take-home (relief added)</option><option value="gross">Before-tax / salary sacrifice</option></select></label>
       <label>My income tax rate<select id="pjRate"><option value="0">Non-taxpayer (0%)</option><option value="20">Basic (20%)</option><option value="40">Higher (40%)</option><option value="45">Additional (45%)</option></select></label>
       <label>Expected return (%/yr)<input type="number" id="pjRetn" step="0.1"></label>
@@ -1872,6 +1873,7 @@ function projDefaults(){
     otherPots:PROJ.otherPots??0,
     sp:PROJ.sp===true,
     mon:PROJ.mon??sd.mon??200,
+    extra:PROJ.extra??0,
     basis:PROJ.basis||sd.basis||'takehome',
     rate:PROJ.rate??20,
     retn:PROJ.retn??(PORT&&PORT.ann!=null?+PORT.ann.toFixed(1):5),
@@ -1885,28 +1887,42 @@ function projDefaults(){
     other:PROJ.other??0
   };
 }
-// work out what lands in the pot (gross) vs what leaves your take-home (net)
+// work out what lands in the pot (gross) vs what leaves your take-home (net).
+// Current and additional contributions are paid the same way, so they share the
+// basis and tax rate and are simply summed before relief is applied.
 function contribCalc(p){
   const r=p.rate/100;
+  const mon=Math.max(0,p.mon||0)+Math.max(0,p.extra||0);
   if(p.basis==='gross') // salary sacrifice / net-pay: entered figure is the gross into the pot
-    return {grossMon:p.mon, netMon:p.mon*(1-r), extraReliefAnnual:0};
+    return {grossMon:mon, netMon:mon*(1-r), extraReliefAnnual:0};
   // relief at source: basic-rate 20% is added into the pot; higher/additional reclaimed as cash
-  const grossMon = p.rate>=20 ? p.mon/0.8 : p.mon;
+  const grossMon = p.rate>=20 ? mon/0.8 : mon;
   const extraReliefAnnual = grossMon*12*Math.max(0,p.rate-20)/100;
-  return {grossMon, netMon:p.mon, extraReliefAnnual};
+  return {grossMon, netMon:mon, extraReliefAnnual};
 }
 function projectMC(p){
   const years=Math.round(p.ret-p.age);
   if(years<=0||years>80)return null;
   const cc=contribCalc(p);
+  // shadow run without the additional contribution, on the *same* return draws, so the
+  // uplift it buys is a like-for-like difference rather than two independent samples
+  const extraMon=Math.max(0,p.extra||0), hasExtra=extraMon>0;
+  const ccBase=hasExtra?contribCalc({...p,extra:0}):cc;
   const N=1500, mu=p.retn/100, sig=Math.max(0,p.vol/100), g=Math.max(0,p.esc/100), cpi=Math.max(0,p.cpi/100);
   const realF=y=>p.real?1/Math.pow(1+cpi,y):1;
   const startPot=p.pot+(p.otherPots||0); // this pot plus any pensions held elsewhere
   const yearVals=Array.from({length:years+1},()=>new Float64Array(N));
+  const baseFinal=new Float64Array(N);
   for(let s=0;s<N;s++){
     let v=startPot, annual=cc.grossMon*12;
+    let vb=startPot, annualB=ccBase.grossMon*12;
     yearVals[0][s]=v;
-    for(let y=1;y<=years;y++){let r=mu+sig*gaussian(); if(r<-0.95)r=-0.95; v=v*(1+r)+annual; annual*=(1+g); yearVals[y][s]=v;}
+    for(let y=1;y<=years;y++){
+      let r=mu+sig*gaussian(); if(r<-0.95)r=-0.95;
+      v=v*(1+r)+annual; annual*=(1+g); yearVals[y][s]=v;
+      if(hasExtra){vb=vb*(1+r)+annualB; annualB*=(1+g);}
+    }
+    baseFinal[s]=vb;
   }
   const p10=[],p50=[],p90=[];
   for(let y=0;y<=years;y++){const f=realF(y);p10.push(pctile(yearVals[y],.1)*f);p50.push(pctile(yearVals[y],.5)*f);p90.push(pctile(yearVals[y],.9)*f);}
@@ -1917,9 +1933,12 @@ function projectMC(p){
   let totalGross=startPot, totalNet=startPot, a=cc.grossMon*12, an=cc.netMon*12;
   for(let y=1;y<=years;y++){totalGross+=a;totalNet+=an;a*=(1+g);an*=(1+g);}
   const probTgt=p.tgt>0?finals.filter(v=>v>=p.tgt).length/N:null;
+  // what the additional contribution adds to the median outcome (same paths, so no sampling noise)
+  const extraUplift=hasExtra?(pctile(yearVals[years],.5)-pctile(baseFinal,.5))*realF(years):0;
   return {years,startAge:p.age,p10,p50,p90,real:p.real,cpi:p.cpi,
     finalP10:p10[years],finalP50:p50[years],finalP90:p90[years],medianReal,
     totalGross,totalNet,reliefInPot:totalGross-totalNet,extraReliefAnnual:cc.extraReliefAnnual,
+    extraMon,extraUplift,
     grossAnnualFirst:cc.grossMon*12,aa:p.aa,tgt:p.tgt,probTgt,wr:p.wr,other:p.other};
 }
 function renderProjection(){
@@ -1927,7 +1946,7 @@ function renderProjection(){
   const d=projDefaults();
   // reflect current values into the inputs (don't fight the user mid-type)
   const set=(id,v)=>{const el=$(id);if(el&&document.activeElement!==el)el.value=(v||v===0)?v:'';};
-  set('pjAge',d.age);set('pjRet',d.ret);set('pjPot',d.pot);set('pjMon',d.mon);
+  set('pjAge',d.age);set('pjRet',d.ret);set('pjPot',d.pot);set('pjMon',d.mon);set('pjExtra',d.extra);
   set('pjRetn',d.retn);set('pjVol',d.vol);set('pjEsc',d.esc);set('pjCpi',d.cpi);
   set('pjAA',d.aa);set('pjTgt',d.tgt);set('pjWr',d.wr);set('pjOther',d.other);set('pjOtherPots',d.otherPots);
   const sv=(id,v)=>{const el=$(id);if(el&&document.activeElement!==el)el.value=v;};
@@ -1941,6 +1960,7 @@ function renderProjection(){
   const retYear=new Date().getFullYear()+s.years;
   const moneyTag=s.real?" <span style='color:var(--faint);font-weight:400'>(today's money)</span>":'';
   const aaWarn=s.grossAnnualFirst>s.aa?`<p class="note" style="margin:12px 0 0;color:var(--neg)">⚠ Your contributions of about ${fmtMoney(s.grossAnnualFirst)}/yr (incl. relief) exceed the ${fmtMoney(s.aa)} annual allowance — the excess can be taxed unless covered by carry-forward. (Allowance may also be lower if you've flexibly accessed a pension (MPAA £10,000) or are a high earner (taper).)</p>`:'';
+  const extraNote=s.extraMon>0?`<p class="note" style="margin:12px 0 0;color:var(--pos)">Your additional <b>${fmtMoney(s.extraMon)}/month</b> adds about <b>${fmtMoney(s.extraUplift)}</b> to the median pot by age ${s.startAge+s.years}${s.real?" (today's money)":''} — it gets the same basis and tax relief as your current contribution.</p>`:'';
   const reliefNote=`<p class="note" style="margin:12px 0 0;color:var(--mute)">Tax relief adds about <b>${fmtMoney(s.reliefInPot)}</b> to your pension over the period${s.extraReliefAnnual>0?`, and as a ${d.rate}% taxpayer you can reclaim a further ~<b>${fmtMoney(s.extraReliefAnnual)}/yr</b> through Self Assessment`:''}. Your own money in: ${fmtMoney(s.totalNet)}.</p>`;
   // note which planner fields were pre-filled from statements (only where you haven't overridden them)
   const sd=stmtDefaults(), filled=[];
@@ -1961,7 +1981,7 @@ function renderProjection(){
       <div class="stat"><div class="lbl">Unlucky (10th pct)</div><div class="val sm">${fmtMoney(s.finalP10)}</div></div>
       <div class="stat"><div class="lbl">Lucky (90th pct)</div><div class="val sm">${fmtMoney(s.finalP90)}</div></div>
       ${s.tgt>0?`<div class="stat"><div class="lbl">Chance of reaching ${fmtMoney(s.tgt)}</div><div class="val sm ${s.probTgt>=0.5?'pos':'neg'}">${Math.round(s.probTgt*100)}%</div></div>`:'<div class="stat"><div class="lbl">Set a target</div><div class="val sm" style="color:var(--faint)">—</div></div>'}
-    </div>${stmtNote}${reliefNote}${aaWarn}`;
+    </div>${stmtNote}${extraNote}${reliefNote}${aaWarn}`;
   drawProjChart(s);
   // ----- at-retirement tax breakdown (today's money, current bands) -----
   const pot=s.medianReal;
@@ -2033,7 +2053,7 @@ function drawProjChart(s){
 function readProjInputs(){
   const num=id=>{const el=$(id);if(!el)return null;const v=parseFloat(el.value);return isNaN(v)?null:v;};
   const val=id=>$(id)?$(id).value:undefined;
-  PROJ={age:num('pjAge'),ret:num('pjRet'),pot:num('pjPot'),otherPots:num('pjOtherPots'),mon:num('pjMon'),
+  PROJ={age:num('pjAge'),ret:num('pjRet'),pot:num('pjPot'),otherPots:num('pjOtherPots'),mon:num('pjMon'),extra:num('pjExtra'),
     basis:val('pjBasis'),rate:num('pjRate'),retn:num('pjRetn'),vol:num('pjVol'),
     esc:num('pjEsc'),cpi:num('pjCpi'),aa:num('pjAA'),tgt:num('pjTgt'),
     real:$('pjReal')?$('pjReal').checked:true,wr:num('pjWr'),other:num('pjOther'),
@@ -2042,7 +2062,7 @@ function readProjInputs(){
   Object.keys(PROJ).forEach(k=>{if(PROJ[k]==null)delete PROJ[k];});
   saveProjection(); renderProjection();
 }
-['pjAge','pjRet','pjPot','pjOtherPots','pjMon','pjRetn','pjVol','pjEsc','pjCpi','pjAA','pjTgt','pjWr','pjOther'].forEach(id=>{const el=$(id);if(el)el.oninput=readProjInputs;});
+['pjAge','pjRet','pjPot','pjOtherPots','pjMon','pjExtra','pjRetn','pjVol','pjEsc','pjCpi','pjAA','pjTgt','pjWr','pjOther'].forEach(id=>{const el=$(id);if(el)el.oninput=readProjInputs;});
 ['pjBasis','pjRate','pjReal','pjSP'].forEach(id=>{const el=$(id);if(el)el.onchange=readProjInputs;});
 /* ---------- fund performance chart (recorded values) ---------- */
 const abbrMoney=v=>v>=1e6?(v/1e6).toFixed(1)+'m':v>=1e3?Math.round(v/1e3)+'k':String(Math.round(v));
