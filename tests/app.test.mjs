@@ -6,6 +6,7 @@ import { loadApp } from './harness.mjs';
 // smart-quote outage), this throws and the whole suite fails fast.
 const app = loadApp();
 const F = app.exports;
+const bytes = s => new Uint8Array(Buffer.from(s, 'utf8')).buffer;
 
 test('inline script compiles and exports the financial functions', () => {
   for (const name of ['irr', 'pctile', 'niceStep', 'incomeTax', 'computeValuations']) {
@@ -273,6 +274,100 @@ test('a partial re-read fills blanks but never overwrites a full parse', () => {
   assert.equal(merged.totalValue, 3510.99, 'known-good figure survives');
   assert.equal(merged.transferIn, 250, 'blank field is filled');
   assert.ok(!merged.partial, 'the merged year is not downgraded to partial');
+});
+
+// ---------------------------------------------------------------------------
+// Price-sheet reading. Runs against the vendored SheetJS the page actually ships.
+// ---------------------------------------------------------------------------
+
+test('parseWorkbook reads a price sheet into dated rows', () => {
+  assert.ok(app.xlsxLoaded, 'vendored xlsx must load into the sandbox');
+  const r = F.parseWorkbook('BlackRock World Fund.csv', bytes('Price,Date\n100.5,01/03/2024\n101.25,15/03/2024\n'));
+  assert.ok(r, 'should parse');
+  assert.equal(r.rows.length, 2);
+  assert.equal(r.rows[0].p, 100.5);
+  assert.equal(r.name, 'BlackRock World Fund', 'the file extension is not part of the fund name');
+});
+
+test('parseWorkbook reads csv dates day-first, not US month-first', () => {
+  // "01/03/2024" is 1 March in every UK download. Read US-first it silently becomes
+  // 3 January — and only for days 1-12, so a price history bends without ever erroring.
+  const r = F.parseWorkbook('fund.csv', bytes('Price,Date\n100.5,01/03/2024\n101.25,15/03/2024\n'));
+  const [a, b] = r.rows;
+  assert.equal(a.d.getMonth(), 2, `expected March, got month ${a.d.getMonth()}`);
+  assert.equal(a.d.getDate(), 1);
+  assert.equal(b.d.getMonth(), 2);
+  assert.equal(b.d.getDate(), 15);
+  assert.ok(a.d < b.d, 'rows must come back in date order');
+});
+
+test('parseWorkbook returns null when there are no usable rows', () => {
+  assert.equal(F.parseWorkbook('empty.csv', bytes('Price,Date\n')), null);
+  assert.equal(F.parseWorkbook('junk.csv', bytes('nothing,useful\nhere,either\n')), null);
+});
+
+test('mergeFundRows unions histories instead of replacing them', () => {
+  const older = [{ d: new Date('2023-01-02'), p: 90 }, { d: new Date('2023-01-03'), p: 91 }];
+  const newer = [{ d: new Date('2023-01-03'), p: 99 }, { d: new Date('2024-01-02'), p: 120 }];
+  const m = F.mergeFundRows(older, newer);
+  assert.equal(m.length, 3, 'overlapping date merges, it does not duplicate');
+  assert.equal(m[1].p, 99, 'the newer upload wins on an overlapping date');
+  assert.equal(m[2].p, 120);
+  assert.ok(m[0].d < m[1].d && m[1].d < m[2].d, 'sorted by date');
+});
+
+test('parseFactsheet pulls charges and holdings out of a factsheet page', () => {
+  // the right-hand column is positional — x>180 with section headers above each block
+  const items = [
+    { s: 'Global Equity Fund', x: 20, y: 800, h: 16 },
+    { s: 'Fund Objective To track global developed markets Fund Features Passive Fund Information', x: 20, y: 770, h: 9 },
+    { s: 'Unit Price 245.6p', x: 20, y: 750, h: 9 },
+    { s: 'Yearly Fund Charges 0.55 %', x: 20, y: 730, h: 9 },
+    { s: 'Fund Holdings', x: 200, y: 700, h: 9 },
+    { s: 'Apple Inc 5.20%', x: 200, y: 685, h: 9 },
+    { s: 'Microsoft Corp 4.10%', x: 200, y: 670, h: 9 },
+    { s: 'Asset Split as at 31/03/2024', x: 200, y: 650, h: 9 },
+    { s: 'Equities 98.00%', x: 200, y: 635, h: 9 },
+  ];
+  const fs = F.parseFactsheet([{ items }]);
+  assert.ok(fs, 'should parse as a factsheet');
+  assert.equal(fs.name, 'Global Equity Fund');
+  assert.equal(fs.ocf, 0.55);
+  assert.equal(fs.unitPrice, 245.6);
+  assert.equal(fs.holdings.length, 2);
+  assert.equal(fs.holdings[0].name, 'Apple Inc');
+  assert.equal(fs.holdings[0].weight, 5.2);
+  assert.equal(fs.assetSplit[0].pct, 98);
+});
+
+test('parseFactsheet refuses a PDF with no factsheet fields in it', () => {
+  const items = [{ s: 'Some Letter From Your Provider', x: 20, y: 800, h: 16 },
+                 { s: 'We are writing to let you know about a change.', x: 20, y: 780, h: 9 }];
+  assert.equal(F.parseFactsheet([{ items }]), null, 'a title is not a factsheet');
+});
+
+// ---------------------------------------------------------------------------
+// Projection charge basis
+// ---------------------------------------------------------------------------
+
+const projInputs = { age: 40, ret: 67, pot: 100000, otherPots: 0, mon: 500, basis: 'gross',
+  rate: 20, retn: 5, vol: 12, esc: 0, cpi: 2.5, aa: 60000, tgt: 0, real: true, wr: 4, other: 0 };
+
+test('detPot compounds deterministically and falls with the rate', () => {
+  const hi = F.detPot(projInputs, 5), lo = F.detPot(projInputs, 4.45);
+  assert.ok(hi > 0 && lo > 0);
+  assert.ok(lo < hi, 'a lower return must produce a smaller pot');
+  assert.equal(F.detPot(projInputs, 5), hi, 'same inputs give the same answer every time');
+  assert.equal(F.detPot({ ...projInputs, ret: 30 }, 5), null, 'retiring before you start is not a projection');
+});
+
+test('deducting charges lowers the projected pot', () => {
+  const gross = F.projectMC({ ...projInputs, chgPct: 0 });
+  const net = F.projectMC({ ...projInputs, chgPct: 0.55 });
+  assert.equal(gross.retnNet, 5);
+  assert.ok(Math.abs(net.retnNet - 4.45) < 1e-9, `expected 4.45%, got ${net.retnNet}`);
+  // the simulation is random, so compare the deterministic equivalent for a stable assertion
+  assert.ok(F.detPot(projInputs, net.retnNet) < F.detPot(projInputs, gross.retnNet));
 });
 
 test('partial statements survive the figures that drive the timeline', () => {

@@ -16,7 +16,8 @@ about each fund.
 
 ## Apps
 
-Both are single-file, dependency-free HTML pages.
+Both are single-file HTML pages, with their readers vendored in `lib/` — no build
+step and no third-party requests for code.
 
 | App | File | Served at |
 |-----|------|-----------|
@@ -90,10 +91,23 @@ flowchart TD
 ### Frontend (`index.html`)
 
 One self-contained HTML file: markup, CSS and an inline `<script>`. No build
-step, no framework, no runtime dependencies except `lib/pdf.js` (bundled) for
-reading PDF factsheets. All parsing and computation happen client-side.
+step and no framework. The three file readers it needs — SheetJS, JSZip and
+pdf.js — are **vendored in `lib/`** rather than loaded from a CDN, so a page
+holding salary, date of birth and pot values makes no third-party request for
+code, and it keeps working offline or behind a proxy that blocks CDNs. See
+[`lib/README.md`](lib/README.md) for versions and how to update them. All
+parsing and computation happen client-side.
+
 Personal state (holdings, £ values, contributions, projection inputs, theme)
-lives in `localStorage` under `fund_*` keys.
+lives in `localStorage` under `fund_*` keys. Writes go through one wrapper, so a
+failed save — quota exhausted, private browsing, site data switched off — raises
+a banner asking you to export instead of being swallowed.
+
+The page is usable beyond a desktop mouse: chart tooltips are bound to pointer
+events so they work on touch, the upload area is a real keyboard control, the
+fund dialog traps and restores focus, charts carry text alternatives pointing at
+the equivalent table, and `@media print` gives a light, chrome-free layout for
+saving a copy as PDF.
 
 ### Statement formats
 
@@ -193,15 +207,17 @@ api/
   upload.js             POST — store a fund file in Vercel Blob
   fund-list.js          GET  — list shared fund files
   observe.js            POST — AI per-fund observations (gateway + cache)
-lib/
-  pdf.min.js            pdf.js — bundled PDF reader for factsheets
+lib/                    Vendored readers — see lib/README.md for versions
+  xlsx.full.min.js      SheetJS — .xlsx / .xls / .csv price histories
+  jszip.min.js          JSZip — expands a dropped .zip of downloads
+  pdf.min.js            pdf.js — factsheet and statement PDFs
   pdf.worker.min.js
 scripts/
   check-syntax.mjs      Fast parse gate for the inline app script
   probe-gateway.mjs     Verify AI Gateway key + model slug before deploying
 tests/
-  app.test.mjs          Unit tests for the financial functions
-  harness.mjs           Extracts the inline script so tests run the real code
+  app.test.mjs          Unit tests for the financial + parsing functions
+  harness.mjs           Runs the real inline script (and the real SheetJS) in a sandbox
 ```
 
 ---
@@ -276,7 +292,13 @@ The World Cup draw is available at `/world-cup-draw.html` on either target.
 - **Volatility** is the annualised standard deviation of daily returns;
   **max drawdown** is the worst peak-to-trough fall.
 - Blended figures assume **daily rebalancing** to your weights.
-- Figures **exclude fund charges**, which reduce real returns.
+- **Fund charges** are shown in the charges section, and the projection has a
+  **Charge basis** control. A pension fund's unit price normally has the charge
+  taken out before the price is published, so a return derived from those prices
+  is already net and the default doesn't deduct again; switch to *Deduct my
+  charges* if your expected-return figure is a gross market assumption. The
+  quoted cost of charges is a steady-return figure, so it won't move about the
+  way a difference between two Monte Carlo runs would.
 - Projections are a spread of simulated outcomes, **not a forecast**, and change
   with HMRC figures each Budget.
 
