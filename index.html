@@ -134,6 +134,7 @@ html.light .perf-date{color-scheme:light}
 @keyframes fwflash{0%,100%{box-shadow:0 0 0 0 rgba(212,166,74,0)}50%{box-shadow:0 0 0 7px rgba(212,166,74,.24)}}
 .datanote{font-size:13.5px;line-height:1.55;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:12px 14px;margin:14px 0 0}
 .datanote b{color:var(--ink)}
+.datanote.fmtnote{border-left-color:var(--gold)}
 .chip-click{cursor:pointer;user-select:none;transition:.15s}
 .chip-click:hover{border-color:var(--primary);color:var(--ink)}
 .chip-click.active{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 14%,var(--panel2));color:var(--ink)}
@@ -324,6 +325,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <h1>Your funds, <em>re-measured</em> whenever you refresh the data.</h1>
   <p class="sub" id="headerSub">Drop in the fund price spreadsheets and annual pension statements you download — they're scored on return, risk and drawdown, with your holdings and a retirement projection built from your own numbers.</p>
   <p class="datanote">🔒 <b>Where your data lives:</b> your holdings, £ amounts, pension statements, salary and date of birth stay <b>on this device only</b> — they are never uploaded, and there are no accounts or logins. Only the <b>fund price sheets</b> (non-personal market data) sync to a shared library so the latest prices load automatically. Uploading a fund sheet <b>adds to</b> its price history rather than replacing it, so older data isn't lost. Use <b>Export</b> to back up your personal data; <b>Clear all</b> wipes this device only.</p>
+  <p class="datanote fmtnote">📄 <b>About statement formats:</b> the annual-statement reader was <b>modelled on statements from 2020</b>. Pension statements aren't a standard document, so one from a different year — or a different provider — may not be laid out the way the app expects. Nothing breaks if that happens: every figure the app can identify is still loaded, the year is marked <b>⚠</b> in the year-by-year table, and anything it couldn't find is listed so you can type it in yourself.</p>
   <p class="disclaim">Information tool, not financial advice. Figures are historical; past performance does not predict future returns. Ignores fees, charges, tax and how funds move together, and says nothing about your goals or timeframe. For a recommendation, speak to a regulated financial adviser.</p>
 </header>
 <div id="backupReminder" class="backup-reminder hidden">
@@ -367,6 +369,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <div class="fileicon">📄</div>
     <div class="big">Drop your fund <code>.xlsx</code> prices, factsheet <code>.pdf</code>s, or a <code>.zip</code> here</div>
     <div class="small">or <b>click to browse</b> · select all of them at once · xlsx give prices &amp; returns, PDFs add charges, allocation &amp; look-through</div>
+    <div class="small" style="color:var(--gold);margin-top:8px">Annual statements: the reader was modelled on <b>2020</b> statements — other layouts load whatever can be read from them.</div>
     <div id="loadbar"></div>
     <div id="errbox" class="err"></div>
   </div>

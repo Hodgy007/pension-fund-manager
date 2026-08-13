@@ -115,6 +115,9 @@ being rejected:
 3. **Nothing readable** → the file is reported, no year is invented, and the rest
    of the upload carries on.
 
+The homepage carries a standing note saying the reader was modelled on 2020
+statements, so this is visible before anyone uploads anything.
+
 A statement is never mistaken for a fund factsheet: a factsheet now needs at
 least one real factsheet field (charge, unit price, objective, performance table
 or holdings) before it's loaded, so an unrecognised PDF can't become a phantom
