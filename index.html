@@ -7,8 +7,11 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230d1117'/%3E%3Ctext x='50' y='73' font-size='62' text-anchor='middle' fill='%23d4a64a' font-family='Georgia,serif'%3E%C2%A3%3C/text%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230d1117'/%3E%3Ctext x='50' y='73' font-size='62' text-anchor='middle' fill='%23d4a64a' font-family='Georgia,serif'%3E%C2%A3%3C/text%3E%3C/svg%3E">
 <script>try{if(localStorage.getItem('fund_theme')==='light')document.documentElement.classList.add('light');}catch(e){}</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- Vendored, not loaded from a CDN: this page handles salary, date of birth and pot
+     values, so it makes no third-party requests for code, and it keeps working offline
+     or behind a proxy that blocks CDNs. Versions are recorded in lib/README.md. -->
+<script src="lib/xlsx.full.min.js"></script>
+<script src="lib/jszip.min.js"></script>
 <script src="lib/pdf.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inconsolata:wght@400;700&display=swap');
@@ -46,6 +49,9 @@ h2 .n{font-family:var(--mono);font-size:10px;color:var(--faint);margin-left:12px
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
 /* upload */
 #drop{border:2px dashed var(--line);border-radius:12px;padding:48px 32px;text-align:center;transition:.2s;cursor:pointer;background:transparent}
+/* a visible focus ring everywhere, so the page can be driven from the keyboard */
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+#drop:focus-visible{outline-offset:4px}
 #drop.hot{border-color:var(--primary);background:rgba(31,111,235,.04)}
 #drop .big{font-family:var(--font);font-size:18px;font-weight:600;margin-bottom:10px}
 #drop .small{color:var(--mute);font-size:14px;line-height:1.6}
@@ -130,6 +136,7 @@ html.light .perf-date{color-scheme:light}
 .format-warn b{color:var(--ink)}
 .format-warn .fw-msg{flex:1 1 460px}
 .format-warn .br-actions{display:flex;gap:8px;flex-shrink:0}
+.format-warn.danger{background:rgba(218,54,51,.10);border-color:var(--neg)}
 .format-warn.flash{animation:fwflash 1s ease-in-out 3}
 @keyframes fwflash{0%,100%{box-shadow:0 0 0 0 rgba(212,166,74,0)}50%{box-shadow:0 0 0 7px rgba(212,166,74,.24)}}
 .datanote{font-size:13.5px;line-height:1.55;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:12px 14px;margin:14px 0 0}
@@ -269,6 +276,29 @@ tr.held:hover td{background:rgba(31,111,235,.09)}
 .note{font-size:12px;color:var(--mute);line-height:1.5}
 footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);line-height:1.7}
 .err{color:var(--neg);font-size:12px;margin-top:10px}
+/* ---------- print / save-as-PDF ----------
+   A pension dashboard is something people keep a copy of, or take to an adviser. Printing
+   forces the light palette (the dark theme prints as ink-heavy black boxes) and drops the
+   parts of the page that only exist to drive the app — uploads, buttons, panels. */
+@media print{
+  :root,html.light{
+    --bg:#ffffff; --panel:#ffffff; --panel2:#f6f8fa; --line:#c9d1d9;
+    --ink:#000000; --mute:#333333; --faint:#555555;
+    --pos:#1a7f37; --neg:#b42318; --primary:#0b4ea2; --accent:#0b4ea2; --gold:#7a5200;
+  }
+  @page{margin:14mm}
+  body{background:#fff;color:#000;font-size:11pt}
+  .wrap{max-width:none;padding:0}
+  /* app furniture: nothing to press on paper */
+  #uploadSection,#reportsPanel,#backupReminder,#formatWarn,#storageWarn,.theme-toggle,.acct-bar,
+  .tip,.modal-overlay,.loaded-bar button,.loaded-bar .toggle,.he-foot button,#addMore,.obs-regen,
+  .uf-row button,.tl-table button,.filt,.chip-click{display:none!important}
+  .card,.o,.hold-grid>*{break-inside:avoid;page-break-inside:avoid;border-color:#c9d1d9}
+  h2{break-after:avoid;page-break-after:avoid}
+  svg{max-width:100%}
+  a[href]:after{content:''} /* the links here are in-page, so URLs would just be noise */
+  .datanote,.disclaim{border-color:#c9d1d9}
+}
 /* fund details modal */
 .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);display:none;z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
 .modal-overlay.open{display:flex}
@@ -312,9 +342,9 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 </style>
 </head>
 <body>
-<div id="fundModal" class="modal-overlay" onclick="if(event.target===this)closeFundModal()">
+<div id="fundModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Fund details" onclick="if(event.target===this)closeFundModal()">
   <div class="modal-content" onclick="event.stopPropagation()">
-    <button class="modal-close" onclick="closeFundModal()">×</button>
+    <button class="modal-close" id="fundModalClose" aria-label="Close fund details" onclick="closeFundModal()">×</button>
     <div id="fundModalBody"></div>
   </div>
 </div>
@@ -335,6 +365,10 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 <div id="formatWarn" class="format-warn hidden">
   <span class="fw-msg" id="formatWarnMsg"></span>
   <span class="br-actions"><button class="btn" id="formatWarnClose">Dismiss</button></span>
+</div>
+<div id="storageWarn" class="format-warn danger hidden">
+  <span class="fw-msg" id="storageWarnMsg"></span>
+  <span class="br-actions"><button class="btn gold" id="storageWarnExport">Export backup</button><button class="btn" id="storageWarnClose">Dismiss</button></span>
 </div>
 
 <!-- AI INSIGHTS EXPLAINER -->
@@ -365,15 +399,15 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
 
 <!-- UPLOAD -->
 <div id="uploadSection">
-  <div id="drop">
+  <div id="drop" role="button" tabindex="0" aria-label="Upload fund spreadsheets, factsheet or statement PDFs, or a zip. Activate to browse for files, or drop files anywhere on the page.">
     <div class="fileicon">📄</div>
     <div class="big">Drop your fund <code>.xlsx</code> prices, factsheet <code>.pdf</code>s, or a <code>.zip</code> here</div>
     <div class="small">or <b>click to browse</b> · select all of them at once · xlsx give prices &amp; returns, PDFs add charges, allocation &amp; look-through</div>
     <div class="small" style="color:var(--gold);margin-top:8px">Annual statements: the reader was modelled on <b>2020</b> statements — other layouts load whatever can be read from them.</div>
-    <div id="loadbar"></div>
-    <div id="errbox" class="err"></div>
+    <div id="loadbar" role="status" aria-live="polite"></div>
+    <div id="errbox" class="err" role="alert"></div>
   </div>
-  <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf,.zip" multiple class="hidden">
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.pdf,.zip" multiple class="hidden">
 </div>
 
 <!-- LOADED STATE -->
@@ -382,7 +416,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <span class="chip chip-click hidden" id="stChip" title="Show which statement PDFs you've uploaded"><b id="stcount">0</b> statements uploaded</span>
     <span class="chip chip-click" id="fundChip" title="Show which uploaded files these funds came from"><b id="fcount">0</b> funds loaded</span>
     <span class="chip chip-click hidden" id="fsChip" title="Show which uploaded files these factsheets came from"><b id="fscount">0</b> factsheets</span>
-    <span class="chip">priced to <b id="asof">—</b></span>
+    <span class="chip" id="asofChip">priced to <b id="asof">—</b><span id="asofStale"></span></span>
     <span class="acct-sync" id="fundSync"></span>
     <button class="btn" id="addMore">+ Add / update files</button>
     <button class="btn" id="exportBtn">⬇ Export</button>
@@ -399,7 +433,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <div class="fundval-input"><span class="cur">£</span><input id="fundValue" type="number" min="0" step="100" placeholder="e.g. 50000"></div>
     <span class="note" id="fundValueNote">Today's pot value — recorded as today's point on the chart below. Monthly contributions are set in the retirement planner (pre-filled from your statements).</span>
   </div>
-  <div id="upStatus" class="note" style="display:none;margin-top:10px;font-family:var(--mono);font-size:12.5px"></div>
+  <div id="upStatus" class="note" role="status" aria-live="polite" style="display:none;margin-top:10px;font-family:var(--mono);font-size:12.5px"></div>
 </div>
 
 <!-- DASHBOARD -->
@@ -423,7 +457,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <div class="card">
       <div class="cardlbl">Asset mix</div>
       <div class="donut-wrap">
-        <svg viewBox="0 0 120 120" style="width:120px;height:120px;flex-shrink:0" id="donut"></svg>
+        <svg viewBox="0 0 120 120" style="width:120px;height:120px;flex-shrink:0" id="donut" role="img" aria-label="Your asset allocation as a doughnut chart. The same percentages are listed beside it."></svg>
         <div class="legend" id="donutLegend"></div>
       </div>
     </div>
@@ -453,7 +487,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <h2>Your pension over time<span class="n">/ VALUE &amp; CONTRIBUTIONS</span></h2>
   <div class="card">
     <div class="cardlbl">Your pot's value over time (line), with each year's money paid in shown as bars once you upload your statements</div>
-    <svg id="perfChart" viewBox="0 0 760 300"></svg>
+    <svg id="perfChart" viewBox="0 0 760 300" role="img" aria-label="Your pot's value over time, with each statement year's contributions as bars. The same figures are in the recorded values table and the year-by-year breakdown."></svg>
     <div class="tl-legend" id="perfLegend"></div>
     <div class="fundval-row">
       <label for="fundStartDate">Fund start</label>
@@ -474,7 +508,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     <p class="note" id="tlOddNote" style="margin:10px 0 0;color:var(--gold);font-size:12.5px;line-height:1.6"></p>
     <div id="tlGrowthWrap" class="hidden" style="margin-top:20px">
       <div class="cardlbl">Investment growth by year — what markets added or took, after contributions</div>
-      <svg id="tlGrowth" viewBox="0 0 760 220" style="width:100%;height:auto"></svg>
+      <svg id="tlGrowth" viewBox="0 0 760 220" style="width:100%;height:auto" role="img" aria-label="Investment growth for each statement year. The same figures are in the Growth column of the table above."></svg>
     </div>
     <div id="tlFundsHeld" style="margin-top:20px"></div>
     <div class="he-foot" style="margin-top:14px">
@@ -553,13 +587,13 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
       <button class="filt" data-range="0">Max</button>
     </div>
     <div class="cmp-chips" id="cmpChips"></div>
-    <svg viewBox="0 0 760 360" id="cmpChart" style="width:100%;height:auto;margin-top:8px"></svg>
+    <svg viewBox="0 0 760 360" id="cmpChart" style="width:100%;height:auto;margin-top:8px" role="img" aria-label="Selected funds rebased to 100 and compared over time. Each fund's returns are in the fund table below."></svg>
     <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)">Lines show <b>price (capital) return</b> rebased to a common 100 — they exclude charges and any income/dividends. A line ending at 140 means +40% over the window shown.</p>
   </div>
 
   <h2>Risk vs reward<span class="n">/ 3-YEAR</span></h2>
   <div class="card scatter-card">
-    <svg viewBox="0 0 760 420" id="scatter"></svg>
+    <svg viewBox="0 0 760 420" id="scatter" role="img" aria-label="Each fund plotted by volatility against three-year return. The same two figures are the Vol and 3Y columns of the fund table below."></svg>
     <p class="note" style="margin-top:10px;font-size:12px;color:var(--faint)">Horizontal: annualised volatility (risk). Vertical: 3-year return. <span style="color:var(--gold)">Gold = your holdings.</span> Up-and-left is the desirable corner. Funds without ~3 years of history are excluded here.</p>
   </div>
 
@@ -581,6 +615,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
       <label>Contribution is<select id="pjBasis"><option value="takehome">From my take-home (relief added)</option><option value="gross">Before-tax / salary sacrifice</option></select></label>
       <label>My income tax rate<select id="pjRate"><option value="0">Non-taxpayer (0%)</option><option value="20">Basic (20%)</option><option value="40">Higher (40%)</option><option value="45">Additional (45%)</option></select></label>
       <label>Expected return (%/yr)<input type="number" id="pjRetn" step="0.1"></label>
+      <label title="Whether the expected return above already has fund charges taken out of it">Charge basis<select id="pjChg"><option value="net">Already after charges</option><option value="gross">Deduct my fund charges</option></select></label>
       <label>Volatility (%/yr)<input type="number" id="pjVol" min="0" step="0.1"></label>
       <label>Contribution rises (%/yr)<input type="number" id="pjEsc" min="0" step="0.5"></label>
       <label>Inflation / CPI (%/yr)<input type="number" id="pjCpi" min="0" step="0.1"></label>
@@ -589,14 +624,14 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
     </div>
     <label class="toggle" style="margin-top:14px" title="Show projected pounds in today's spending power"><input type="checkbox" id="pjReal" checked><span class="track"><span class="knob"></span></span><span class="tlbl">Show in today's money</span></label>
     <div id="projOut" style="margin-top:16px"></div>
-    <div style="margin-top:14px"><svg viewBox="0 0 760 320" id="projChart" style="width:100%;height:auto"></svg></div>
+    <div style="margin-top:14px"><svg viewBox="0 0 760 320" id="projChart" style="width:100%;height:auto" role="img" aria-label="Projected pot to retirement: median line with the middle 80 percent of simulated outcomes shaded. The headline figures are stated above the chart."></svg></div>
     <div class="proj-grid" style="margin-top:16px;grid-template-columns:repeat(2,1fr);max-width:540px">
       <label>Annual withdrawal rate (%)<input type="number" id="pjWr" min="0" step="0.5"></label>
       <label>Other taxable income (£/yr)<input type="number" id="pjOther" min="0" step="500" placeholder="e.g. final-salary pension"></label>
     </div>
     <label class="toggle" style="margin-top:12px" title="Adds the full new State Pension to your retirement income (assumes a full NI record)"><input type="checkbox" id="pjSP"><span class="track"><span class="knob"></span></span><span class="tlbl">Include State Pension (<span id="pjSPamt">£11,973</span>/yr)</span></label>
     <div id="projRetire" style="margin-top:14px"></div>
-    <p class="note" style="margin-top:8px;font-size:12px;color:var(--faint)">Defaults come from your blended holdings (return &amp; volatility) and latest recorded pot. <span style="color:var(--accent)">Shaded band</span> = middle 80% of outcomes (10th–90th percentile); <span style="color:var(--gold)">gold line</span> = median. Tax relief is added to contributions and the retirement breakdown uses current income-tax bands, the 25% tax-free lump sum (capped at £268,275) and the £60,000 annual allowance. Estimates only — they ignore fund charges, the State Pension unless you add it, allowance taper/MPAA and your wider circumstances, and HMRC figures change each Budget. Not a forecast or financial advice.</p>
+    <p class="note" style="margin-top:8px;font-size:12px;color:var(--faint)">Defaults come from your blended holdings (return &amp; volatility) and latest recorded pot. <span style="color:var(--accent)">Shaded band</span> = middle 80% of outcomes (10th–90th percentile); <span style="color:var(--gold)">gold line</span> = median. Tax relief is added to contributions and the retirement breakdown uses current income-tax bands, the 25% tax-free lump sum (capped at £268,275) and the £60,000 annual allowance. Fund charges are handled by the <b>Charge basis</b> control above. Estimates only — they ignore the State Pension unless you add it, allowance taper/MPAA and your wider circumstances, and HMRC figures change each Budget. Not a forecast or financial advice.</p>
   </div>
 
   <h2>Things worth noticing<span class="n">/ NOT ADVICE</span></h2>
@@ -625,6 +660,33 @@ function sanitizeFactsheet(f){
 // Shared fund-file storage (Vercel Blob). Requires a Blob store connected to the
 // Vercel project (provides BLOB_READ_WRITE_TOKEN) — flip to true once provisioned.
 const SHARED_REPORTS=false;
+// ---------- device storage ----------
+// localStorage writes fail for real reasons: the ~5MB quota (a few funds of daily prices
+// plus factsheets gets there), Safari private browsing, or site data switched off. The
+// app's whole promise is that your data lives on this device, so a failed write must never
+// pass silently — it raises a banner telling you to export instead. Deliberately sticky:
+// a later small write succeeding doesn't mean the big one fits, so only an explicit
+// dismiss (or a successful export) clears it.
+let STORAGE_FAILED=false;
+function lsSet(key,value,critical=true){
+  try{localStorage.setItem(key,value);return true;}
+  catch(err){
+    console.warn(`Could not save ${key}:`,err);
+    if(critical&&!STORAGE_FAILED){STORAGE_FAILED=true;showStorageWarning(err);}
+    return false;
+  }
+}
+function showStorageWarning(err){
+  const el=$('storageWarn'),msg=$('storageWarnMsg'); if(!el||!msg)return;
+  const full=err&&/quota|exceed/i.test(`${err.name} ${err.message}`);
+  msg.innerHTML='⚠ <b>Your latest changes could not be saved to this browser.</b> '
+    +(full?'The storage this site is allowed on this device is full. '
+          :'This browser is blocking storage — private browsing, or site data turned off. ')
+    +'Everything on screen still works, but it is held in memory only and will be lost when you close the tab. '
+    +'<b>Export a backup now</b>'+(full?', then use Clear all and re-import it, or remove funds you don’t need, to free space':'')+'.';
+  el.classList.remove('hidden');
+}
+function hideStorageWarning(){STORAGE_FAILED=false;const el=$('storageWarn');if(el)el.classList.add('hidden');}
 // ---------- light / dark theme ----------
 (function(){
   const btn=$('themeToggle'); if(!btn)return;
@@ -632,7 +694,7 @@ const SHARED_REPORTS=false;
   sync();
   btn.onclick=()=>{
     const light=document.documentElement.classList.toggle('light');
-    try{localStorage.setItem('fund_theme',light?'light':'dark');}catch(e){}
+    lsSet('fund_theme',light?'light':'dark',false);
     sync();
   };
 })();
@@ -758,7 +820,7 @@ function periodsPerYear(times){
 
 // ---------- parsing ----------
 function cleanName(fn){
-  return safeText(fn.replace(/\.(xlsx|xls)$/i,'').split('_Download')[0].replace(/_/g,' ').trim());
+  return safeText(fn.replace(/\.(xlsx|xls|csv)$/i,'').split('_Download')[0].replace(/_/g,' ').trim());
 }
 function parseDate(s){
   s=String(s).trim();
@@ -767,7 +829,11 @@ function parseDate(s){
   let d=new Date(s); return isNaN(d)?null:d;
 }
 function parseWorkbook(name,buf){
-  const wb=XLSX.read(buf,{type:'array'});
+  // raw:true keeps CSV cells as the text they were written as. Without it SheetJS date-parses
+  // them itself, US-first: "01/03/2024" comes back as 3 January, while "15/03/2024" is left
+  // alone because 15 can't be a month — so only days 1-12 flip, silently. Spreadsheet files
+  // are unaffected (their cells carry their own type); this only disambiguates .csv.
+  const wb=XLSX.read(buf,{type:'array',raw:true});
   const sn=wb.SheetNames.find(n=>/price/i.test(n))||wb.SheetNames[0];
   const arr=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false});
   if(!arr.length)return null;
@@ -1308,6 +1374,19 @@ function renderAll(){
   $('stcount').textContent=STATEMENTS.length; $('stChip').classList.toggle('hidden',!STATEMENTS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
+  // every figure on the page is only as current as the newest price — say so once it's aged,
+  // rather than presenting months-old numbers as if they were today's
+  const stale=$('asofStale'), chip=$('asofChip');
+  if(stale){
+    const days=maxd>new Date(0)?Math.floor((Date.now()-maxd)/864e5):null;
+    const old=days!=null&&days>45;
+    stale.textContent=old?` · ${days>=365?`${Math.floor(days/365)}y`:`${Math.round(days/30)}mo`} old`:'';
+    stale.style.color='var(--gold)';
+    if(chip){
+      chip.style.borderColor=old?'var(--gold)':'';
+      chip.title=old?`Your newest fund price is ${days} days old — returns, volatility and the blended figures all stop there. Download this month's price sheets and drop them in to refresh.`:'';
+    }
+  }
   // one section that chokes on odd input (an unrecognised statement, a half-parsed
   // factsheet) must not take the rest of the dashboard down with it
   [renderHoldEditor,renderPortfolio,renderChargesAnalysis,renderProjection,renderHoldCards,renderLookThrough,
@@ -1366,11 +1445,11 @@ function renderBenchmark(){
       <div class="stat"><div class="lbl">Default volatility</div><div class="val sm">${f1(b.def.vol)}</div></div>
       <div class="stat"><div class="lbl">Worst fall · you / default</div><div class="val sm">${f0(b.you.mdd)} / ${f0(b.def.mdd)}</div></div>
     </div>
-    <svg id="benchChart" viewBox="0 0 760 260" style="width:100%;height:auto;margin-top:14px"></svg>
+    <svg id="benchChart" viewBox="0 0 760 260" style="width:100%;height:auto;margin-top:14px" role="img" aria-label="Your blended mix compared with your plan's default fund. The annualised figures are stated above the chart."></svg>
     <p class="note" style="margin:10px 0 0">Over the <b>${b.you.yrs.toFixed(1)} years</b> you both have prices for, your fund choices returned <b>${f1(b.you.ann)}/yr</b> vs the default <b>${escapeHtml(b.bench)}</b> at <b>${f1(b.def.ann)}/yr</b> — ${better?'ahead by':'behind by'} <b>${Math.abs(diffAnn).toFixed(1)}%/yr</b> (${(diffTot>=0?'+':'')+diffTot.toFixed(0)}% total)${gbp!=null?`. On your current pot of ${fmtMoney(pot)}, that gap is worth roughly <b>${fmtMoney(Math.abs(gbp))}</b> ${better?'in your favour':'against you'} over the period`:''}. Price/capital return only, excludes charges; past performance isn’t a guide to the future.</p>`;
   }
   el.innerHTML=`<div class="card">${picker}<div style="margin-top:14px">${body}</div></div>`;
-  const sel=$('benchSel'); if(sel)sel.onchange=e=>{BENCHMARK_NAME=e.target.value;try{localStorage.setItem('fund_benchmark',BENCHMARK_NAME);}catch(_){}renderBenchmark();};
+  const sel=$('benchSel'); if(sel)sel.onchange=e=>{BENCHMARK_NAME=e.target.value;lsSet('fund_benchmark',BENCHMARK_NAME,false);renderBenchmark();};
   if(b&&b.you.ann!=null)drawBenchChart(b);
 }
 function drawBenchChart(b){
@@ -1525,6 +1604,22 @@ function renderHoldCards(){
     </div></div>`).join(''):'<p class="note">No holdings set yet — use the editor above.</p>';
 }
 const tip=$('tip');
+// Chart tooltips are bound for mouse and touch alike — they used to be mouse-only, so every
+// tooltip in the app was dead on a phone or tablet. pointerdown covers a tap, pointermove
+// covers hover and drag-to-scrub, pointerleave/cancel covers mouse-out and finger-up.
+const hideTip=()=>{tip.style.opacity=0;};
+function placeTip(e){
+  tip.style.opacity=1;
+  // keep the box on screen — near an edge it would otherwise overflow off it
+  tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';
+  tip.style.top=Math.min(e.clientY+14,innerHeight-100)+'px';
+}
+function bindTip(el,onMove,onLeave){
+  el.onpointerdown=onMove; el.onpointermove=onMove;
+  el.onpointerleave=onLeave||hideTip; el.onpointercancel=onLeave||hideTip;
+}
+// a tooltip opened by a tap stays up until you touch somewhere else
+document.addEventListener('pointerdown',e=>{if(!(e.target.closest&&e.target.closest('svg')))hideTip();});
 function showTip(e,f){tip.innerHTML=`<b>${f.name}</b>
   <div class="r"><span>3-Yr return</span><span class="${cls(f.r3y)}">${f0(f.r3y)}</span></div>
   <div class="r"><span>Annualised</span><span>${f1(f.ann)}</span></div>
@@ -1550,7 +1645,7 @@ function renderScatter(){
   sf.forEach((f,i)=>{const held=heldNames.has(f.name);
     s+=`<circle class="sc-pt" cx="${X(f.vol)}" cy="${Y(f.r3y)}" r="${held?7:5}" fill="${held?'var(--gold)':C[f.cat]}" fill-opacity="${held?1:.55}" stroke="${held?'var(--ink)':'none'}" stroke-width="${held?1.5:0}" data-i="${i}"/>`;});
   sc.innerHTML=s;
-  sc.querySelectorAll('.sc-pt').forEach(c=>{const f=sf[c.dataset.i];c.onmousemove=e=>showTip(e,f);c.onmouseleave=()=>tip.style.opacity=0;});
+  sc.querySelectorAll('.sc-pt').forEach(c=>{const f=sf[c.dataset.i];bindTip(c,e=>showTip(e,f));});
 }
 let sortKey='r3y',sortDir=-1,filt='All';
 const cols=[['name','Fund'],['cat','Class'],['weight','Held'],['last_price','Price'],['last_date','As of'],['r1m','1M'],['r6m','6M'],['r1y','1Y'],['r3y','3Y'],['ann','Ann.'],['vol','Vol'],['mdd','MaxDD'],['sharpe','R/R']];
@@ -1751,7 +1846,7 @@ function drawTotalChart(opts){
   el.innerHTML=g;
   const hit=$('navHit'),cur=$('navCur'),dot=$('navDot');
   const hd=hs.dates, hv=hs.vals;
-  hit.onmousemove=e=>{
+  bindTip(hit,e=>{
     const r=el.getBoundingClientRect();
     const px=(e.clientX-r.left)/r.width*W;
     const t=t0+((px-pad.l)/(W-pad.l-pad.r))*tspan;
@@ -1761,9 +1856,8 @@ function drawTotalChart(opts){
     dot.setAttribute('cx',x);dot.setAttribute('cy',y);dot.setAttribute('opacity','1');
     const pct=(hv[best]/hv[0]-1)*100;
     tip.innerHTML=`<b>${hd[best].toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</b><div class="r"><span>Value</span><span>${fmtMoney(hv[best])}</span></div><div class="r"><span>Since start</span><span>${(pct>=0?'+':'')+pct.toFixed(1)}%</span></div>`;
-    tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';
-  };
-  hit.onmouseleave=()=>{tip.style.opacity=0;cur.setAttribute('opacity','0');dot.setAttribute('opacity','0');};
+    placeTip(e);
+  },()=>{hideTip();cur.setAttribute('opacity','0');dot.setAttribute('opacity','0');});
 }
 function renderValEditor(){
   const dateStyle='background:var(--panel2);color:var(--ink);border:1px solid var(--line);padding:7px 9px;border-radius:8px;font-family:var(--mono);font-size:13px';
@@ -1849,7 +1943,7 @@ function renderHistory(){
         <div class="stat"><div class="lbl">Return on money</div><div class="val sm ${cls(act.mwr)}">${f0(act.mwr)}</div></div>
       </div>`:''}
       ${act.hasFlows?`<label class="toggle" style="margin-top:14px"><input type="checkbox" id="exclContribToggle" ${EXCLUDE_CONTRIB?'checked':''}><span class="track"><span class="knob"></span></span><span class="tlbl">Investment growth only (strip out contributions)</span></label>`:''}
-      <div style="margin-top:14px"><svg viewBox="0 0 760 300" id="navChart" style="width:100%;height:auto"></svg></div>
+      <div style="margin-top:14px"><svg viewBox="0 0 760 300" id="navChart" style="width:100%;height:auto" role="img" aria-label="Your holdings' combined value over time, rebuilt from fund prices."></svg></div>
       <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)">${act.hasFlows&&EXCLUDE_CONTRIB?'<span style="color:var(--gold)">Gold line</span> = your pot value with contributions stripped out — what your starting money grew to from investment returns alone. Toggle off to see your full recorded value.':`<span style="color:var(--gold)">Gold line &amp; dots</span> = your exact recorded total value.${act.hasFlows?' <span style="color:var(--pos)">Dashed green</span> = money you’ve paid in (cost basis); the gap up to gold is pure investment growth, and “return on money” is the money-weighted (IRR) return that strips out the timing of your payments.':est?' <span style="color:var(--accent)">Dashed blue</span> = the blended fund-price estimate, for comparison.':' Record contributions below to split this into money paid in vs investment growth.'}`}${markers?' <span style="color:var(--gold)">Dashed gold verticals</span> mark where you changed holdings.':''}</p>
       </div>${changeCard}`;
     if(act.hasFlows&&EXCLUDE_CONTRIB)drawTotalChart({estimate:null,actual:act.growth,basis:null,markers});
@@ -1872,7 +1966,7 @@ function renderHistory(){
         <div class="stat"><div class="lbl">Volatility</div><div class="val sm">${f1(est.vol)}</div></div>
         <div class="stat"><div class="lbl">Max Drawdown</div><div class="val sm neg">${f0(est.mdd)}</div></div>
       </div>
-      <div style="margin-top:16px"><svg viewBox="0 0 760 300" id="navChart" style="width:100%;height:auto"></svg></div>
+      <div style="margin-top:16px"><svg viewBox="0 0 760 300" id="navChart" style="width:100%;height:auto" role="img" aria-label="Your holdings' combined value over time, rebuilt from fund prices."></svg></div>
       <p class="note" style="margin-top:6px;font-size:12px;color:var(--faint)">${est.valued?`Estimated from fund prices, scaled so today equals the ${fmtMoney(latestValue())} you recorded. Add a second dated value below for an exact line.`:'Growth of £100 invested at the start. Add your total fund value (top) on two or more dates for an exact £ line.'} <span style="color:var(--accent)">Blue line</span> = your pension value.${markers?' <span style="color:var(--gold)">Dashed gold verticals</span> mark where you changed holdings.':''}</p>
       </div>${changeCard}`;
     drawTotalChart({estimate:est.nav,actual:null,markers});
@@ -1925,7 +2019,7 @@ function renderHistory(){
   });
 }
 // ---------- compare funds over time ----------
-function saveCompare(){try{localStorage.setItem('fund_compare',JSON.stringify([...COMPARE]));}catch(e){}}
+function saveCompare(){lsSet('fund_compare',JSON.stringify([...COMPARE]),false);}
 function loadCompare(){try{const s=localStorage.getItem('fund_compare');if(s)return new Set(JSON.parse(s));}catch(e){}return null;}
 function renderCompare(){
   // keep only names that still exist
@@ -1977,7 +2071,7 @@ function drawCompareChart(){
   g+=`<line id="cmpCur" x1="0" y1="${pad.t}" x2="0" y2="${H-pad.b}" stroke="var(--ink)" stroke-width="1" opacity="0"/><rect id="cmpHit" x="${pad.l}" y="${pad.t}" width="${W-pad.l-pad.r}" height="${H-pad.t-pad.b}" fill="transparent"/>`;
   el.innerHTML=g;
   const hit=$('cmpHit'),cur=$('cmpCur');
-  hit.onmousemove=e=>{
+  bindTip(hit,e=>{
     const r=el.getBoundingClientRect();
     const t=t0+((((e.clientX-r.left)/r.width*W)-pad.l)/(W-pad.l-pad.r))*tspan;
     cur.setAttribute('x1',X(t));cur.setAttribute('x2',X(t));cur.setAttribute('opacity','.3');
@@ -1985,8 +2079,7 @@ function drawCompareChart(){
       .sort((a,b)=>b.pct-a.pct);
     tip.innerHTML=`<b>${new Date(t).toLocaleDateString('en-GB',{month:'short',year:'numeric'})}</b>`+rows.map(r=>`<div class="r"><span style="color:${r.color}">${r.name.length>26?r.name.slice(0,25)+'…':r.name}</span><span class="${r.pct>=0?'pos':'neg'}">${(r.pct>=0?'+':'')+r.pct.toFixed(1)}%</span></div>`).join('');
     tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-270)+'px';tip.style.top=Math.min(e.clientY+14,innerHeight-20-rows.length*18)+'px';
-  };
-  hit.onmouseleave=()=>{tip.style.opacity=0;cur.setAttribute('opacity','0');};
+  },()=>{hideTip();cur.setAttribute('opacity','0');});
 }
 $('cmpHeld').onclick=()=>{COMPARE=new Set(HOLDINGS.filter(h=>h[1]>0).map(h=>h[0]).filter(n=>FUNDS.find(f=>f.name===n)));saveCompare();renderCompare();};
 $('cmpTop').onclick=()=>{COMPARE=new Set(growthPicks(5).map(f=>f.name));saveCompare();renderCompare();};
@@ -2016,7 +2109,15 @@ function stmtDefaults(){
 }
 function projDefaults(){
   const sd=stmtDefaults();
+  const b=getBlendedOCF();
+  // Charges are a choice, not an assumption: a pension fund's published unit price normally
+  // already has the fund charge taken out, so the historical return derived from those prices
+  // is net and deducting the OCF again would double-count. A hand-typed market assumption
+  // usually isn't. Default to "already net" (what the app has always done) and say so.
+  const chg=PROJ.chg==='gross'?'gross':'net';
   return {
+    chg, ocf:b?b.ocf:null, ocfCoverage:b?b.coverage:null,
+    chgPct:(chg==='gross'&&b)?b.ocf:0,
     age:PROJ.age??sd.age??40, ret:PROJ.ret??sd.ret??67,
     // a saved pot of 0/blank falls back to the latest recorded value, so the chart
     // always starts from your current pension pot rather than a stale zero
@@ -2047,11 +2148,23 @@ function contribCalc(p){
   const extraReliefAnnual = grossMon*12*Math.max(0,p.rate-20)/100;
   return {grossMon, netMon:p.mon, extraReliefAnnual};
 }
+// Deterministic pot at a flat annual rate, same cashflows as the simulation. Used only to
+// price the charge drag: running the Monte Carlo twice would give a figure that jumped
+// around on every keystroke, since the two runs draw different random paths.
+function detPot(p,ratePct){
+  const years=Math.round(p.ret-p.age);
+  if(!(years>0)||years>80||!Number.isFinite(ratePct))return null;
+  const cc=contribCalc(p), g=Math.max(0,(p.esc||0)/100), r=ratePct/100;
+  let v=(p.pot||0)+(p.otherPots||0), annual=cc.grossMon*12;
+  for(let y=1;y<=years;y++){v=v*(1+r)+annual;annual*=(1+g);}
+  return p.real?v/Math.pow(1+Math.max(0,(p.cpi||0)/100),years):v;
+}
 function projectMC(p){
   const years=Math.round(p.ret-p.age);
   if(years<=0||years>80)return null;
   const cc=contribCalc(p);
-  const N=1500, mu=p.retn/100, sig=Math.max(0,p.vol/100), g=Math.max(0,p.esc/100), cpi=Math.max(0,p.cpi/100);
+  const retnNet=p.retn-(p.chgPct||0); // charge basis: see projDefaults()
+  const N=1500, mu=retnNet/100, sig=Math.max(0,p.vol/100), g=Math.max(0,p.esc/100), cpi=Math.max(0,p.cpi/100);
   const realF=y=>p.real?1/Math.pow(1+cpi,y):1;
   const startPot=p.pot+(p.otherPots||0); // this pot plus any pensions held elsewhere
   const yearVals=Array.from({length:years+1},()=>new Float64Array(N));
@@ -2069,7 +2182,7 @@ function projectMC(p){
   let totalGross=startPot, totalNet=startPot, a=cc.grossMon*12, an=cc.netMon*12;
   for(let y=1;y<=years;y++){totalGross+=a;totalNet+=an;a*=(1+g);an*=(1+g);}
   const probTgt=p.tgt>0?finals.filter(v=>v>=p.tgt).length/N:null;
-  return {years,startAge:p.age,p10,p50,p90,real:p.real,cpi:p.cpi,
+  return {years,startAge:p.age,p10,p50,p90,real:p.real,cpi:p.cpi,retnNet,
     finalP10:p10[years],finalP50:p50[years],finalP90:p90[years],medianReal,
     totalGross,totalNet,reliefInPot:totalGross-totalNet,extraReliefAnnual:cc.extraReliefAnnual,
     grossAnnualFirst:cc.grossMon*12,aa:p.aa,tgt:p.tgt,probTgt,wr:p.wr,other:p.other};
@@ -2083,7 +2196,13 @@ function renderProjection(){
   set('pjRetn',d.retn);set('pjVol',d.vol);set('pjEsc',d.esc);set('pjCpi',d.cpi);
   set('pjAA',d.aa);set('pjTgt',d.tgt);set('pjWr',d.wr);set('pjOther',d.other);set('pjOtherPots',d.otherPots);
   const sv=(id,v)=>{const el=$(id);if(el&&document.activeElement!==el)el.value=v;};
-  sv('pjBasis',d.basis); sv('pjRate',d.rate);
+  sv('pjBasis',d.basis); sv('pjRate',d.rate); sv('pjChg',d.chg);
+  // the deduct option carries the actual number, and can't be chosen without one
+  const chgSel=$('pjChg');
+  if(chgSel&&chgSel.options.length>1){
+    chgSel.options[1].textContent=d.ocf!=null?`Deduct my charges (${d.ocf.toFixed(2)}%)`:'Deduct my charges (none loaded)';
+    chgSel.options[1].disabled=d.ocf==null;
+  }
   const rl=$('pjReal'); if(rl)rl.checked=d.real;
   const spEl=$('pjSP'); if(spEl)spEl.checked=d.sp;
   const spAmt=$('pjSPamt'); if(spAmt)spAmt.textContent='£'+TAX.fullStatePension.toLocaleString('en-GB');
@@ -2103,6 +2222,16 @@ function renderProjection(){
     if(PROJ.mon==null&&sd.mon!=null)filled.push(`contributions (${fmtMoney(sd.mon)}/mo gross)`);
   }
   const stmtNote=filled.length?`<p class="note" style="margin:10px 0 0;color:var(--gold)">Pre-filled from your statements: ${filled.join(', ')}. Change any field below to override.</p>`:'';
+  // ---- charge basis: what the projection is actually running at, and what charges cost ----
+  const drag=(d.ocf!=null&&detPot(d,d.retn)!=null)?detPot(d,d.retn)-detPot(d,d.retn-d.ocf):null;
+  // deliberately a steady-return figure, not the gap between two simulation runs: the median of
+  // 1,500 random paths moves a little on every render, and a cost-of-charges number shouldn't
+  const dragTxt=drag!=null&&drag>0?` — roughly <b>${fmtMoney(drag)}</b> less${s.real?" in today's money":''} by ${retYear}, on a steady-return version of these inputs`:'';
+  const chgNote=d.ocf==null
+    ? `<p class="note" style="margin:12px 0 0;color:var(--faint)">Fund charges: no factsheet charges loaded, so nothing is deducted from the ${d.retn}%/yr above. Upload your funds' factsheet PDFs to see what charges cost over the period.</p>`
+    : d.chg==='gross'
+      ? `<p class="note" style="margin:12px 0 0;color:var(--mute)">Fund charges: deducting your blended OCF of <b>${d.ocf.toFixed(2)}%/yr</b>${d.ocfCoverage<99.5?` (covers ${d.ocfCoverage.toFixed(0)}% of your pot)`:''}, so the projection runs at <b>${s.retnNet.toFixed(2)}%/yr</b> rather than ${d.retn}%${dragTxt}. Switch back to <b>Already after charges</b> if your return figure is taken from unit prices, which normally have the charge deducted before the price is published.</p>`
+      : `<p class="note" style="margin:12px 0 0;color:var(--mute)">Fund charges: your blended OCF is <b>${d.ocf.toFixed(2)}%/yr</b>${d.ocfCoverage<99.5?` (covers ${d.ocfCoverage.toFixed(0)}% of your pot)`:''}, treated as <b>already taken out</b> of the ${d.retn}%/yr above — a pension fund's unit price normally has the charge deducted before it's published, so deducting it again would double-count. If your figure is a gross market assumption instead, switch <b>Charge basis</b> to deduct it: that would run the projection at ${(d.retn-d.ocf).toFixed(2)}%/yr${dragTxt}.</p>`;
   $('projOut').innerHTML=`
     <div class="stat-row">
       <div class="stat"><div class="lbl">Likely pot at ${s.startAge+s.years} (${retYear})${moneyTag}</div><div class="val">${fmtMoney(s.finalP50)}</div></div>
@@ -2113,7 +2242,7 @@ function renderProjection(){
       <div class="stat"><div class="lbl">Unlucky (10th pct)</div><div class="val sm">${fmtMoney(s.finalP10)}</div></div>
       <div class="stat"><div class="lbl">Lucky (90th pct)</div><div class="val sm">${fmtMoney(s.finalP90)}</div></div>
       ${s.tgt>0?`<div class="stat"><div class="lbl">Chance of reaching ${fmtMoney(s.tgt)}</div><div class="val sm ${s.probTgt>=0.5?'pos':'neg'}">${Math.round(s.probTgt*100)}%</div></div>`:'<div class="stat"><div class="lbl">Set a target</div><div class="val sm" style="color:var(--faint)">—</div></div>'}
-    </div>${stmtNote}${reliefNote}${aaWarn}`;
+    </div>${stmtNote}${reliefNote}${chgNote}${aaWarn}`;
   drawProjChart(s);
   // ----- at-retirement tax breakdown (today's money, current bands) -----
   const pot=s.medianReal;
@@ -2186,7 +2315,7 @@ function readProjInputs(){
   const num=id=>{const el=$(id);if(!el)return null;const v=parseFloat(el.value);return isNaN(v)?null:v;};
   const val=id=>$(id)?$(id).value:undefined;
   PROJ={age:num('pjAge'),ret:num('pjRet'),pot:num('pjPot'),otherPots:num('pjOtherPots'),mon:num('pjMon'),
-    basis:val('pjBasis'),rate:num('pjRate'),retn:num('pjRetn'),vol:num('pjVol'),
+    basis:val('pjBasis'),rate:num('pjRate'),retn:num('pjRetn'),vol:num('pjVol'),chg:val('pjChg'),
     esc:num('pjEsc'),cpi:num('pjCpi'),aa:num('pjAA'),tgt:num('pjTgt'),
     real:$('pjReal')?$('pjReal').checked:true,wr:num('pjWr'),other:num('pjOther'),
     sp:$('pjSP')?$('pjSP').checked:false,
@@ -2195,7 +2324,7 @@ function readProjInputs(){
   saveProjection(); renderProjection();
 }
 ['pjAge','pjRet','pjPot','pjOtherPots','pjMon','pjRetn','pjVol','pjEsc','pjCpi','pjAA','pjTgt','pjWr','pjOther'].forEach(id=>{const el=$(id);if(el)el.oninput=readProjInputs;});
-['pjBasis','pjRate','pjReal','pjSP'].forEach(id=>{const el=$(id);if(el)el.onchange=readProjInputs;});
+['pjBasis','pjRate','pjChg','pjReal','pjSP'].forEach(id=>{const el=$(id);if(el)el.onchange=readProjInputs;});
 /* ---------- fund performance chart (recorded values) ---------- */
 const abbrMoney=v=>v>=1e6?(v/1e6).toFixed(1)+'m':v>=1e3?Math.round(v/1e3)+'k':String(Math.round(v));
 function renderFundPerf(){
@@ -2258,22 +2387,20 @@ function renderFundPerf(){
     :[['value','Pot value']]).map(([k,l])=>`<span><span class="sw" style="background:${k==='value'?line:TL_COL[k]}"></span>${l}</span>`).join('');
   const segName={firm:'Firm paid in',you:'You paid in (incl. AVCs)',transfer:'Transfers in'};
   svg.querySelectorAll('.pf-bar').forEach(r=>{
-    r.onmousemove=e=>{const st=STATEMENTS.find(x=>x.date===r.dataset.d);
+    bindTip(r,e=>{const st=STATEMENTS.find(x=>x.date===r.dataset.d);
       tip.innerHTML=`<b>${(st&&(st.year||st.date.slice(0,4)))||''} statement year</b><div class="r"><span>${segName[r.dataset.k]}</span><span>${fmtMoney(+r.dataset.v)}</span></div>`;
-      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';};
-    r.onmouseleave=()=>tip.style.opacity=0;
+      placeTip(e);});
   });
   svg.querySelectorAll('.pf-pt').forEach(c=>{
     const i=+c.dataset.i, p=pts[i], prev=pts[i-1], first=pts[0];
-    c.onmousemove=e=>{
+    bindTip(c,e=>{
       tip.innerHTML=`<b>${new Date(p.t).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</b>
         <div class="r"><span>Value</span><span>${fmtMoney(p.v)}</span></div>`+
         (prev&&prev.v>0?`<div class="r"><span>Since previous</span><span class="${p.v>=prev.v?'pos':'neg'}">${f0((p.v/prev.v-1)*100)}</span></div>`:'')+
         (i>0&&first.v>0?`<div class="r"><span>Since start</span><span class="${p.v>=first.v?'pos':'neg'}">${f0((p.v/first.v-1)*100)}</span></div>`:'')+
         (i>0&&first.v===0?`<div class="r"><span>Growth from £0 start</span><span class="pos">${fmtMoney(p.v)}</span></div>`:'');
-      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';
-    };
-    c.onmouseleave=()=>tip.style.opacity=0;
+      placeTip(e);
+    });
   });
 }
 /* ---------- pension timeline (from annual statement PDFs) ---------- */
@@ -2307,12 +2434,11 @@ function renderGrowthBars(S){
   });
   svg.innerHTML=s;
   svg.querySelectorAll('.tg-bar').forEach(r=>{
-    r.onmousemove=e=>{const x=yrs[+r.dataset.i];
+    bindTip(r,e=>{const x=yrs[+r.dataset.i];
       const pct=x.prev>0?x.g/((x.prev+(x.st.totalValue||0))/2)*100:null;
       tip.innerHTML=`<b>${x.st.year||x.st.date.slice(0,4)}</b><div class="r"><span>Investment growth</span><span class="${x.g>=0?'pos':'neg'}">${PRIVACY?'£•••••':(x.g<0?'−£':'£')+Math.abs(Math.round(x.g)).toLocaleString('en-GB')}</span></div>`+
         (pct!=null?`<div class="r"><span>On the average pot</span><span class="${pct>=0?'pos':'neg'}">${(pct>=0?'+':'')+pct.toFixed(1)}%</span></div>`:'');
-      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-240)+'px';tip.style.top=(e.clientY+14)+'px';};
-    r.onmouseleave=()=>tip.style.opacity=0;
+      placeTip(e);});
   });
 }
 // funds held, from the newest statement that itemises them (the 2023+ template doesn't)
@@ -2517,7 +2643,31 @@ function renderObs(){
 }
 // ---------- fund details modal ----------
 let CURRENT_MODAL_FUND=null;
-function closeFundModal(){$('fundModal').classList.remove('open');CURRENT_MODAL_FUND=null;CURRENT_UND=null;}
+// show the dialog, remembering what to hand focus back to, and move focus into it
+function openModal(){
+  MODAL_RETURN_FOCUS=document.activeElement;
+  $('fundModal').classList.add('open');
+  const close=$('fundModalClose'); if(close)close.focus();
+}
+// keyboard users need the focus back where they left it, not dumped at the top of the page
+let MODAL_RETURN_FOCUS=null;
+function closeFundModal(){
+  $('fundModal').classList.remove('open');CURRENT_MODAL_FUND=null;CURRENT_UND=null;
+  if(MODAL_RETURN_FOCUS&&MODAL_RETURN_FOCUS.focus){try{MODAL_RETURN_FOCUS.focus();}catch(e){}}
+  MODAL_RETURN_FOCUS=null;
+}
+// hold focus inside the dialog while it's open — Tab out of the last control wraps to the first
+function trapModalFocus(e){
+  if(e.key!=='Tab')return;
+  const modal=$('fundModal'); if(!modal||!modal.classList.contains('open'))return;
+  const items=[...modal.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+    .filter(el=>!el.disabled&&el.offsetParent!==null);
+  if(!items.length)return;
+  const first=items[0], last=items[items.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+}
+window.addEventListener('keydown',trapModalFocus);
 function removeFund(name){
   if(!confirm(`Remove "${name}", its price history and factsheet? Your other funds, holdings and recorded values are kept.`))return;
   FUNDS=FUNDS.filter(f=>f.name!==name);
@@ -2630,7 +2780,7 @@ function openFundModal(fundName){
   html+=`<div style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;text-align:right">
     <button class="btn" onclick="removeFund('${qattr(f.name)}')" style="color:var(--neg);border-color:var(--neg)">Remove this fund</button></div>`;
   $('fundModalBody').innerHTML=html;
-  $('fundModal').classList.add('open');
+  openModal();
   CURRENT_MODAL_FUND=fundName;
 }
 // ---------- holdings editor ----------
@@ -2665,13 +2815,11 @@ $('histAdd').onclick=()=>{
   saveHistory(); renderHistory();
 };
 // ---------- state ----------
-function saveState(){try{localStorage.setItem('fund_holdings',JSON.stringify(HOLDINGS));}catch(e){}}
+function saveState(){lsSet('fund_holdings',JSON.stringify(HOLDINGS));}
 function loadHoldings(){try{const s=localStorage.getItem('fund_holdings');if(s)return JSON.parse(s);}catch(e){}return null;}
 function saveFunds(){
-  try{
-    const slim=FUNDS.map(f=>({n:f.name,r:f.rows.map(x=>[+x.d,x.p])}));
-    localStorage.setItem('fund_data',JSON.stringify(slim));
-  }catch(e){console.warn('Fund cache save failed (storage full?):',e);}
+  const slim=FUNDS.map(f=>({n:f.name,r:f.rows.map(x=>[+x.d,x.p])}));
+  lsSet('fund_data',JSON.stringify(slim));
 }
 function loadFunds(){
   try{
@@ -2679,20 +2827,20 @@ function loadFunds(){
     return JSON.parse(s).map(f=>({name:f.n,rows:f.r.map(([d,p])=>({d:new Date(d),p}))}));
   }catch(e){return [];}
 }
-function saveHistory(){try{localStorage.setItem('fund_history',JSON.stringify(HISTORY));}catch(e){}}
+function saveHistory(){lsSet('fund_history',JSON.stringify(HISTORY));}
 function loadHistoryLS(){try{const s=localStorage.getItem('fund_history');if(s)return JSON.parse(s).map(h=>({start:h.start||h.date||'',end:h.end||'',holdings:h.holdings||[]}));}catch(e){}return [];}
-function saveValuations(){try{localStorage.setItem('fund_valuations',JSON.stringify(VALUATIONS));}catch(e){}}
+function saveValuations(){lsSet('fund_valuations',JSON.stringify(VALUATIONS));}
 function loadValuations(){
   try{const s=localStorage.getItem('fund_valuations');if(s)return JSON.parse(s).filter(v=>v&&v.date);}catch(e){}
   // migrate the old single 'fund_value' (treated as today's figure)
   try{const old=localStorage.getItem('fund_value');if(old){const v=parseFloat(old);if(v>0)return [{date:new Date().toISOString().slice(0,10),value:v}];}}catch(e){}
   return [];
 }
-function saveContributions(){try{localStorage.setItem('fund_contributions',JSON.stringify(CONTRIBUTIONS));}catch(e){}}
+function saveContributions(){lsSet('fund_contributions',JSON.stringify(CONTRIBUTIONS));}
 function loadContributions(){try{const s=localStorage.getItem('fund_contributions');if(s)return JSON.parse(s).filter(c=>c&&c.date);}catch(e){}return [];}
-function saveProjection(){try{localStorage.setItem('fund_projection',JSON.stringify(PROJ));}catch(e){}}
+function saveProjection(){lsSet('fund_projection',JSON.stringify(PROJ));}
 function loadProjection(){try{const s=localStorage.getItem('fund_projection');if(s)return JSON.parse(s);}catch(e){}return {};}
-function saveFactsheets(){try{localStorage.setItem('fund_factsheets',JSON.stringify(FACTSHEETS));}catch(e){console.warn('Factsheet cache save failed:',e);}}
+function saveFactsheets(){lsSet('fund_factsheets',JSON.stringify(FACTSHEETS));}
 function loadFactsheets(){try{const s=localStorage.getItem('fund_factsheets');if(s)return JSON.parse(s).filter(f=>f&&f.name);}catch(e){}return [];}
 // ---------- AI per-fund observations (generated server-side at parse time) ----------
 // Input is PUBLIC factsheet data only — the user's holdings, weights and £ amounts never leave the device.
@@ -2791,7 +2939,7 @@ function renderUnderlyingModal(name){
   }
   html+=`<p class="note" style="margin-top:12px;font-size:11px;color:var(--faint)">AI general knowledge — <b>not live data and not from a factsheet</b>. It may be outdated or not specific to your share class, and excludes current holdings, prices and performance. Information, not advice. Upload this fund’s own factsheet PDF to see its verified holdings.</p></div>`;
   $('fundModalBody').innerHTML=html;
-  $('fundModal').classList.add('open');
+  openModal();
   const rb=$('undRetry'); if(rb)rb.onclick=()=>{delete UNDERLYING_EXPLAIN[normName(name)];fetchFundExplanation(name);};
 }
 function openUnderlyingModal(name){
@@ -2799,9 +2947,9 @@ function openUnderlyingModal(name){
   renderUnderlyingModal(name);
   fetchFundExplanation(name);
 }
-function saveStatements(){try{localStorage.setItem('fund_statements',JSON.stringify(STATEMENTS));}catch(e){}}
+function saveStatements(){lsSet('fund_statements',JSON.stringify(STATEMENTS));}
 function loadStatements(){try{const s=localStorage.getItem('fund_statements');if(s)return JSON.parse(s).filter(x=>x&&x.date);}catch(e){}return [];}
-function saveSources(){try{localStorage.setItem('fund_sources',JSON.stringify(SOURCES));}catch(e){}}
+function saveSources(){lsSet('fund_sources',JSON.stringify(SOURCES));}
 function loadSources(){try{const s=localStorage.getItem('fund_sources');if(s)return JSON.parse(s).filter(x=>x&&x.name);}catch(e){}return [];}
 function recordSource(name,kind,detail,pot){
   const when=new Date().toISOString();
@@ -2877,10 +3025,8 @@ function syncMonthlyInput(){
   if(document.activeElement!==p)p.value=PERSONAL_CONTRIB>0?PERSONAL_CONTRIB:'';
 }
 function saveMonthly(){
-  try{
-    localStorage.setItem('fund_work_contrib',String(WORK_CONTRIB||0));
-    localStorage.setItem('fund_personal_contrib',String(PERSONAL_CONTRIB||0));
-  }catch(e){}
+  lsSet('fund_work_contrib',String(WORK_CONTRIB||0));
+  lsSet('fund_personal_contrib',String(PERSONAL_CONTRIB||0));
 }
 function loadMonthly(){
   try{
@@ -2918,7 +3064,8 @@ function exportData(){
   const url=URL.createObjectURL(blob), a=document.createElement('a');
   a.href=url; a.download=`fund-dashboard-${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  try{localStorage.setItem('fund_last_backup',String(Date.now()));localStorage.removeItem('fund_backup_snooze');}catch(e){}
+  lsSet('fund_last_backup',String(Date.now()),false);try{localStorage.removeItem('fund_backup_snooze');}catch(e){}
+  hideStorageWarning(); // a successful export is the recovery path the warning asks for
   renderBackupReminder();
 }
 // gentle reminder to export, since personal data lives only in this browser
@@ -2980,7 +3127,7 @@ async function importData(file){
 }
 $('exportBtn').onclick=exportData;
 $('backupNow').onclick=exportData;
-$('backupSnooze').onclick=()=>{try{localStorage.setItem('fund_backup_snooze',String(Date.now()));}catch(e){}renderBackupReminder();};
+$('backupSnooze').onclick=()=>{lsSet('fund_backup_snooze',String(Date.now()),false);renderBackupReminder();};
 $('csvBtn').onclick=exportCSV;
 $('importBtn').onclick=()=>$('importInput').click();
 $('importInput').onchange=e=>{if(e.target.files[0])importData(e.target.files[0]);e.target.value='';};
@@ -2994,7 +3141,7 @@ function applyPrivacy(){
   // benchmark verdict, uploaded-files pot values, summary) with stale masking
   renderAll();
 }
-$('privacyToggle').onchange=e=>{PRIVACY=e.target.checked;try{localStorage.setItem('fund_privacy',PRIVACY?'1':'');}catch(_){}applyPrivacy();};
+$('privacyToggle').onchange=e=>{PRIVACY=e.target.checked;lsSet('fund_privacy',PRIVACY?'1':'',false);applyPrivacy();};
 // ---------- clear only personal values (keep loaded fund prices) ----------
 $('clearValues').onclick=()=>{
   if(!confirm('Clear your holdings, historic snapshots, recorded £ values, contributions and projection? Loaded fund prices are kept.'))return;
@@ -3005,6 +3152,8 @@ $('clearValues').onclick=()=>{
 const drop=$('drop'),input=$('fileInput');
 if(drop&&input){
   drop.onclick=(e)=>{e.preventDefault();input.click();};
+  // it's a button to everyone else, so it has to work like one from the keyboard
+  drop.onkeydown=(e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();input.click();}};
   const addMoreBtn=$('addMore');
   if(addMoreBtn)addMoreBtn.onclick=(e)=>{e.preventDefault();input.click();};
   ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();drop.classList.add('hot');}));
@@ -3048,14 +3197,16 @@ function flashFormatWarning(entries){
 }
 function hideFormatWarning(){const el=$('formatWarn');if(el){el.classList.add('hidden');el.classList.remove('flash');}}
 {const b=$('formatWarnClose');if(b)b.onclick=hideFormatWarning;}
+{const b=$('storageWarnClose');if(b)b.onclick=hideStorageWarning;
+ const x=$('storageWarnExport');if(x)x.onclick=exportData;}
 // parse a batch of {name, buf} items into FUNDS/FACTSHEETS; returns a summary string
 async function processItems(items){
-  let added=0,skipped=0,sheets=0,stmts=0; const pdfErrs=[]; const updatedSheets=[]; const oddStmts=[];
+  let added=0,skipped=0,sheets=0,stmts=0; const fileErrs=[]; const updatedSheets=[]; const oddStmts=[];
   hideFormatWarning(); // each batch speaks for itself — the standing note lives under the timeline
   for(const item of items){
     try{
       if(/\.pdf$/i.test(item.name)){
-        if(!window.pdfjsLib){pdfErrs.push('PDF reader (pdf.js) failed to load — check your network or any ad/script blocker.');skipped++;continue;}
+        if(!window.pdfjsLib){fileErrs.push('PDF reader (pdf.js) failed to load — check your network or any ad/script blocker.');skipped++;continue;}
         const pages=await extractPdfPages(item.buf);
         const R=readStatement(pages); // known template, else a best-effort read of an unknown layout
         if(R&&R.statement){
@@ -3084,7 +3235,7 @@ async function processItems(items){
         if(!F){
           skipped++;recordSource(item.name,'skipped','');
           const blank=!pages.some(p=>p.items.length>20); // no text layer: a scan or an image-only PDF
-          pdfErrs.push(blank
+          fileErrs.push(blank
             ?`${item.name}: no readable text in this PDF — if it's a scan or photo, download the original from your provider.`
             :`${item.name}: couldn’t read this PDF as a factsheet or annual statement.`);
           continue;
@@ -3095,6 +3246,7 @@ async function processItems(items){
         recordSource(item.name,'factsheet',F.name);
         sheets++;
       }else{
+        if(!window.XLSX){fileErrs.push('Spreadsheet reader (xlsx) failed to load — reload the page, or check lib/xlsx.full.min.js is being served.');skipped++;continue;}
         const r=parseWorkbook(item.name,item.buf);
         if(!r){skipped++;recordSource(item.name,'skipped','');continue;}
         const ix=FUNDS.findIndex(f=>f.name===r.name);
@@ -3104,7 +3256,7 @@ async function processItems(items){
         recordSource(item.name,'fund',`${r.name} · ${merged.length} prices, ${mmm(merged[0].d)}–${mmm(merged[merged.length-1].d)}`);
         added++;
       }
-    }catch(err){skipped++;recordSource(item.name,'skipped',''); if(/\.pdf$/i.test(item.name))pdfErrs.push(`${item.name}: ${err&&err.message||err}`);}
+    }catch(err){skipped++;recordSource(item.name,'skipped',''); if(/\.pdf$/i.test(item.name))fileErrs.push(`${item.name}: ${err&&err.message||err}`);}
   }
   saveSources();
   if(sheets)saveFactsheets();
@@ -3115,13 +3267,13 @@ async function processItems(items){
   $('loadbar').textContent=summary;
   const warn=oddStmts.length?`  ${unread?'Couldn’t read':'Only partly read'} ${oddStmts.length} statement(s) — the reader was modelled on the ${STMT_MODEL_YEAR} statement format.`:'';
   const us=$('upStatus');
-  if(us){us.style.display='block';us.textContent=summary+warn+(pdfErrs.length?'  '+pdfErrs.slice(0,2).join('  ·  '):'');us.style.color=(pdfErrs.length||oddStmts.length)?'var(--neg)':'var(--mute)';}
-  if(pdfErrs.length)$('errbox').textContent=pdfErrs.slice(0,3).join('  ·  ');
+  if(us){us.style.display='block';us.textContent=summary+warn+(fileErrs.length?'  '+fileErrs.slice(0,2).join('  ·  '):'');us.style.color=(fileErrs.length||oddStmts.length)?'var(--neg)':'var(--mute)';}
+  if(fileErrs.length)$('errbox').textContent=fileErrs.slice(0,3).join('  ·  ');
   // a statement in a layout we don't know: everything readable is already loaded, now say so
   if(oddStmts.length)flashFormatWarning(oddStmts);
   // generate AI insights in the background and store them in the shared DB (shown in each fund's modal)
   if(sheets)refreshObservations(updatedSheets);
-  return {added,skipped,sheets,pdfErrs,partialStatements:oddStmts};
+  return {added,skipped,sheets,fileErrs,partialStatements:oddStmts};
 }
 // initialise holdings/state from localStorage and reveal the dashboard, once FUNDS/FACTSHEETS are populated
 function activateDashboard(){
@@ -3157,6 +3309,7 @@ async function handleFiles(fileList){
   const items=[]; // {name, buf}
   for(const f of direct)items.push({name:f.name,buf:await f.arrayBuffer()});
   for(const z of zips){
+    if(!window.JSZip){upMsg(`Zip reader (JSZip) failed to load — reload the page, or unzip ${z.name} and drop the files in directly.`,true);continue;}
     try{const extracted=await expandZip(z);items.push(...extracted);}
     catch(err){upMsg(`Could not read ${z.name}: ${err.message||err}`,true);}
   }

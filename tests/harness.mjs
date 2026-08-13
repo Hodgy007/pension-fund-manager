@@ -56,6 +56,8 @@ export function loadApp() {
     'ukDate', 'anyDate', 'rowText', 'parseStatement', 'parseStatementLoose',
     'looksLikeStatement', 'readStatement', 'mergeStatement', 'stmtPaidIn',
     'stmtGrowth', 'parseFactsheet', 'STMT_MODEL_YEAR',
+    // spreadsheet reading + the projection's charge basis
+    'parseWorkbook', 'mergeFundRows', 'cleanName', 'detPot', 'projectMC',
   ];
 
   const epilogue = `
@@ -68,7 +70,28 @@ export function loadApp() {
     };`;
 
   vm.createContext(ctx);
+
+  // Load the real, vendored SheetJS into the sandbox so parseWorkbook can be tested against
+  // the exact library the page ships — no devDependency, no mock that could drift from it.
+  // The UMD wrapper picks a global target from what it can see, so window/exports are hidden
+  // for this one script; the app's own DOM stubs go back afterwards.
+  const realWindow = ctx.window, realXLSX = ctx.XLSX;
+  ctx.window = undefined; ctx.XLSX = undefined;
+  ctx.Uint8Array = Uint8Array; ctx.ArrayBuffer = ArrayBuffer; ctx.DataView = DataView;
+  ctx.Uint16Array = Uint16Array; ctx.Uint32Array = Uint32Array; ctx.Int32Array = Int32Array;
+  ctx.Float32Array = Float32Array; ctx.Error = Error; ctx.TypeError = TypeError;
+  ctx.Symbol = Symbol; ctx.Promise = Promise; ctx.Boolean = Boolean; ctx.Buffer = Buffer;
+  ctx.decodeURIComponent = decodeURIComponent; ctx.encodeURIComponent = encodeURIComponent;
+  try {
+    const xlsxSrc = readFileSync(join(here, '..', 'lib', 'xlsx.full.min.js'), 'utf8');
+    new vm.Script(xlsxSrc, { filename: 'xlsx.full.min.js' }).runInContext(ctx);
+  } catch (err) {
+    ctx.XLSX = realXLSX; // fall back to the permissive proxy; the workbook tests will skip
+    console.warn('vendored xlsx did not load into the sandbox:', err.message);
+  }
+  ctx.window = realWindow;
+
   // new vm.Script throws on syntax errors — this is also our syntax gate.
   new vm.Script(script + epilogue, { filename: 'index.inline.js' }).runInContext(ctx);
-  return { exports: ctx.__exports, set: ctx.__set };
+  return { exports: ctx.__exports, set: ctx.__set, xlsxLoaded: typeof ctx.XLSX === 'object' && !!ctx.XLSX.read };
 }
