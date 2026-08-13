@@ -154,3 +154,133 @@ test('periodsPerYear: falls back to 252 on degenerate input', () => {
   assert.equal(F.periodsPerYear([]), 252);
   assert.equal(F.periodsPerYear([new Date()]), 252);
 });
+
+// ---------------------------------------------------------------------------
+// Annual statement reading. The template parser was written against the 2020
+// "Pension Plan statement"; anything else must still load what it can, be
+// flagged as partial, and never throw.
+// ---------------------------------------------------------------------------
+
+// build the {items:[{s,x,y,h}]} shape extractPdfPages() produces, one line per row
+const pagesOf = (...lines) => [{ items: lines.map((s, i) => ({ s, x: 20, y: 800 - i * 12, h: 10 })) }];
+
+const STATEMENT_2020 = pagesOf(
+  'Your 2020 Pension Plan statement',
+  'The total value of your Pension Savings Accounts at 1 July 2020 was: £3,510.99',
+  'Between 1 July 2019 and 30 June 2020',
+  'The contributions the Firm paid into your Pension Savings Account were £1,200.00',
+  'The contributions you paid to your Pension Savings Account were £800.00',
+  'Date of birth 12 March 1985',
+  'Normal Pension Date 12 March 2050',
+);
+
+// a different provider, a different year, none of the wording the template parser knows
+const STATEMENT_UNKNOWN = pagesOf(
+  'Workplace Pension — your annual statement 2024',
+  'Plan number 12345678',
+  'Total value of your plan on 5 April 2024 £48,210.55',
+  'Employer contributions paid in this year £2,400.00',
+  'Your contributions paid in this year £1,800.00',
+  'Transfer in from another pension £5,000.00',
+  'Investment growth over the year £3,145.20',
+  'Your selected retirement date 5 April 2050',
+  'What your pension could be worth at retirement £210,000',
+);
+
+test('ukDate/anyDate read the date shapes statements use', () => {
+  assert.equal(F.ukDate('1 July 2020'), '2020-07-01');
+  assert.equal(F.ukDate('1 Jul 2020'), '2020-07-01');       // abbreviated months
+  assert.equal(F.anyDate('as at 05/03/2024'), '2024-03-05'); // day-first, UK convention
+  assert.equal(F.anyDate('2024-03-05'), '2024-03-05');
+  assert.equal(F.anyDate('no date here'), null);
+});
+
+test('the 2020 template still parses in full (not flagged partial)', () => {
+  const S = F.parseStatement(STATEMENT_2020);
+  assert.ok(S, 'the known template must still parse');
+  assert.equal(S.date, '2020-07-01');
+  assert.equal(S.totalValue, 3510.99);
+  assert.equal(S.employer, 1200);
+  assert.equal(S.employee, 800);
+  assert.equal(S.dob, '1985-03-12');
+  assert.ok(!S.partial, 'a full parse is not partial');
+  assert.equal(F.readStatement(STATEMENT_2020).partial, false);
+});
+
+test('an unrecognised statement layout is still detected as a statement', () => {
+  assert.equal(F.parseStatement(STATEMENT_UNKNOWN), null, 'strict parser should not claim it');
+  assert.equal(F.looksLikeStatement(STATEMENT_UNKNOWN[0].items.map(i => i.s).join(' ')), true);
+});
+
+test('an unrecognised statement loads the figures it can, flagged partial', () => {
+  const S = F.parseStatementLoose(STATEMENT_UNKNOWN);
+  assert.ok(S, 'best-effort read should produce a statement');
+  assert.equal(S.partial, true);
+  assert.equal(S.format, 'unrecognised');
+  assert.equal(S.modelledYear, F.STMT_MODEL_YEAR);
+  assert.equal(S.date, '2024-04-05');
+  assert.equal(S.year, 2024);
+  assert.equal(S.totalValue, 48210.55);
+  assert.equal(S.employer, 2400);
+  assert.equal(S.employee, 1800);
+  assert.equal(S.transferIn, 5000);
+  assert.equal(S.estAtNPD, 210000);
+  assert.ok(Math.abs(S.growthStated - 3145.2) < 0.01);
+  assert.equal(S.npd, '2050-04-05');
+  assert.ok(Array.isArray(S.funds) && S.funds.length === 0, 'funds must exist so renderers stay safe');
+  assert.ok(S.read.includes('pot value'), `read fields: ${S.read}`);
+  assert.ok(S.missing.includes('date of birth'), `missing fields: ${S.missing}`);
+});
+
+test('readStatement reports a statement it cannot read at all, without throwing', () => {
+  const R = F.readStatement(pagesOf(
+    'Your annual pension statement',
+    'Plan number 99887766',
+    'Charges taken £12.40',
+    'Please refer to the enclosed booklet for details of your plan',
+  ));
+  assert.ok(R, 'should be recognised as a statement');
+  assert.equal(R.statement, null, 'nothing usable to store');
+  assert.equal(R.partial, true);
+  assert.ok(R.missing.length > 0);
+});
+
+test('readStatement leaves non-statements alone and survives junk', () => {
+  const factsheet = pagesOf(
+    'Pension Portfolio Two',
+    'Fund Objective To provide long term growth',
+    'Fund Features Invests in a mix of assets',
+    'Unit Price 245.6p',
+    'Cumulative Performance Fund 1.0% 2.0% 3.0% 4.0% 5.0%',
+  );
+  assert.equal(F.readStatement(factsheet), null, 'a factsheet is not a statement');
+  assert.equal(F.readStatement(pagesOf('Invoice 12345', 'Amount due £45.00')), null);
+  assert.equal(F.readStatement([]), null);
+  assert.equal(F.parseStatementLoose(null), null);
+  assert.equal(F.looksLikeStatement(''), false);
+});
+
+test('a text-only PDF is not loaded as a phantom factsheet', () => {
+  assert.equal(F.parseFactsheet(STATEMENT_UNKNOWN), null,
+    'a statement must never come through as a fund factsheet');
+});
+
+test('a partial re-read fills blanks but never overwrites a full parse', () => {
+  const base = F.parseStatement(STATEMENT_2020);
+  const merged = F.mergeStatement(base, {
+    date: '2020-07-01', totalValue: 99999, transferIn: 250, partial: true, format: 'unrecognised',
+  });
+  assert.equal(merged.totalValue, 3510.99, 'known-good figure survives');
+  assert.equal(merged.transferIn, 250, 'blank field is filled');
+  assert.ok(!merged.partial, 'the merged year is not downgraded to partial');
+});
+
+test('partial statements survive the figures that drive the timeline', () => {
+  const S = F.parseStatementLoose(STATEMENT_UNKNOWN);
+  assert.equal(F.stmtPaidIn(S), 2400 + 1800 + 5000);
+  assert.ok(Math.abs(F.stmtGrowth(S) - 3145.2) < 0.01);
+  // a statement with nothing but a pot value must not produce a NaN anywhere
+  const bare = { date: '2024-04-05', totalValue: 1000, partial: true, funds: [], plans: {} };
+  assert.equal(F.stmtPaidIn(bare), 0);
+  assert.equal(F.stmtGrowth(bare), null);
+});

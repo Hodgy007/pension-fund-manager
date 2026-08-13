@@ -125,6 +125,13 @@ html.light .perf-date{color-scheme:light}
 .recovery-code{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:.06em;text-align:center;background:var(--panel2);border:1px dashed var(--gold);border-radius:8px;padding:16px;color:var(--ink);word-break:break-all}
 .backup-reminder{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between;background:rgba(212,166,74,.12);border:1px solid var(--gold);border-radius:10px;padding:12px 16px;margin:0 0 20px;font-size:14px;line-height:1.5}
 .backup-reminder .br-actions{display:flex;gap:8px;flex-shrink:0}
+/* unrecognised statement layout — loud but non-blocking, since the upload still went through */
+.format-warn{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;justify-content:space-between;background:rgba(212,166,74,.10);border:1px solid var(--gold);border-radius:10px;padding:12px 16px;margin:0 0 20px;font-size:13.5px;line-height:1.65;color:var(--mute)}
+.format-warn b{color:var(--ink)}
+.format-warn .fw-msg{flex:1 1 460px}
+.format-warn .br-actions{display:flex;gap:8px;flex-shrink:0}
+.format-warn.flash{animation:fwflash 1s ease-in-out 3}
+@keyframes fwflash{0%,100%{box-shadow:0 0 0 0 rgba(212,166,74,0)}50%{box-shadow:0 0 0 7px rgba(212,166,74,.24)}}
 .datanote{font-size:13.5px;line-height:1.55;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:12px 14px;margin:14px 0 0}
 .datanote b{color:var(--ink)}
 .chip-click{cursor:pointer;user-select:none;transition:.15s}
@@ -323,6 +330,10 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <span>⬇ <b>Back up your data.</b> It's stored only on this device — export a copy so you don't lose it if your browser is cleared or you switch device.</span>
   <span class="br-actions"><button class="btn gold" id="backupNow">Back up now</button><button class="btn" id="backupSnooze">Later</button></span>
 </div>
+<div id="formatWarn" class="format-warn hidden">
+  <span class="fw-msg" id="formatWarnMsg"></span>
+  <span class="br-actions"><button class="btn" id="formatWarnClose">Dismiss</button></span>
+</div>
 
 <!-- AI INSIGHTS EXPLAINER -->
 <div class="card" style="margin-bottom:20px">
@@ -457,6 +468,7 @@ footer{margin-top:60px;padding-top:28px;border-top:1px solid var(--line);font-si
   <div class="card">
     <div class="cardlbl">Each annual Pension Plan statement PDF you upload adds a year here and to the chart above</div>
     <div style="overflow-x:auto"><table class="tl-table" id="tlTable"></table></div>
+    <p class="note" id="tlOddNote" style="margin:10px 0 0;color:var(--gold);font-size:12.5px;line-height:1.6"></p>
     <div id="tlGrowthWrap" class="hidden" style="margin-top:20px">
       <div class="cardlbl">Investment growth by year — what markets added or took, after contributions</div>
       <svg id="tlGrowth" viewBox="0 0 760 220" style="width:100%;height:auto"></svg>
@@ -850,14 +862,38 @@ function parseFactsheet(pages){
     if(state==='hold')F.holdings.push({name:label,weight:parseFloat(pm[1])});
     else (state==='asset'?F.assetSplit:F.geoSplit).push({name:label,pct:parseFloat(pm[1])});
   }
-  return F.name?sanitizeFactsheet(F):null;
+  // A name alone isn't a factsheet — every PDF has a biggest line of text, so requiring at
+  // least one real factsheet field keeps statements and other documents from being loaded
+  // as phantom funds (and from being sent to the observations endpoint).
+  const substantive=F.ocf!=null||F.unitPrice!=null||F.objective||F.cum||F.ann
+    ||F.holdings.length||F.assetSplit.length||F.geoSplit.length;
+  return F.name&&substantive?sanitizeFactsheet(F):null;
 }
 // ---------- annual pension statement parsing (workplace "Pension Plan statement" template) ----------
 const MONTHS_UK=['january','february','march','april','may','june','july','august','september','october','november','december'];
-function ukDate(s){ // "1 July 2020" -> "2020-07-01"
-  const m=String(s||'').match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/); if(!m)return null;
-  const mo=MONTHS_UK.indexOf(m[2].toLowerCase()); if(mo<0)return null;
+// full name or any unambiguous abbreviation ("Jul", "Sept.") — other providers abbreviate
+function monthIndex(name){
+  const n=String(name||'').toLowerCase().replace(/\./g,'');
+  const exact=MONTHS_UK.indexOf(n); if(exact>=0)return exact;
+  return n.length>=3?MONTHS_UK.findIndex(m=>m.startsWith(n)):-1;
+}
+function ukDate(s){ // "1 July 2020" / "1 Jul 2020" -> "2020-07-01"
+  const m=String(s||'').match(/(\d{1,2})\s+([A-Za-z]+)\.?\s+(\d{4})/); if(!m)return null;
+  const mo=monthIndex(m[2]); if(mo<0)return null;
   return `${m[3]}-${String(mo+1).padStart(2,'0')}-${String(+m[1]).padStart(2,'0')}`;
+}
+// a date in any of the shapes statements use, normalised to ISO. Numeric dates are read
+// day-first (UK convention) — "01/07/2020" is 1 July, not 7 January.
+const DATE_RE='\\d{1,2}\\s+[A-Za-z]{3,9}\\.?\\s+\\d{4}|\\d{1,2}[\\/.\\-]\\d{1,2}[\\/.\\-]\\d{4}|\\d{4}-\\d{2}-\\d{2}';
+function anyDate(s){
+  const t=String(s||'');
+  const iso=t.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(iso&&+iso[2]>=1&&+iso[2]<=12&&+iso[3]>=1&&+iso[3]<=31)return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const uk=ukDate(t); if(uk)return uk;
+  const num=t.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/);
+  if(num&&+num[1]>=1&&+num[1]<=31&&+num[2]>=1&&+num[2]<=12)
+    return `${num[3]}-${String(+num[2]).padStart(2,'0')}-${String(+num[1]).padStart(2,'0')}`;
+  return null;
 }
 const gbp=s=>{const v=parseFloat(String(s).replace(/[£,\s]/g,''));return Number.isFinite(v)?v:null;};
 function parseStatement(pages){
@@ -953,6 +989,114 @@ function parseStatement(pages){
     if(tot)S.plans[plan]={startValue:gbp(tot[1]),employee:gbp(tot[2]),employer:gbp(tot[3]),endValue:gbp(tot[4])};
   });
   return S.date&&S.totalValue!=null&&S.totalValue>=0?S:null;
+}
+// ---------- best-effort reading of statements the app doesn't recognise ----------
+// The template parser above was written against the 2020 "Pension Plan statement"
+// booklet. Anything else — a later redesign, a different provider, a scan — must still
+// load whatever can be read rather than being thrown away, and must say so plainly.
+const STMT_MODEL_YEAR=2020;
+const STMT_FIELD_LABELS={totalValue:'pot value',employer:'employer contributions',employee:'your contributions',
+  avc:'additional (AVC) savings',transferIn:'transfers in',growthStated:'investment growth',
+  estAtNPD:'the provider’s retirement estimate',benefitSalary:'salary',npd:'retirement date',dob:'date of birth'};
+// Is this PDF an annual pension statement of some kind? Deliberately loose: it only
+// decides whether an unknown layout gets the best-effort reader instead of being
+// discarded. Fund factsheets have their own parser and are explicitly excluded.
+function looksLikeStatement(full){
+  const t=String(full||'');
+  if(t.length<40)return false;
+  // every field parseFactsheet() can read, so a factsheet is never diverted in here
+  if(/(Fund Objective|Fund Features|Fund Information|Unit Price|Launch Date|Fund Holdings|Yearly Fund Charges|Fund Charges|Ongoing Charge|\bOCF\b|Cumulative Performance|Annualised Performance|Asset Split as at|Geographical Split)/i.test(t)
+     &&!/Pension Plan statement/i.test(t))return false;
+  if(!/pension|retirement|\bSIPP\b/i.test(t))return false;
+  if(!/£\s*[\d,]/.test(t))return false;
+  const cues=[/\bstatement\b/i,/contribution/i,/\bemployer\b|\bcompany\b|\bthe Firm\b/i,
+    /normal pension date|retirement date|retirement age|selected retirement/i,
+    /plan number|policy number|member number|national insurance/i,
+    /your (?:pot|plan|account|savings|pension)/i,
+    /paid in|value of your|total value|worth/i];
+  return cues.reduce((a,re)=>a+(re.test(t)?1:0),0)>=2;
+}
+function parseStatementLoose(pages){
+  if(!pages||!pages.length)return null;
+  const full=pages.map(p=>rowText(p.items)).join(' ');
+  if(!looksLikeStatement(full))return null;
+  const AMT='£\\s*([\\d,]+(?:\\.\\d+)?)';
+  // bounded gap: an unbounded one would run across the page and pick up the next figure
+  const labelled=(labels,gap=110)=>new RegExp('(?:'+labels+')[^£]{0,'+gap+'}'+AMT,'i');
+  const money=res=>{for(const re of res){const m=full.match(re);if(m){const v=gbp(m[m.length-1]);if(v!=null)return v;}}return null;};
+  const g=(re,f=1)=>{const x=full.match(re);return x?x[f]:null;};
+  const dated=labels=>anyDate(g(new RegExp('(?:'+labels+')[^A-Za-z0-9]{0,12}('+DATE_RE+')','i')));
+  const S={source:'statement',partial:true,format:'unrecognised',modelledYear:STMT_MODEL_YEAR,funds:[],plans:{}};
+  // ---- the pot value, and the date it was valued ----
+  S.totalValue=money([
+    labelled('total value of your|value of your (?:pension|plan|pot|fund|account|savings)|total amount of money|total value|fund value|plan value|account value|pot value|current value|is (?:now )?worth|was worth'),
+    labelled('your (?:pension|plan|pot|fund|account|savings)[^£]{0,40}(?:value|worth|total)'),
+  ]);
+  // "…on 1 July 2020 £12,345" — a value line that carries its own date
+  const pair=full.match(new RegExp('(?:\\bon\\b|\\bat\\b|\\bas at\\b|\\bas of\\b)\\s+('+DATE_RE+')\\*?[^£]{0,60}'+AMT,'i'));
+  S.date=dated('statement date|valued (?:at|on)|calculated as (?:of|at)|value(?:d)? as at|as at|as of')
+       ||(pair?anyDate(pair[1]):null);
+  if(!S.date){
+    // fall back to the latest date in the document that isn't in the future — retirement
+    // dates and projections sit years ahead, dates of birth decades behind
+    const today=new Date().toISOString().slice(0,10);
+    const seen=[]; const re=new RegExp(DATE_RE,'g'); let m;
+    while((m=re.exec(full))){const d=anyDate(m[0]);if(d&&d<=today&&d>='1990-01-01')seen.push(d);}
+    seen.sort();
+    if(seen.length)S.date=seen[seen.length-1];
+  }
+  S.year=+(g(/(20\d{2})\s*(?:\/\s*\d{2})?\s+(?:annual\s+)?(?:pension\s+)?(?:plan\s+)?statement/i)
+        ||g(/statement[^.]{0,50}?(20\d{2})/i)||0)||null;
+  if(!S.year&&S.date)S.year=+S.date.slice(0,4);
+  if(!S.date&&S.year){S.date=`${S.year}-12-31`;S.dateApprox=true;} // year only: keep the row, don't plot it
+  // ---- the year's money in ----
+  S.employer=money([labelled('(?:employer|company|the Firm|your employer)(?:’s|\'s)?\\s*(?:has\\s+)?(?:contributions?|payments?|paid|added|contributed|put in)')]);
+  S.employee=money([labelled('(?:your|member|employee|personal|regular)\\s*(?:own\\s*)?(?:contributions?|payments?|savings?)|you (?:have )?(?:paid|saved|contributed)')]);
+  S.avc=money([labelled('additional voluntary contributions?|\\bAVCs?\\b|additional savings|top-?up (?:contributions?|savings)')]);
+  S.transferIn=money([labelled('transfer(?:red|s)?\\s*(?:value\\s*)?(?:in|into|from another|from other)|transfer payment')]);
+  {
+    const gm=full.match(/(?:investment (?:growth|return|performance)|growth on your (?:investments?|savings))[^£\d]{0,90}(-|−|minus\s)?\s*£\s*([\d,]+(?:\.\d+)?)/i);
+    if(gm)S.growthStated=(gm[1]?-1:1)*gbp(gm[2]);
+  }
+  S.estAtNPD=money([labelled('could be worth|estimated (?:total )?(?:value|pot|fund)|projected (?:value|pot|fund)|estimate of your (?:pension|pot|fund)|you (?:could|might) (?:get|have|receive)')]);
+  S.baseSalary=money([labelled('base salary|basic salary',40)]);
+  S.benefitSalary=money([labelled('benefit salary|pensionable (?:salary|pay|earnings)',40)]);
+  // ---- dates the planner can borrow ----
+  S.dob=dated('date of birth|born on');
+  S.npd=dated('normal (?:pension|retirement) (?:date|age)|target retirement date|selected retirement date|retirement date');
+  S.joined=dated('date joined|joined the plan|joined on|member since');
+  const per=full.match(new RegExp('(?:between|from)\\s+('+DATE_RE+')\\s+(?:and|to)\\s+('+DATE_RE+')','i'));
+  if(per){S.periodStart=anyDate(per[1]);S.periodEnd=anyDate(per[2]);}
+  // nothing usable? let the caller report an unreadable statement rather than store an empty year
+  const numeric=['totalValue','employer','employee','avc','transferIn','growthStated','estAtNPD'];
+  const got=numeric.filter(k=>S[k]!=null);
+  if(!S.date||!got.length)return null;
+  S.read=Object.keys(STMT_FIELD_LABELS).filter(k=>S[k]!=null).map(k=>STMT_FIELD_LABELS[k]);
+  S.missing=Object.keys(STMT_FIELD_LABELS).filter(k=>S[k]==null).map(k=>STMT_FIELD_LABELS[k]);
+  return S;
+}
+// Read a statement PDF: the known template first, then the best-effort pass. Never throws —
+// one odd statement must not take the rest of an upload (or the dashboard) down with it.
+// Returns null when the PDF isn't a pension statement at all.
+function readStatement(pages){
+  try{const S=parseStatement(pages);if(S)return {statement:S,partial:false,read:[],missing:[]};}catch(e){}
+  let full='';
+  try{full=(pages||[]).map(p=>rowText(p.items)).join(' ');}catch(e){}
+  let looks=false;
+  try{looks=looksLikeStatement(full);}catch(e){}
+  if(!looks)return null;
+  let L=null;
+  try{L=parseStatementLoose(pages);}catch(e){}
+  return L?{statement:L,partial:true,read:L.read||[],missing:L.missing||[]}
+          :{statement:null,partial:true,read:[],missing:Object.values(STMT_FIELD_LABELS)};
+}
+// re-uploading a year: a best-effort read fills gaps in what's already stored, it never
+// overwrites figures a full parse of the same year got right
+function mergeStatement(base,extra){
+  const meta={source:1,partial:1,format:1,read:1,missing:1,modelledYear:1,dateApprox:1};
+  const out={...base};
+  Object.keys(extra).forEach(k=>{if(!meta[k]&&out[k]==null)out[k]=extra[k];});
+  return out;
 }
 // what the year's investments earned beyond the cash paid in: the stated figure when the
 // statement gives one (2023+ template), else derived from the per-plan tables / year totals
@@ -1161,7 +1305,12 @@ function renderAll(){
   $('stcount').textContent=STATEMENTS.length; $('stChip').classList.toggle('hidden',!STATEMENTS.length);
   const maxd=FUNDS.reduce((a,f)=>f.last_date>a?f.last_date:a,new Date(0));
   $('asof').textContent=maxd>new Date(0)?maxd.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
-  renderHoldEditor(); renderPortfolio(); renderChargesAnalysis(); renderProjection(); renderHoldCards(); renderLookThrough(); renderBenchmark(); renderCompare(); renderScatter(); renderTable(); renderTopPicks(); renderHistory(); renderFundPerf(); renderTimeline(); renderSources(); renderBackupReminder(); renderObs();
+  // one section that chokes on odd input (an unrecognised statement, a half-parsed
+  // factsheet) must not take the rest of the dashboard down with it
+  [renderHoldEditor,renderPortfolio,renderChargesAnalysis,renderProjection,renderHoldCards,renderLookThrough,
+   renderBenchmark,renderCompare,renderScatter,renderTable,renderTopPicks,renderHistory,renderFundPerf,
+   renderTimeline,renderSources,renderBackupReminder,renderObs]
+    .forEach(fn=>{try{fn();}catch(err){console.error(`${fn.name} failed:`,err);}});
   $('foot').innerHTML='<strong>How the numbers are built.</strong> Returns use each fund\u2019s daily unit price (capital/price return). Volatility is the annualised standard deviation of daily returns; max drawdown is the worst peak-to-trough fall. Blended figures assume daily rebalancing to your weights. Funds with under ~60 price points are flagged NEW and excluded from 1Y/3Y stats. Figures exclude fund charges, which reduce returns. Everything is computed in your browser. <br><br>Information only \u2014 not a personal recommendation or financial advice.';
 }
 function renderPortfolio(){
@@ -2205,9 +2354,11 @@ function renderTimeline(){
   // ---- year-by-year table ----
   const rows=S.map(st=>{
     const g=stmtGrowth(st);
+    const when=st.dateApprox?'date not stated':`at ${new Date(st.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}`;
+    const flag=st.partial?` <span style="color:var(--gold)" title="This statement's layout wasn't recognised — only some figures could be read">⚠</span>`:'';
     return `<tr>
-      <td>${st.year||st.date.slice(0,4)}<span style="color:var(--faint)"> · at ${new Date(st.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</span></td>
-      <td>${fmtMoney(st.totalValue||0)}</td>
+      <td>${st.year||st.date.slice(0,4)}${flag}<span style="color:var(--faint)"> · ${when}</span></td>
+      <td>${st.totalValue!=null?fmtMoney(st.totalValue):'—'}</td>
       <td>${st.employer!=null?fmtMoney(st.employer):'—'}</td>
       <td>${(st.employee!=null||st.avc!=null)?fmtMoney((st.employee||0)+(st.avc||0)+(st.bonusWaived||0)):'—'}</td>
       <td>${st.transferIn?fmtMoney(st.transferIn):'—'}</td>
@@ -2220,11 +2371,17 @@ function renderTimeline(){
   S.forEach(st=>{tot.firm+=st.employer||0;tot.you+=(st.employee||0)+(st.avc||0)+(st.bonusWaived||0);tot.tr+=st.transferIn||0;const g=stmtGrowth(st);if(g!=null){tot.g+=g;tot.gAny=true;}});
   $('tlTable').innerHTML=`<thead><tr><th>Statement year</th><th>Pot value</th><th>Firm paid</th><th>You paid</th><th>Transfers</th><th>Growth</th><th>Benefit salary</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr style="font-weight:600"><td>All years</td><td>${fmtMoney(S[n-1].totalValue||0)}</td><td>${fmtMoney(tot.firm)}</td><td>${fmtMoney(tot.you)}</td><td>${tot.tr?fmtMoney(tot.tr):'—'}</td><td class="${tot.g>=0?'pos':'neg'}">${tot.gAny?fmtSigned(tot.g):'—'}</td><td></td><td></td></tr></tfoot>`;
+    <tfoot><tr style="font-weight:600"><td>All years</td><td>${S[n-1].totalValue!=null?fmtMoney(S[n-1].totalValue):'—'}</td><td>${fmtMoney(tot.firm)}</td><td>${fmtMoney(tot.you)}</td><td>${tot.tr?fmtMoney(tot.tr):'—'}</td><td class="${tot.g>=0?'pos':'neg'}">${tot.gAny?fmtSigned(tot.g):'—'}</td><td></td><td></td></tr></tfoot>`;
   $('tlTable').querySelectorAll('button').forEach(b=>b.onclick=()=>{
     STATEMENTS=STATEMENTS.filter(x=>x.date!==b.dataset.d);
     saveStatements(); renderTimeline();
   });
+  // a standing reminder for years read out of a layout the app doesn't know — the ⚠ rows above
+  const odd=S.filter(st=>st.partial);
+  const on=$('tlOddNote');
+  if(on)on.innerHTML=odd.length
+    ?`⚠ ${odd.length===1?'One year':`${odd.length} years`} (${odd.map(x=>x.year||x.date.slice(0,4)).join(', ')}) came from a statement layout the app doesn’t recognise — the reader was modelled on the ${STMT_MODEL_YEAR} statement format, so only the figures it could identify are shown, and blanks may simply be figures it couldn’t find. Check them against the PDF, and type in anything missing below.`
+    :'';
   renderGrowthBars(S);
   renderFundsHeld(S);
   // ---- push the latest year's real figures into the monthly contribution boxes ----
@@ -2865,26 +3022,70 @@ $('clearAll').onclick=()=>{
   if(!confirm('Clear everything on this device? Your personal data is stored only here, so this cannot be undone. (The shared fund library on the server is not affected.)'))return;
   FUNDS=[];HOLDINGS=[];HISTORY=[];PORT=null;VALUATIONS=[];CONTRIBUTIONS=[];MONTHLY=0;WORK_CONTRIB=0;PERSONAL_CONTRIB=0;PROJ={};COMPARE=new Set();FACTSHEETS=[];STATEMENTS=[];SOURCES=[];['fund_data','fund_holdings','fund_history','fund_value','fund_valuations','fund_contributions','fund_monthly','fund_work_contrib','fund_personal_contrib','fund_projection','fund_compare','fund_factsheets','fund_statements','fund_sources'].forEach(k=>localStorage.removeItem(k));syncFundValueInput();syncMonthlyInput();renderSources();$('dash').classList.add('hidden');$('loadedBar').classList.add('hidden');$('uploadSection').classList.remove('hidden');$('loadbar').textContent='';};
 function upMsg(text,isErr){const u=$('upStatus');if(u){u.style.display=text?'block':'none';u.textContent=text||'';u.style.color=isErr?'var(--neg)':'var(--mute)';}const e=$('errbox');if(e&&isErr)e.textContent=text;const l=$('loadbar');if(l&&!isErr)l.textContent=text;}
+// A statement whose layout the app doesn't know: whatever could be read is already loaded,
+// so this says what came through, what didn't, and why the app may not have understood it.
+function flashFormatWarning(entries){
+  const el=$('formatWarn'),msg=$('formatWarnMsg');
+  if(!el||!msg||!entries||!entries.length)return;
+  const one=entries.length===1;
+  const files=entries.map(e=>e.name).join(', ');
+  const read=[...new Set(entries.flatMap(e=>e.read||[]))];
+  const missing=[...new Set(entries.flatMap(e=>e.missing||[]))].filter(m=>!read.includes(m));
+  msg.innerHTML=`⚠ <b>${one?'That statement isn’t':`Those ${entries.length} statements aren’t`} in a format this app recognises.</b> `
+    +`The statement reader was modelled on the <b>${STMT_MODEL_YEAR}</b> annual statement layout, so statements from other years — or from another provider — may only be read in part. `
+    +(read.length
+      ?`Everything readable in ${escapeHtml(files)} has been loaded: <b>${escapeHtml(read.join(', '))}</b>. `
+      :`Nothing could be read out of ${escapeHtml(files)}, so no year was added. `)
+    +(missing.length?`Not found: ${escapeHtml(missing.join(', '))}. ` : '')
+    +`Anything missing can be typed in by hand — pot values under “Recorded total values”, contributions in the retirement planner. Your other uploads are unaffected.`;
+  el.classList.remove('hidden');
+  // restart the flash even when the banner is already on screen from an earlier upload
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  try{el.scrollIntoView({behavior:'smooth',block:'nearest'});}catch(e){}
+}
+function hideFormatWarning(){const el=$('formatWarn');if(el){el.classList.add('hidden');el.classList.remove('flash');}}
+{const b=$('formatWarnClose');if(b)b.onclick=hideFormatWarning;}
 // parse a batch of {name, buf} items into FUNDS/FACTSHEETS; returns a summary string
 async function processItems(items){
-  let added=0,skipped=0,sheets=0,stmts=0; const pdfErrs=[]; const updatedSheets=[];
+  let added=0,skipped=0,sheets=0,stmts=0; const pdfErrs=[]; const updatedSheets=[]; const oddStmts=[];
+  hideFormatWarning(); // each batch speaks for itself — the standing note lives under the timeline
   for(const item of items){
     try{
       if(/\.pdf$/i.test(item.name)){
         if(!window.pdfjsLib){pdfErrs.push('PDF reader (pdf.js) failed to load — check your network or any ad/script blocker.');skipped++;continue;}
         const pages=await extractPdfPages(item.buf);
-        const St=parseStatement(pages);
-        if(St){
+        const R=readStatement(pages); // known template, else a best-effort read of an unknown layout
+        if(R&&R.statement){
+          const St=R.statement;
           const ix=STATEMENTS.findIndex(x=>x.date===St.date);
-          if(ix>=0)STATEMENTS[ix]=St; else STATEMENTS.push(St);
+          if(ix>=0)STATEMENTS[ix]=(R.partial&&!STATEMENTS[ix].partial)?mergeStatement(STATEMENTS[ix],St):St;
+          else STATEMENTS.push(St);
           STATEMENTS.sort((a,b)=>a.date.localeCompare(b.date));
-          upsertValuation(St.date,St.totalValue); // each statement year becomes a point on the performance chart
+          // each statement year becomes a point on the performance chart — but only when the
+          // statement actually stated a value on a real date, never a guessed one
+          if(St.totalValue!=null&&!St.dateApprox)upsertValuation(St.date,St.totalValue);
           if(St.prevDate&&St.prevTotal!=null)upsertValuation(St.prevDate,St.prevTotal); // 2023+ statements also state the prior year's total
-          recordSource(item.name,'statement',String(St.year||St.date.slice(0,4)),St.totalValue); // pot kept numeric so display can respect the privacy toggle
-          stmts++;continue;
+          const label=String(St.year||St.date.slice(0,4))+(R.partial?' · partly read, format not recognised':'');
+          recordSource(item.name,'statement',label,St.totalValue); // pot kept numeric so display can respect the privacy toggle
+          stmts++;
+          if(R.partial)oddStmts.push({name:item.name,read:R.read,missing:R.missing});
+          continue;
+        }
+        if(R){ // reads as a pension statement, but none of its figures could be pulled out
+          skipped++;
+          oddStmts.push({name:item.name,read:[],missing:R.missing||[]});
+          recordSource(item.name,'statement','⚠ format not recognised — nothing could be read');
+          continue;
         }
         const F=parseFactsheet(pages);
-        if(!F){skipped++;recordSource(item.name,'skipped','');pdfErrs.push(`${item.name}: couldn’t read this PDF as a factsheet or annual statement.`);continue;}
+        if(!F){
+          skipped++;recordSource(item.name,'skipped','');
+          const blank=!pages.some(p=>p.items.length>20); // no text layer: a scan or an image-only PDF
+          pdfErrs.push(blank
+            ?`${item.name}: no readable text in this PDF — if it's a scan or photo, download the original from your provider.`
+            :`${item.name}: couldn’t read this PDF as a factsheet or annual statement.`);
+          continue;
+        }
         const ix=FACTSHEETS.findIndex(x=>normName(x.name)===normName(F.name));
         if(ix>=0)FACTSHEETS[ix]=F; else FACTSHEETS.push(F);
         updatedSheets.push(F);
@@ -2905,14 +3106,19 @@ async function processItems(items){
   saveSources();
   if(sheets)saveFactsheets();
   if(stmts){saveStatements();saveValuations();}
-  const summary=`Loaded ${added} fund(s)${sheets?`, ${sheets} factsheet(s)`:''}${stmts?`, ${stmts} annual statement(s)`:''}${skipped?`, skipped ${skipped}`:''}.`;
+  const partial=oddStmts.filter(o=>o.read&&o.read.length).length, unread=oddStmts.length-partial;
+  const summary=`Loaded ${added} fund(s)${sheets?`, ${sheets} factsheet(s)`:''}${stmts?`, ${stmts} annual statement(s)`:''}`
+    +`${partial?` (${partial} only partly read)`:''}${skipped?`, skipped ${skipped}`:''}.`;
   $('loadbar').textContent=summary;
+  const warn=oddStmts.length?`  ${unread?'Couldn’t read':'Only partly read'} ${oddStmts.length} statement(s) — the reader was modelled on the ${STMT_MODEL_YEAR} statement format.`:'';
   const us=$('upStatus');
-  if(us){us.style.display='block';us.textContent=summary+(pdfErrs.length?'  '+pdfErrs.slice(0,2).join('  ·  '):'');us.style.color=pdfErrs.length?'var(--neg)':'var(--mute)';}
+  if(us){us.style.display='block';us.textContent=summary+warn+(pdfErrs.length?'  '+pdfErrs.slice(0,2).join('  ·  '):'');us.style.color=(pdfErrs.length||oddStmts.length)?'var(--neg)':'var(--mute)';}
   if(pdfErrs.length)$('errbox').textContent=pdfErrs.slice(0,3).join('  ·  ');
+  // a statement in a layout we don't know: everything readable is already loaded, now say so
+  if(oddStmts.length)flashFormatWarning(oddStmts);
   // generate AI insights in the background and store them in the shared DB (shown in each fund's modal)
   if(sheets)refreshObservations(updatedSheets);
-  return {added,skipped,sheets,pdfErrs};
+  return {added,skipped,sheets,pdfErrs,partialStatements:oddStmts};
 }
 // initialise holdings/state from localStorage and reveal the dashboard, once FUNDS/FACTSHEETS are populated
 function activateDashboard(){

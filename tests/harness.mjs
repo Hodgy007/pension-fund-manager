@@ -52,6 +52,10 @@ export function loadApp() {
     'cleanName', 'gaussian', 'cleanValuations', 'cleanContributions',
     'monthlyFlows', 'effectiveContributions', 'computeValuations', 'latestValue',
     'periodsPerYear', 'TAX',
+    // statement reading (known 2020 template + best-effort fallback)
+    'ukDate', 'anyDate', 'rowText', 'parseStatement', 'parseStatementLoose',
+    'looksLikeStatement', 'readStatement', 'mergeStatement', 'stmtPaidIn',
+    'stmtGrowth', 'parseFactsheet', 'STMT_MODEL_YEAR',
   ];
 
   const epilogue = `

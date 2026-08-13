@@ -30,6 +30,10 @@ Both are single-file, dependency-free HTML pages.
 - **Parses fund data locally** — `.xlsx` price histories (prices & returns) and
   `.pdf` factsheets (charges, allocation, top holdings), individually or in a
   `.zip`. Nothing is uploaded to read it.
+- **Reads your annual statements** — annual pension statement PDFs add a
+  year-by-year breakdown (pot value, contributions, investment growth) and plot
+  your real pot value over time. Unknown layouts are read on a best-effort basis
+  rather than rejected — see [Statement formats](#statement-formats).
 - **Computes per-fund stats** — capital return over 1M/6M/1Y/3Y, annualised
   return, annualised volatility, max drawdown, and a return-for-risk (Sharpe-style)
   ratio. Funds with under ~60 daily prices are flagged **NEW** and excluded from
@@ -90,6 +94,32 @@ step, no framework, no runtime dependencies except `lib/pdf.js` (bundled) for
 reading PDF factsheets. All parsing and computation happen client-side.
 Personal state (holdings, £ values, contributions, projection inputs, theme)
 lives in `localStorage` under `fund_*` keys.
+
+### Statement formats
+
+The statement reader was written against the **2020** workplace "Pension Plan
+statement" booklet (with the 2023+ condensed template added later). Statements
+are not a standard document, so anything else — a later redesign, another
+provider, a different wording — is handled by a deliberate fallback rather than
+being rejected:
+
+1. **Known template** → parsed in full, exactly as before.
+2. **Unknown layout that still reads as a pension statement** → a best-effort
+   pass pulls out whatever it can find with generic labels (pot value, employer
+   and member contributions, AVCs, transfers in, investment growth, retirement
+   estimate and dates). The year is stored flagged as `partial`, marked ⚠ in the
+   year-by-year table, and the app flashes a banner saying it was modelled on the
+   2020 format and listing what was and wasn't read. A guessed pot value is
+   never plotted on the chart, and a partial re-read of a year already parsed in
+   full only fills blanks — it never overwrites good figures.
+3. **Nothing readable** → the file is reported, no year is invented, and the rest
+   of the upload carries on.
+
+A statement is never mistaken for a fund factsheet: a factsheet now needs at
+least one real factsheet field (charge, unit price, objective, performance table
+or holdings) before it's loaded, so an unrecognised PDF can't become a phantom
+fund. Dashboard sections also render independently, so one odd statement can't
+blank the page.
 
 ### Serverless API (`api/`)
 
