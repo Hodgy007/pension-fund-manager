@@ -129,6 +129,30 @@ being rejected:
 3. **Nothing readable** → the file is reported, no year is invented, and the rest
    of the upload carries on.
 
+Two quirks of the real booklets are handled explicitly, because both produced
+figures that looked plausible and were wrong:
+
+- **Unfilled templates.** The pre-2023 booklet's text layer carries the blank
+  template *and* the filled values as separate layers. A label reads
+  `The contributions you paid to the Main Plan <AN EEREG Conts in Yr>` — the
+  placeholder never got substituted — while the real figure sits beside it in a
+  different font. A label is no longer allowed to reach past a `<PLACEHOLDER>`
+  to find a pound sign, so it yields nothing rather than capturing an unrelated
+  row's number. The year's contributions then come from the per-plan **totals
+  table** on the investments page, which is filled correctly: Main-plan member
+  money is your own contribution, Top-Up member money is your AVCs.
+- **Subsetted fonts.** Those booklets draw their fixed wording in a font whose
+  encoding pdf.js can't map, so it extracts as runs of gibberish with invisible
+  control characters interleaved. Runs of three or more are dropped before
+  parsing (shorter ones are kept, so an accent in a fund name survives), which
+  also un-blocks the fund table: the member's own fund is in the readable font,
+  the list of other options is not.
+
+Where a charge column is printed without a `%`, no TER is recorded — the 2022
+layout overlays the fund-options list on the member's row, leaving two
+unlabelled numbers in that column, and the wrong fund's charge would flow
+through to the charges analysis.
+
 The homepage carries a standing note saying the reader was modelled on 2020
 statements, so this is visible before anyone uploads anything.
 
