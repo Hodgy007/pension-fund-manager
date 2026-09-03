@@ -379,3 +379,132 @@ test('partial statements survive the figures that drive the timeline', () => {
   assert.equal(F.stmtPaidIn(bare), 0);
   assert.equal(F.stmtGrowth(bare), null);
 });
+
+
+// ---------------------------------------------------------------------------
+// Real statement layouts, as pdf.js extracts them from the shipped PDFs.
+//
+// The pre-2023 booklet prints the year's figures into a template that arrives
+// UNFILLED in the text layer: the English label is followed by a placeholder
+// like "<AR ERREG Conts in Yr>", while the real filled value is drawn beside it
+// in a subsetted font that extracts as gibberish. Left alone, a label reaches
+// past its own placeholder and captures a different row's figure.
+// ---------------------------------------------------------------------------
+
+// Runs of the subsetted font, as pdf.js hands them over. Written as escapes because they
+// are unprintable noise, and one of them carries invisible control characters.
+const FONT_NOISE = '\u00b2\u00af\u00b9\u00b8\u00be\u00bc\u00b3\u00ac\u00bf\u00be\u00b3\u00b9\u00b8\u00bd';          // the encoded form of "he contributions"
+const NOISE_WITH_CONTROLS = '\u00ab\u00be\u0003\u0230\u0003';  // "at 1", with U+0003 between the glyphs
+const FUND_NOISE = '\u00be\u00b3\u00c0\u00af' + ' Active Diversified ' + '\u00b6\u00b9\u00ac\u00ab\u00b6';
+
+const BOOKLET_2022 = pagesOf(
+  'Emilia, this is your 2022 Pension Plan statement',
+  'The total value of your Pension Savings Account at 1 July 2022 was: £7,466.14',
+  'How Your Pension Savings THE FIRM’S CONTRIBUTIONS Account Developed Between',
+  'The contributions the Firm paid to the Main Plan <AR ERREG Conts in Yr> 1 July 2021 and 1 July 2022',
+  'YOUR CONTRIBUTIONS The contributions you paid to the Main Plan <AN EEREG Conts in Yr>',
+  'The Additional Voluntary Contributions you paid <AP EETOP Conts in Yr> to the Top-Up Plan',
+  'THE FIRM’S CONTRIBUTIONS ' + FONT_NOISE + ' <AJ BONWAV Conts in Yr> £6,357.05',
+  'The amount you transferred into the Top-Up Plan YOUR CONTRIBUTIONS',
+  '<AV TRF Conts in Yr> from another pension arrangement(s) ' + FONT_NOISE + ' £1,589.23',
+  'The table below shows the value of your Pension Savings Account in the Main Plan at 1 July 2022',
+  'Total Fund value Your The Firm’s Total Unit price Fund Expense ' + NOISE_WITH_CONTROLS + ' contributions contributions units value Ratio at',
+  'FUND NAME ' + FUND_NOISE + ' 0.65 0.37 £0.00 £1,589.23 £6,357.05 754.2317 £9.90 £7,466.14 Growth ' + '\u00bc\u00b9\u00c1\u00be\u00b2',
+  'Total £0.00 £1,589.23 £6,357.05 £7,466.14',
+  'Member name Emilia King Statement date 1 July 2022 Date of birth 15 December 1995',
+  'Date joined Plan 05 July 2021 Normal Pension Date 15 December 2060 Base Salary £80,000.00 Benefit Salary £80,000.00',
+  'The estimated total value of your Pension Savings Account at your Normal Pension Date is £274,000.00',
+  'up to a maximum of 13% of your Benefit Salary',
+);
+
+const CONDENSED_2023 = pagesOf(
+  'Pension Plan Statement 2023 Emilia , this is your 2023 Pension Plan statement.',
+  'This is your personal statement of benefits provided for you as a member of the Morgan Stanley UK Group Pension Plan and Top-Up Pension Plan (the Plans). It is calculated as at 1 July 2023.',
+  'MONEY YOU HAVE SAVED MONEY ADDED BY THE FIRM CHANGE IN VALUE TOTAL AMOUNT OF MONEY IN YOUR PENSION ACCOUNT',
+  'Main Plan £4,290.44 + £13,993.26 + £111.90 = £18,395.60',
+  'Top-Up Plan £0.00 + £0.00 + £0.00 = £0.00',
+  'Total £4,290.44 + £13,993.26 + £111.90 = £18,395.60',
+  'HERE IS A SUMMARY OF WHAT HAS CHANGED IN YOUR ACCOUNT BETWEEN 1 JULY 2022 AND 1 JULY 2023:',
+  'Total amount of money in the Main and Top-Up Plan on 1 July 2022 £7,466.14',
+  'You have saved into your account £2,701.21',
+  'The Firm has added £7,636.21',
+  'Additional savings you have made into the Top-Up Plan £0.00',
+  'Bonus you have waived into the Top-Up Plan £0.00',
+  'You have transferred in from other pension schemes £0.00',
+  'Investment growth (minus charges) has contributed £592.04',
+  'Total amount of money in the Main and Top-Up Plan on 1 July 2023 £18,395.60',
+  'In the Plan year to 31 December 2022, you paid £1,599.96 to the Main Plan and £0.00 to the Top-Up Plan, while the Firm paid £6,399.96 and £0.00 respectively.',
+  'AT 15 December 2060, YOUR TARGET RETIREMENT DATE, WE ESTIMATE YOU COULD GET:',
+  'Your pension account could be worth £676,000.00 £0.00 £676,000.00',
+);
+
+test('gibberish from a subsetted font is dropped, real text is kept', () => {
+  assert.equal(F.dropGibberish('Fund Expense ' + FONT_NOISE + ' contributions').replace(/\s+/g, ' ').trim(),
+    'Fund Expense contributions');
+  // control characters would otherwise split a run into pieces too short to recognise
+  assert.equal(F.dropGibberish('at ' + NOISE_WITH_CONTROLS + ' value').replace(/\s+/g, ' ').trim(), 'at value');
+  assert.equal(F.dropGibberish('Active Diversified Growth £1,589.23'), 'Active Diversified Growth £1,589.23');
+});
+
+test("2022 booklet: the year's contributions, not the next label's figure", () => {
+  const S = F.parseStatement(BOOKLET_2022);
+  assert.ok(S, 'the booklet must parse');
+  assert.equal(S.date, '2022-07-01');
+  assert.equal(S.year, 2022);
+  assert.equal(S.totalValue, 7466.14);
+  // these were the misread ones: employee and avc both took the Firm's 6,357.05,
+  // and transferIn took the member's 1,589.23
+  assert.equal(S.employer, 6357.05, 'the Firm paid 6,357.05');
+  assert.equal(S.employee, 1589.23, 'the member paid 1,589.23');
+  assert.equal(S.avc, null, 'no AVCs — that label is followed by an unfilled placeholder');
+  assert.equal(S.transferIn, null, 'nothing was transferred in');
+  assert.ok(Math.abs(F.stmtPaidIn(S) - 7946.28) < 0.01, 'paid in ' + F.stmtPaidIn(S));
+  assert.ok(Math.abs(F.stmtGrowth(S) + 480.14) < 0.01, 'growth ' + F.stmtGrowth(S));
+});
+
+test('2022 booklet: personal details and the fund held', () => {
+  const S = F.parseStatement(BOOKLET_2022);
+  assert.equal(S.dob, '1995-12-15');
+  assert.equal(S.npd, '2060-12-15');
+  assert.equal(S.joined, '2021-07-05');
+  assert.equal(S.benefitSalary, 80000);
+  assert.equal(S.firmMaxPct, 13);
+  assert.equal(S.estAtNPD, 274000);
+  assert.equal(S.plans.Main.endValue, 7466.14);
+  assert.equal(S.funds.length, 1);
+  const f = S.funds[0];
+  assert.equal(f.name, 'Active Diversified Growth', 'the two-line fund name is reassembled');
+  assert.equal(f.endValue, 7466.14);
+  assert.equal(f.unitPrice, 9.9);
+  assert.equal(f.ter, null, 'the charge column is unmarked here, so no TER is claimed');
+});
+
+test('2023 condensed statement reads every figure on the page', () => {
+  const S = F.parseStatement(CONDENSED_2023);
+  assert.ok(S, 'the condensed template must parse');
+  assert.equal(S.date, '2023-07-01');
+  assert.equal(S.totalValue, 18395.6);
+  assert.equal(S.prevDate, '2022-07-01');
+  assert.equal(S.prevTotal, 7466.14);
+  assert.equal(S.employee, 2701.21);
+  assert.equal(S.employer, 7636.21);
+  assert.equal(S.avc, 0);
+  assert.equal(S.bonusWaived, 0);
+  assert.equal(S.transferIn, 0);
+  assert.equal(S.growthStated, 592.04);
+  assert.equal(S.estAtNPD, 676000);
+  assert.equal(S.npd, '2060-12-15');
+  assert.equal(S.accumulated.Total.saved, 4290.44);
+  assert.equal(S.accumulated.Total.firm, 13993.26);
+  assert.equal(S.accumulated.Total.growth, 111.9);
+  // the statutory "In the Plan year to 31 December 2022" figures cover a different
+  // period and must not be mistaken for this year's contributions
+  assert.notEqual(S.employee, 1599.96);
+  assert.notEqual(S.employer, 6399.96);
+});
+
+test('the two years line up: 2023 opens where 2022 closed', () => {
+  const a = F.parseStatement(BOOKLET_2022), b = F.parseStatement(CONDENSED_2023);
+  assert.equal(a.totalValue, b.prevTotal, "2023's opening balance is 2022's closing balance");
+  assert.equal(a.date, b.prevDate);
+});

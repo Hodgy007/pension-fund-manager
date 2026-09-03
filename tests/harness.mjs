@@ -57,7 +57,7 @@ export function loadApp() {
     'looksLikeStatement', 'readStatement', 'mergeStatement', 'stmtPaidIn',
     'stmtGrowth', 'parseFactsheet', 'STMT_MODEL_YEAR',
     // spreadsheet reading + the projection's charge basis
-    'parseWorkbook', 'mergeFundRows', 'cleanName', 'detPot', 'projectMC',
+    'parseWorkbook', 'mergeFundRows', 'cleanName', 'detPot', 'projectMC', 'dropGibberish',
   ];
 
   const epilogue = `

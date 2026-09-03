@@ -887,11 +887,22 @@ async function extractPdfPages(buf){
   }
   return pages;
 }
+// Some statement booklets draw their fixed wording in a subsetted font whose encoding
+// pdf.js can't map, so that text extracts as runs of Latin-1/Latin-Extended gibberish
+// ("\u00b2\u00af\u00b9\u00b8\u00be..." for "The contributions..."). It reads as noise to a human too, and
+// left in place it blocks patterns from matching the real, correctly-encoded values
+// printed beside it. Runs of three or more are dropped; shorter sequences are left
+// alone so a genuine accent or fraction in a fund name survives.
+const GIBBERISH=/[\u00ab-\u00c4\u0100-\u02ff\u0300-\u036f]{3,}/g;
+// the same fonts also emit unmapped glyphs as C0 control characters, which are invisible
+// but sit between the gibberish letters and would otherwise break the runs apart
+const CONTROLS=/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g;
+const dropGibberish=t=>t.replace(CONTROLS,'').replace(GIBBERISH,' ');
 function rowText(items,xmax){
   const its=items.filter(i=>xmax==null||i.x<xmax).slice().sort((a,b)=> b.y-a.y || a.x-b.x);
   const rows=[]; let ly=null,cur=null;
   for(const it of its){ if(ly===null||Math.abs(it.y-ly)>3){cur=[];rows.push(cur);ly=it.y;} cur.push(it); }
-  return rows.map(r=>r.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ')).join(' ').replace(/\s+/g,' ').trim();
+  return dropGibberish(rows.map(r=>r.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ')).join(' ')).replace(/\s+/g,' ').trim();
 }
 function parseFactsheet(pages){
   if(!pages.length||!pages[0].items.length)return null;
@@ -997,14 +1008,14 @@ function parseStatement(pages){
   const per=full.match(/Between\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})\s+and\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i);
   if(per){S.periodStart=ukDate(per[1]);S.periodEnd=ukDate(per[2]);}
   // the year's money in — each alternation covers old wording | new wording
-  S.employer=amt(/(?:contributions the Firm paid|The Firm has added)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
-  S.employee=amt(/(?:contributions you paid to|You have saved into your(?: Main Plan)? account)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
-  S.avc=amt(/(?:Additional Voluntary Contributions|Additional savings you have made)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
+  S.employer=amt(/(?:contributions the Firm paid|The Firm has added)[^£<]{0,120}£\s*([\d,]+(?:\.\d+)?)/i);
+  S.employee=amt(/(?:contributions you paid to|You have saved into your(?: Main Plan)? account)[^£<]{0,120}£\s*([\d,]+(?:\.\d+)?)/i);
+  S.avc=amt(/(?:Additional Voluntary Contributions|Additional savings you have made)[^£<]{0,120}£\s*([\d,]+(?:\.\d+)?)/i);
   // bounded gap: the 2022 booklet garbles this row's label (custom font encoding), and an
   // unbounded gap would jump to "bonus you waived … is shown as a Firm contribution" on the
   // fund-table page and swallow the first fund value there
-  S.bonusWaived=amt(/bonus you (?:have )?waived[^£]{0,80}£\s*([\d,]+(?:\.\d+)?)/i);
-  S.transferIn=amt(/(?:transferred into the Top-?Up Plan|transferred in from other pension)[^£]*£\s*([\d,]+(?:\.\d+)?)/i);
+  S.bonusWaived=amt(/bonus you (?:have )?waived[^£<]{0,80}£\s*([\d,]+(?:\.\d+)?)/i);
+  S.transferIn=amt(/(?:transferred into the Top-?Up Plan|transferred in from other pension)[^£<]{0,120}£\s*([\d,]+(?:\.\d+)?)/i);
   // new template states the year's investment growth outright (can be negative)
   {
     const gm=full.match(/Investment growth[^£\d]*?(?:has (?:contributed|reduced)[^£\-−]*)?(-|−)?\s*£\s*([\d,]+(?:\.\d+)?)/i);
@@ -1024,7 +1035,7 @@ function parseStatement(pages){
       ||ukDate(g(/AT\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4}),\s*YOUR (?:NORMAL PENSION|TARGET RETIREMENT) DATE/i));
   S.joined=ukDate(g(/Date joined Plan\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i));
   S.dob=ukDate(g(/Date of birth\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i));
-  S.estAtNPD=amt(/estimated total value[^£]*£\s*([\d,]+(?:\.\d+)?)/i); // old: "…at your Normal Pension Date is £401,000" (column interleave may split the sentence)
+  S.estAtNPD=amt(/estimated total value[^£<]{0,200}£\s*([\d,]+(?:\.\d+)?)/i); // old: "…at your Normal Pension Date is £401,000" (column interleave may split the sentence)
   if(S.estAtNPD==null){
     // new: "Your pension account could be worth £501,000 £36,000 £537,000" — Main / Top-Up / Total, take the last
     const cw=full.match(/could be worth((?:\s*£\s*[\d,]+(?:\.\d+)?)+)/i);
@@ -1037,26 +1048,47 @@ function parseStatement(pages){
     // some years garble the page heading (embedded font encoding) — the intro sentence stays clean
     if(!/How Your Investments Performed/i.test(t)&&!/value of your Pension Savings Account in the (?:Main|Top-?Up)\s+Plan/i.test(t))return;
     const plan=/Account in the Top-?Up\s+Plan/i.test(t)?'Top-Up':'Main';
-    const rowRe=/([A-Za-z][A-Za-z0-9&()'\/\- ]{2,70}?)\s+(\d+(?:\.\d+)?)\s*%\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)/g;
+    // The charge column prints as "0.65%" in some years and a bare "0.65" in others, and in
+    // the 2022 booklet the fund-options list overlaps the member's own row, putting a second
+    // unlabelled number in the same place. So the percentage is optional, and it is only
+    // recorded as a TER when it was actually marked as one — a charge is too easy to
+    // misattribute here, and a blank is better than the wrong fund's number.
+    // A %-marked charge is the fund's TER and is kept; bare numbers in that column are not,
+    // because the 2022 booklet overlays the fund-options list on the member's own row and
+    // leaves two unlabelled figures there. A blank beats the wrong fund's charge.
+    const rowRe=/([A-Za-z][A-Za-z0-9&()'\/\- ]{2,70}?)\s+(?:(\d+(?:\.\d+)?)\s*%\s+)?(?:\d+(?:\.\d+)?\s+){0,2}£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)/g;
     const found=[]; let m;
     while((m=rowRe.exec(t))){
       const name=m[1].replace(/^.*FUND NAME\s*/i,'').trim();
       if(!name||/Total Expense/i.test(name))continue;
       found.push({name,m,end:m.index+m[0].length,
-        row:{plan,name,ter:+m[2],startValue:gbp(m[3]),employee:gbp(m[4]),employer:gbp(m[5]),units:gbp(m[6]),unitPrice:gbp(m[7]),endValue:gbp(m[8])}});
+        row:{plan,name,ter:m[2]!=null?+m[2]:null,startValue:gbp(m[3]),employee:gbp(m[4]),employer:gbp(m[5]),units:gbp(m[6]),unitPrice:gbp(m[7]),endValue:gbp(m[8])}});
     }
     found.forEach((f,i)=>{
       // a two-line fund name's second line lands AFTER the numbers in the extracted
-      // row text — if the text up to the next row / Total line is plain words, it's
-      // the rest of the name ("Active" … "Diversified Growth")
+      // row text — if the text up to the next row / Total line starts with plain words,
+      // they're the rest of the name ("Active Diversified" … "Growth")
       const stop=i+1<found.length?found[i+1].m.index:(t.slice(f.end).search(/Total\s+£/)>=0?f.end+t.slice(f.end).search(/Total\s+£/):f.end);
-      const tail=t.slice(f.end,stop).trim();
-      if(tail&&tail.length<=60&&/^[A-Za-z][A-Za-z0-9&()'\/\- ]*$/.test(tail)&&!/^Total\b/i.test(tail))f.row.name+=' '+tail;
+      const tail=(t.slice(f.end,stop).trim().match(/^[A-Za-z][A-Za-z0-9&()'\/\- ]*/)||[''])[0].trim();
+      if(tail&&tail.length<=60&&!/^Total\b/i.test(tail))f.row.name+=' '+tail;
       S.funds.push(f.row);
     });
     const tot=t.match(/Total\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)\s+£\s*([\d,]+(?:\.\d+)?)/i);
     if(tot)S.plans[plan]={startValue:gbp(tot[1]),employee:gbp(tot[2]),employer:gbp(tot[3]),endValue:gbp(tot[4])};
   });
+  // The booklet years print the year's contributions into an unfilled template — the labels
+  // are there but their figures are placeholders, so nothing is read from them above. The
+  // per-plan totals table on the investments page carries the same figures, correctly filled,
+  // so anything the labels didn't give us comes from there: Main-plan member money is your
+  // own contribution, Top-Up member money is your AVCs, and the Firm's is the sum of both.
+  const plans=Object.entries(S.plans||{});
+  if(plans.length){
+    const sum=k=>{const v=plans.map(([,p])=>p[k]).filter(x=>x!=null);return v.length?v.reduce((a,b)=>a+b,0):null;};
+    const main=S.plans.Main, top=S.plans['Top-Up'];
+    if(S.employer==null)S.employer=sum('employer');
+    if(S.employee==null&&main&&main.employee!=null)S.employee=main.employee;
+    if(S.avc==null&&top&&top.employee!=null)S.avc=top.employee;
+  }
   return S.date&&S.totalValue!=null&&S.totalValue>=0?S:null;
 }
 // ---------- best-effort reading of statements the app doesn't recognise ----------
@@ -2414,7 +2446,9 @@ function renderGrowthBars(S){
   wrap.classList.toggle('hidden',yrs.length<2);
   if(yrs.length<2)return;
   const svg=$('tlGrowth');
-  const W=760,H=220,L=70,R=20,T=30,B=34;
+  // the bottom margin has to clear the deepest bar's value label as well as the year
+  // labels beneath it — a full-depth losing year used to print its figure over the year
+  const W=760,H=220,L=70,R=20,T=30,B=50;
   const maxAbs=Math.max(...yrs.map(x=>Math.abs(x.g)),1);
   // split the plot height between gains (above zero) and losses (below), proportionally
   const posSpan=Math.max(...yrs.map(x=>x.g),0)||maxAbs;
